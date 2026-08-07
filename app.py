@@ -40,21 +40,20 @@ class Appointment(db.Model):
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default='Confirmed')
 
-# Ensure tables are created safely
 with app.app_context():
     try:
         db.create_all()
     except Exception as e:
-        print("Database sync info:", e)
+        print("DB init error:", e)
 
 # ---------------------------------------------------------------------------
-# Core Routes
+# Core Routes (Fix 405 by adding GET/POST explicitly)
 # ---------------------------------------------------------------------------
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
-    return render_template('login.html')
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -89,7 +88,7 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-
+        
         try:
             user = User.query.filter_by(email=email).first()
             if user and bcrypt.check_password_hash(user.password, password):
@@ -101,17 +100,17 @@ def login():
             else:
                 flash('Invalid email or password.', 'danger')
         except Exception as e:
-            flash('Database connecting... please refresh in a moment.', 'warning')
+            flash('Database connecting... please try logging in again.', 'warning')
 
     return render_template('login.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['GET', 'POST'])
 def logout():
     session.clear()
     flash('Logged out successfully.', 'info')
     return redirect(url_for('login'))
 
-@app.route('/dashboard')
+@app.route('/dashboard', methods=['GET'])
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
@@ -133,7 +132,7 @@ def dashboard():
 def add_vital():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-
+    
     systolic = int(request.form.get('systolic', 120))
     diastolic = int(request.form.get('diastolic', 80))
     heart_rate = int(request.form.get('heart_rate', 72))
@@ -144,7 +143,7 @@ def add_vital():
     flash('Vitals recorded!', 'success')
     return redirect(url_for('dashboard'))
 
-@app.route('/api/vitals-chart-data')
+@app.route('/api/vitals-chart-data', methods=['GET'])
 def vitals_chart_data():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
