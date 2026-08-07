@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Consultation Chat - MediMind AI{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 30px auto; padding: 0 20px;">
+    
+    <!-- HEADER -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h2>💬 Consultation Thread</h2>
+            <p style="color: var(--text-sub); font-size: 0.9rem;">
+                Patient: <strong>{{ appt.patient_name }}</strong> &bull; Doctor: <strong>{{ appt.doctor_name }}</strong>
+            </p>
+        </div>
+        <a href="{{ url_for('doctor_dashboard') if user.role == 'doctor' else url_for('dashboard') }}" style="text-decoration: none; color: var(--primary); font-weight: 600;">&larr; Back to Dashboard</a>
+    </div>
+
+    <!-- MESSAGES THREAD BOX -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+        {% if messages %}
+            {% for msg in messages %}
+                <div style="max-width: 70%; padding: 12px; border-radius: 12px; {% if msg.sender_id == user.id %} margin-left: auto; background-color: var(--primary-light); color: var(--primary-dark); {% else %} margin-right: auto; background-color: var(--bg-light); color: var(--text-dark); border: 1px solid var(--border); {% endif %}">
+                    <strong style="display: block; font-size: 0.8rem; margin-bottom: 4px;">{{ msg.sender_name }} ({{ msg.sender_role|capitalize }})</strong>
+                    <p style="font-size: 0.95rem; margin: 0;">{{ msg.body }}</p>
+                    <span style="display: block; font-size: 0.7rem; opacity: 0.7; text-align: right; margin-top: 4px;">{{ msg.created_at }}</span>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p style="text-align: center; color: var(--text-sub); margin: auto;">No messages sent yet. Start the conversation below!</p>
+        {% endif %}
+    </div>
+
+    <!-- INPUT FORM -->
+    <form method="POST" style="display: flex; gap: 10px; margin-top: 16px;">
+        <input type="text" name="message_body" placeholder="Type your clinical question or message..." required style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border); outline: none;">
+        <button type="submit" style="background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">Send</button>
+    </form>
+
+</div>
+{% endblock %}

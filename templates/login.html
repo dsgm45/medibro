@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Log In - MediMind AI{% endblock %}
+{% block content %}
+<div style="max-width: 400px; margin: 60px auto; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <h2 style="margin-bottom: 4px;">Welcome back</h2>
+    <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px;">Log in to MediMind AI</p>
+    <form method="POST" style="display: grid; gap: 14px;">
+        <div>
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Email</label>
+            <input type="email" name="email" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+        </div>
+        <div>
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Password</label>
+            <input type="password" name="password" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+        </div>
+        <button type="submit" style="padding:10px; border:none; border-radius:6px; background:var(--primary); color:white; font-weight:600; cursor:pointer;">Log In</button>
+    </form>
+    <p style="margin-top:16px; font-size:0.875rem; color:var(--text-sub);">
+        Don't have an account? <a href="{{ url_for('register') }}" style="color:var(--primary); font-weight:600; text-decoration:none;">Register</a>
+    </p>
+</div>
+{% endblock %}

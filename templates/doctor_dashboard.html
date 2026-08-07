@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Doctor Dashboard - MediMind AI{% endblock %}
+
+{% block content %}
+<div class="doctor-dashboard-container" style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    
+    <!-- HEADER WITH LOGOUT LINK -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1 style="font-size: 1.8rem; color: var(--text-dark); margin-bottom: 4px;">
+                Welcome, {{ doctor.full_name }} 👋
+            </h1>
+            <p style="color: var(--text-sub); font-size: 0.95rem;">
+                Specialty: <strong>{{ doctor.specialty or 'General Practitioner' }}</strong> &bull; Phone: <strong>{{ doctor.phone or 'Not Provided' }}</strong>
+            </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="background-color: var(--primary-light); color: var(--primary-dark); padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 0.875rem;">
+                👨‍⚕️ Provider ID: #DOC-{{ doctor.id }}
+            </span>
+            <a href="{{ url_for('logout') }}" style="background-color: var(--danger-light); color: var(--danger); padding: 8px 16px; border-radius: var(--radius-sm); text-decoration: none; font-weight: 600; font-size: 0.875rem;">
+                🚪 Log Out
+            </a>
+        </div>
+    </div>
+
+    <!-- APPOINTMENTS TABLE -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; color: var(--text-dark); margin-bottom: 16px;">Patient Consultations</h2>
+
+        {% if appointments %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.925rem;">
+                <thead>
+                    <tr style="background-color: var(--bg-light); border-bottom: 2px solid var(--border); color: var(--text-sub);">
+                        <th style="padding: 12px;">Patient Info</th>
+                        <th style="padding: 12px;">Date & Time</th>
+                        <th style="padding: 12px;">Status</th>
+                        <th style="padding: 12px;">Follow-up Status</th>
+                        <th style="padding: 12px; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for appt in appointments %}
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 14px 12px;">
+                            <strong style="color: var(--text-dark); display: block;">{{ appt.patient_name }}</strong>
+                            <span style="font-size: 0.8rem; color: var(--text-sub);">📧 {{ appt.patient_email }} &bull; 📞 {{ appt.patient_phone or 'No Phone' }}</span>
+                        </td>
+                        <td style="padding: 14px 12px; font-weight: 500;">
+                            🗓️ {{ appt.appt_date }} at ⏱️ {{ appt.appt_time }}
+                        </td>
+                        <td style="padding: 14px 12px;">
+                            {% if appt.status == 'Completed' %}
+                                <span style="background-color: var(--success-light); color: var(--success); padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">✓ Completed</span>
+                            {% else %}
+                                <span style="background-color: var(--primary-light); color: var(--primary-dark); padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">🗓️ {{ appt.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 14px 12px;">
+                            {% if appt.days_until_follow_up is not none %}
+                                {% if appt.days_until_follow_up >= 0 %}
+                                    <span style="background-color: var(--warning-light); color: var(--warning); padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">
+                                        ⏳ Follow-up in {{ appt.days_until_follow_up }} days ({{ appt.follow_up_date }})
+                                    </span>
+                                {% else %}
+                                    <span style="font-size: 0.8rem; color: var(--text-sub);">Past Follow-up ({{ appt.follow_up_date }})</span>
+                                {% endif %}
+                            {% else %}
+                                <span style="font-size: 0.8rem; color: var(--text-sub);">None Scheduled</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 14px 12px; text-align: right;">
+                            <a href="{{ url_for('appointment_messages', appointment_id=appt.id) }}" style="background-color: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 6px;">
+                                💬 Chat
+                            </a>
+
+                            {% if appt.status != 'Completed' %}
+                            <button onclick="showCompleteModal({{ appt.id }})" style="background-color: var(--success); color: white; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                                Mark Completed
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="text-align: center; padding: 40px; color: var(--text-sub);">No patient appointments found.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- FOLLOW-UP COMPLETION MODAL -->
+<div id="completeModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+    <div style="background: var(--surface); padding: 24px; border-radius: var(--radius); width: 100%; max-width: 400px;">
+        <h3 style="margin-bottom: 12px;">Complete Appointment</h3>
+        <form id="completeForm" method="POST">
+            <div style="margin-bottom: 16px;">
+                <label style="display:block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px;">Schedule Follow-up Date (Optional):</label>
+                <input type="date" name="follow_up_date" min="{{ today_str }}" style="width:100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" onclick="closeCompleteModal()" style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: transparent;">Cancel</button>
+                <button type="submit" style="padding: 8px 16px; border-radius: 6px; border: none; background: var(--success); color: white; font-weight: 600;">Confirm Completion</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showCompleteModal(apptId) {
+    const form = document.getElementById('completeForm');
+    form.action = `/appointment/${apptId}/complete`;
+    document.getElementById('completeModal').style.display = 'flex';
+}
+function closeCompleteModal() {
+    document.getElementById('completeModal').style.display = 'none';
+}
+</script>
+{% endblock %}

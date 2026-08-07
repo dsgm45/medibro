@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MediMind AI{% endblock %}</title>
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-dark: #0369a1;
+            --primary-light: #e0f2fe;
+            --accent-teal: #0d9488;
+            --success: #16a34a;
+            --success-light: #dcfce7;
+            --danger: #dc2626;
+            --danger-light: #fee2e2;
+            --warning: #d97706;
+            --warning-light: #fef3c7;
+            --text-dark: #0f172a;
+            --text-sub: #64748b;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --bg-light: #f8fafc;
+            --bg-body: #f1f5f9;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-dark);
+        }
+        a { color: inherit; }
+        .top-nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .top-nav .brand {
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--primary-dark);
+            text-decoration: none;
+        }
+        .flash-wrap {
+            max-width: 1100px;
+            margin: 16px auto 0 auto;
+            padding: 0 20px;
+        }
+        .flash {
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .flash-success { background: var(--success-light); color: var(--success); }
+        .flash-error { background: var(--danger-light); color: var(--danger); }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <a class="brand" href="{{ url_for('index') }}">🩺 MediMind AI</a>
+    </nav>
+
+    <div class="flash-wrap">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ 'success' if category == 'success' else 'error' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    {% block content %}{% endblock %}
+</body>
+</html>
