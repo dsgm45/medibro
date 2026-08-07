@@ -1,677 +1,200 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediBro - Health Dashboard</title>
+    <!-- Tailwind CSS & Chart.js & FontAwesome Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
 
-{% block title %}Patient Dashboard - MediMind AI{% endblock %}
-
-{% block content %}
-<style>
-    /* Dashboard Layout Structure */
-    .dashboard-container {
-        display: flex;
-        min-height: calc(100vh - 70px);
-        background-color: var(--bg-body, #f1f5f9);
-    }
-
-    /* Sidebar Styling */
-    .dashboard-sidebar {
-        width: 260px;
-        background-color: var(--surface, #ffffff);
-        border-right: 1px solid var(--border, #e2e8f0);
-        padding: 24px 16px;
-        flex-shrink: 0;
-    }
-
-    .sidebar-brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--primary-dark, #0369a1);
-        padding: 0 12px 20px 12px;
-        border-bottom: 1px solid var(--border, #e2e8f0);
-        margin-bottom: 20px;
-    }
-
-    .brand-badge {
-        width: 32px;
-        height: 32px;
-        background: var(--primary, #0284c7);
-        color: white;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-    }
-
-    .sidebar-menu {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-
-    .sidebar-item {
-        margin-bottom: 6px;
-    }
-
-    .sidebar-link {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        border-radius: 8px;
-        font-weight: 500;
-        color: var(--text-sub, #64748b);
-        text-decoration: none;
-        transition: all 0.2s ease;
-    }
-
-    .sidebar-link:hover {
-        background-color: var(--bg-body, #f1f5f9);
-        color: var(--primary, #0284c7);
-    }
-
-    .sidebar-link.active {
-        background-color: var(--primary-light, #e0f2fe);
-        color: var(--primary-dark, #0369a1);
-        font-weight: 600;
-    }
-
-    /* Main Content Styling */
-    .dashboard-main {
-        flex: 1;
-        padding: 32px 40px;
-        overflow-y: auto;
-    }
-
-    .top-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 28px;
-    }
-
-    .user-badge {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        background: var(--surface, #ffffff);
-        padding: 8px 16px;
-        border-radius: 30px;
-        border: 1px solid var(--border, #e2e8f0);
-    }
-
-    .avatar-circle {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        background-color: var(--primary, #0284c7);
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 0.95rem;
-    }
-
-    /* Cards & Layout Grids */
-    .card {
-        background-color: var(--surface, #ffffff);
-        border: 1px solid var(--border, #e2e8f0);
-        border-radius: var(--radius, 12px);
-        padding: 24px;
-        margin-bottom: 24px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-
-    .vitals-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        gap: 16px;
-        margin-top: 16px;
-    }
-
-    .vital-card {
-        background-color: var(--surface, #ffffff);
-        border: 1px solid var(--border, #e2e8f0);
-        border-radius: var(--radius, 12px);
-        padding: 18px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-
-    .vital-card.flag-abnormal {
-        border-color: var(--danger, #dc2626);
-        background-color: #fef2f2;
-    }
-
-    .vital-card.flag-warning {
-        border-color: var(--warning, #d97706);
-        background-color: #fffbeb;
-    }
-
-    .vital-title {
-        font-size: 0.875rem;
-        color: var(--text-sub, #64748b);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-    }
-
-    .vital-value {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: var(--text-dark, #0f172a);
-    }
-
-    .badge-status {
-        display: inline-block;
-        margin-top: 8px;
-        padding: 3px 10px;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
-    .status-normal { background-color: var(--success-light, #dcfce7); color: var(--success, #16a34a); }
-    .status-abnormal { background-color: #fee2e2; color: var(--danger, #dc2626); }
-    .status-warning { background-color: #fef3c7; color: var(--warning, #d97706); }
-
-    /* Upcoming Appt Box */
-    .appt-rich-box {
-        background-color: var(--primary-light, #e0f2fe);
-        border-left: 4px solid var(--primary, #0284c7);
-        padding: 18px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-
-    /* Medicine Checklist */
-    .checklist {
-        list-style: none;
-        padding: 0;
-        margin: 16px 0 0 0;
-    }
-
-    .checklist-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 14px 12px;
-        border-bottom: 1px solid var(--border, #e2e8f0);
-    }
-
-    .checklist-item.taken {
-        opacity: 0.45;
-        text-decoration: line-through;
-    }
-
-    .pill-badge {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--primary-dark, #0369a1);
-        background-color: var(--primary-light, #e0f2fe);
-        padding: 4px 12px;
-        border-radius: 20px;
-    }
-
-    /* Action Buttons */
-    .btn-action {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 18px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 0.925rem;
-        border: none;
-        cursor: pointer;
-        text-decoration: none;
-    }
-
-    .btn-primary { background-color: var(--primary, #0284c7); color: white; }
-    .btn-ai { background-color: var(--accent-teal, #0d9488); color: white; }
-    .btn-emergency { background-color: var(--danger, #dc2626); color: white; }
-
-    /* Modal Overlay */
-    .modal-overlay {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background-color: rgba(15, 23, 42, 0.55);
-        backdrop-filter: blur(4px);
-        display: flex; align-items: center; justify-content: center;
-        z-index: 1000;
-        opacity: 0; visibility: hidden;
-        transition: all 0.25s ease;
-    }
-
-    .modal-overlay.active { opacity: 1; visibility: visible; }
-
-    .modal-card {
-        background-color: var(--surface, #ffffff);
-        border-radius: 12px;
-        width: 100%; max-width: 480px;
-        padding: 28px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        position: relative;
-    }
-
-    @media (max-width: 900px) {
-        .dashboard-container { flex-direction: column; }
-        .dashboard-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
-        .dashboard-main { padding: 20px; }
-    }
-</style>
-
-<div class="dashboard-container">
-
-    <!-- 1. PERSISTENT SIDEBAR NAVIGATION -->
-    <aside class="dashboard-sidebar">
-        <div class="sidebar-brand">
-            <div class="brand-badge">M</div>
-            MediMind AI
+    <!-- Top Navigation Bar -->
+    <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="bg-teal-500 text-slate-900 p-2 rounded-lg font-black text-xl">MB</div>
+            <span class="text-2xl font-bold tracking-tight text-teal-400">MediBro</span>
         </div>
-        <ul class="sidebar-menu">
-            <li class="sidebar-item"><a href="{{ url_for('dashboard') }}" class="sidebar-link active">🏠 Dashboard</a></li>
-            <li class="sidebar-item"><a href="#bookingSection" class="sidebar-link">👨‍⚕️ Find Doctors</a></li>
-            <li class="sidebar-item"><a href="#appointmentsSection" class="sidebar-link">📅 My Appointments</a></li>
-            <li class="sidebar-item"><a href="#" class="sidebar-link" onclick="alert('Medical Reports module coming soon!')">📑 Medical Reports</a></li>
-            <li class="sidebar-item"><a href="#medicinesSection" class="sidebar-link">💊 Medicine Reminders</a></li>
-            <li class="sidebar-item"><a href="#" class="sidebar-link" onclick="alert('Health History timeline coming soon!')">📜 Health History</a></li>
-            <li class="sidebar-item"><a href="#" class="sidebar-link" onclick="alert('Profile Settings coming soon!')">⚙️ Profile & Settings</a></li>
-        </ul>
-    </aside>
-
-    <!-- MAIN DASHBOARD AREA -->
-    <main class="dashboard-main">
-
-        <!-- HEADER BAR -->
-        <div class="top-header">
-            <div>
-                <h1 style="font-size: 1.75rem; margin-bottom: 4px;">Welcome back, {{ user.full_name }} 👋</h1>
-                <p style="color: var(--text-sub); font-size: 0.9rem;">Phone: {{ user.phone or 'Not Provided' }} &bull; Patient ID: #PAT-{{ user.id }}</p>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div class="user-badge">
-                    <div class="avatar-circle">{{ user.full_name[0]|upper }}</div>
-                    <span style="font-weight: 600; font-size: 0.9rem;">{{ user.full_name }}</span>
-                </div>
-                <a href="{{ url_for('logout') }}" style="color: var(--danger); background-color: #fee2e2; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Log Out</a>
-            </div>
+        <div class="flex items-center space-x-4">
+            <span class="text-slate-300 font-medium">
+                <i class="fa-solid fa-user-circle text-teal-400 mr-1"></i> {{ session.get('user_name', 'Patient') }}
+                <span class="ml-2 text-xs bg-teal-900 text-teal-300 px-2 py-0.5 rounded-full uppercase tracking-wider">{{ session.get('user_role', 'Patient') }}</span>
+            </span>
+            <a href="/logout" class="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white px-3 py-1.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-sign-out-alt mr-1"></i> Logout
+            </a>
         </div>
+    </nav>
 
-        <!-- QUICK ACTIONS BAR -->
-        <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px;">
-            <a href="#bookingSection" class="btn-action btn-primary">📅 Book Appointment</a>
-            <button type="button" class="btn-action btn-ai" id="btnSymptomChecker">✨ AI Symptom Checker</button>
-            <button type="button" class="btn-action btn-emergency" id="btnEmergencySos">🚨 Emergency SOS</button>
-        </div>
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        <!-- 2. VITALS & HEALTH METRICS TRACKING -->
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <h3 style="font-size: 1.15rem;">Vitals & Health Metrics</h3>
-                <button type="button" class="btn-action btn-primary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="openVitalsModal()">✏️ Log New Vitals</button>
-            </div>
+        <!-- Left Column: Vitals Chart & Form -->
+        <div class="lg:col-span-2 space-y-8">
             
-            {% if vitals %}
-                <p style="font-size: 0.8rem; color: var(--text-sub); margin-bottom: 16px;">Last recorded on: <strong>{{ vitals.recorded_at }}</strong></p>
-                <div class="vitals-grid">
-                    
-                    <!-- Heart Rate Card -->
-                    <div class="vital-card {% if vitals.hr_flag == 'abnormal' %}flag-abnormal{% endif %}">
-                        <div class="vital-title">
-                            <span>Heart Rate</span>
-                            <span>❤️</span>
-                        </div>
-                        <div class="vital-value">{{ vitals.heart_rate or '--' }} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-sub);">bpm</span></div>
-                        <span class="badge-status {% if vitals.hr_flag == 'abnormal' %}status-abnormal{% else %}status-normal{% endif %}">
-                            {{ vitals.hr_status }}
-                        </span>
-                    </div>
-
-                    <!-- Blood Pressure Card -->
-                    <div class="vital-card {% if vitals.bp_flag == 'abnormal' %}flag-abnormal{% elif vitals.bp_flag == 'warning' %}flag-warning{% endif %}">
-                        <div class="vital-title">
-                            <span>Blood Pressure</span>
-                            <span>🩺</span>
-                        </div>
-                        <div class="vital-value">{{ vitals.bp_systolic or '--' }}/{{ vitals.bp_diastolic or '--' }} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-sub);">mmHg</span></div>
-                        <span class="badge-status {% if vitals.bp_flag == 'abnormal' %}status-abnormal{% elif vitals.bp_flag == 'warning' %}status-warning{% else %}status-normal{% endif %}">
-                            {{ vitals.bp_status }}
-                        </span>
-                    </div>
-
-                    <!-- Blood Sugar Card -->
-                    <div class="vital-card {% if vitals.sugar_flag == 'abnormal' %}flag-abnormal{% elif vitals.sugar_flag == 'warning' %}flag-warning{% endif %}">
-                        <div class="vital-title">
-                            <span>Blood Sugar (Fasting)</span>
-                            <span>🧪</span>
-                        </div>
-                        <div class="vital-value">{{ vitals.blood_sugar or '--' }} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-sub);">mg/dL</span></div>
-                        <span class="badge-status {% if vitals.sugar_flag == 'abnormal' %}status-abnormal{% elif vitals.sugar_flag == 'warning' %}status-warning{% else %}status-normal{% endif %}">
-                            {{ vitals.sugar_status }}
-                        </span>
-                    </div>
-
-                    <!-- Body Weight Card -->
-                    <div class="vital-card">
-                        <div class="vital-title">
-                            <span>Body Weight</span>
-                            <span>⚖️</span>
-                        </div>
-                        <div class="vital-value">{{ vitals.weight_kg or '--' }} <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-sub);">kg</span></div>
-                        <span class="badge-status status-normal">Recorded</span>
-                    </div>
-
+            <!-- Vitals Analytics Card -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-white flex items-center">
+                        <i class="fa-solid fa-heart-pulse text-red-400 mr-2"></i> Vitals Analytics
+                    </h2>
+                    <span class="text-xs text-slate-400">Live PostgreSQL Sync</span>
                 </div>
-            {% else %}
-                <div style="text-align: center; padding: 24px; color: var(--text-sub);">
-                    <p>No vitals logged yet. Click <strong>"Log New Vitals"</strong> above to record your current measurements!</p>
+                <div class="h-64">
+                    <canvas id="vitalsChart"></canvas>
                 </div>
-            {% endif %}
-
-            <!-- Disclaimer -->
-            <p style="font-size: 0.775rem; color: var(--text-sub); margin-top: 18px; font-style: italic; border-top: 1px solid var(--border); padding-top: 10px;">
-                ⚠️ Disclaimer: These ranges are general reference guidelines, not a medical diagnosis. Always consult your doctor regarding your personal health results.
-            </p>
-        </div>
-
-        <!-- 5. AI HEALTH ASSISTANT INSIGHT CARD (DEMO ONLY) -->
-        <div class="card" style="{% if abnormal_vitals %} background-color: #fef2f2; border-color: #fca5a5; {% else %} background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%); border-color: #bbf7d0; {% endif %}">
-            <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: {% if abnormal_vitals %}var(--danger){% else %}var(--accent-teal){% endif %}; margin-bottom: 8px;">
-                ✨ AI Health Assistant Insight <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-sub);">(Demo / Placeholder Logic)</span>
-            </div>
-            {% if abnormal_vitals %}
-                <p style="font-size: 0.9rem; color: var(--text-dark); line-height: 1.5;">
-                    <strong>Medical Attention Alert:</strong> Abnormal vitals detected ({{ abnormal_vitals|join(', ') }}). We recommend consulting your assigned physician or scheduling an appointment.
-                </p>
-            {% else %}
-                <p style="font-size: 0.9rem; color: var(--text-dark); line-height: 1.5;">
-                    No health alerts right now. Your logged measurements are within optimal ranges. Keep up your healthy exercise and hydration routine!
-                </p>
-            {% endif %}
-        </div>
-
-        <!-- 3. RICHER UPCOMING APPOINTMENT CARD -->
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="font-size: 1.15rem;">Next Upcoming Appointment</h3>
-                <a href="#appointmentsSection" style="font-size: 0.875rem; color: var(--primary); text-decoration: none; font-weight: 600;">View All Appointments &rarr;</a>
             </div>
 
-            {% if next_appointment %}
-                <div class="appt-rich-box">
-                    <div class="avatar-circle" style="width: 52px; height: 52px; font-size: 1.1rem; flex-shrink: 0;">
-                        {{ next_appointment.initials }}
-                    </div>
-                    <div style="flex: 1;">
-                        <h4 style="font-size: 1.05rem; margin-bottom: 2px;">{{ next_appointment.doctor_name }}</h4>
-                        <p style="font-size: 0.875rem; color: var(--text-sub); margin-bottom: 6px;">{{ next_appointment.specialty or 'Specialist' }} &bull; 📞 {{ next_appointment.doctor_phone or 'N/A' }}</p>
-                        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                            <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-dark);">
-                                🗓️ {% if next_appointment.appt_date == today_str %}Today{% else %}{{ next_appointment.appt_date }}{% endif %}, {{ next_appointment.appt_time }}
-                            </span>
-                            <span class="badge-status status-normal">{{ next_appointment.status }}</span>
-                        </div>
+            <!-- Log Vitals Form -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center">
+                    <i class="fa-solid fa-plus-circle text-teal-400 mr-2"></i> Log New Vital Reading
+                </h3>
+                <form action="/api/add-vital" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Systolic (BP High)</label>
+                        <input type="number" name="systolic" placeholder="120" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
                     </div>
                     <div>
-                        <a href="{{ url_for('appointment_messages', appointment_id=next_appointment.id) }}" class="btn-action btn-primary" style="padding: 8px 14px; font-size: 0.85rem;">💬 Chat</a>
+                        <label class="block text-xs text-slate-400 mb-1">Diastolic (BP Low)</label>
+                        <input type="number" name="diastolic" placeholder="80" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Heart Rate (BPM)</label>
+                        <input type="number" name="heart_rate" placeholder="72" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
+                    </div>
+                    <div class="md:col-span-3">
+                        <button type="submit" class="w-full bg-teal-500 hover:bg-teal-400 text-slate-900 font-bold py-2.5 rounded-xl transition shadow-lg shadow-teal-500/20">
+                            Save Vitals Record
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Appointments Section -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center">
+                    <i class="fa-solid fa-calendar-check text-teal-400 mr-2"></i> Book Appointment
+                </h3>
+                <form action="/api/book-appointment" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Select Specialist</label>
+                        <select name="doctor_name" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
+                            <option value="Dr. Sarah Jenkins (Cardiology)">Dr. Sarah Jenkins (Cardiology)</option>
+                            <option value="Dr. Rajesh Patel (General Physician)">Dr. Rajesh Patel (General Physician)</option>
+                            <option value="Dr. Elena Rostova (Neurology)">Dr. Elena Rostova (Neurology)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Date</label>
+                        <input type="date" name="date" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Time Slot</label>
+                        <input type="time" name="time" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Notes / Symptoms</label>
+                        <input type="text" name="notes" placeholder="Brief reason for consultation" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-teal-400">
+                    </div>
+                    <div class="md:col-span-2">
+                        <button type="submit" class="w-full bg-teal-500 hover:bg-teal-400 text-slate-900 font-bold py-2.5 rounded-xl transition shadow-lg shadow-teal-500/20">
+                            Confirm Booking
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+
+        <!-- Right Column: MediBro AI Health Assistant -->
+        <div class="space-y-8">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col h-[580px]">
+                <div class="flex items-center space-x-3 pb-4 border-b border-slate-700">
+                    <div class="bg-teal-500/20 text-teal-400 p-2.5 rounded-xl">
+                        <i class="fa-solid fa-robot text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white">MediBro AI Assistant</h3>
+                        <p class="text-xs text-teal-400 flex items-center"><span class="w-2 h-2 bg-teal-400 rounded-full mr-1.5 animate-pulse"></span> Online & Ready</p>
                     </div>
                 </div>
-            {% else %}
-                <div style="text-align: center; padding: 20px; color: var(--text-sub);">
-                    <p>No upcoming appointments scheduled.</p>
+
+                <!-- Chat Box Messages -->
+                <div id="chatBox" class="flex-1 overflow-y-auto py-4 space-y-3 text-sm pr-1">
+                    <div class="bg-slate-700/50 p-3 rounded-2xl max-w-[85%] text-slate-200">
+                        Hello! I am MediBro AI. Ask me about your health questions or symptoms!
+                    </div>
                 </div>
-            {% endif %}
+
+                <!-- Chat Input Form -->
+                <form id="aiForm" class="flex space-x-2 pt-3 border-t border-slate-700">
+                    <input type="text" id="aiInput" placeholder="Ask MediBro AI..." required class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-teal-400">
+                    <button type="submit" class="bg-teal-500 hover:bg-teal-400 text-slate-900 font-bold px-4 py-2 rounded-xl transition">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
         </div>
 
-        <!-- BOOKING SECTION -->
-        <div class="card" id="bookingSection">
-            <h3 style="font-size: 1.15rem; margin-bottom: 12px;">📅 Schedule a Consultation</h3>
-            <form id="bookingForm" method="POST" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                <select id="doctorSelect" name="doctor_id" required style="padding: 10px; border-radius: 6px; border: 1px solid var(--border); flex: 1; min-width: 200px;" onchange="updateBookingAction()">
-                    <option value="">-- Select Physician --</option>
-                    {% for doc in doctors %}
-                        <option value="{{ doc.id }}">{{ doc.full_name }} ({{ doc.specialty or 'General Practice' }}) - 📞 {{ doc.phone or 'N/A' }}</option>
-                    {% endfor %}
-                </select>
-                <input type="date" name="appt_date" min="{{ today_str }}" required style="padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-                <input type="time" name="appt_time" required style="padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-                <button type="submit" class="btn-action btn-primary">Book Consultation</button>
-            </form>
-        </div>
-
-        <!-- 4. STYLED MEDICINE CHECKLIST -->
-        <div class="card" id="medicinesSection">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h3 style="font-size: 1.15rem;">💊 Medicine Reminder Checklist</h3>
-            </div>
-
-            <!-- Add Medicine Form -->
-            <form action="{{ url_for('add_medicine') }}" method="POST" style="display: grid; gap: 10px; background: var(--bg-body); padding: 14px; border-radius: 8px; margin-bottom: 16px;">
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <input type="text" name="name" placeholder="Medication Name" required style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); flex: 1;">
-                    <input type="text" name="dosage" placeholder="Dosage (e.g. 500mg)" required style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); flex: 1;">
-                    <input type="time" name="reminder_time" required style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
-                </div>
-                <input type="text" name="instructions" placeholder="Instructions (e.g., Take after breakfast with water)" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
-                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                    <select name="recurrence" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
-                        <option value="daily">Daily</option>
-                        <option value="specific_days">Specific Days</option>
-                    </select>
-                    <label style="font-size: 0.85rem;"><input type="checkbox" name="days_of_week" value="Mon"> Mon</label>
-                    <label style="font-size: 0.85rem;"><input type="checkbox" name="days_of_week" value="Wed"> Wed</label>
-                    <label style="font-size: 0.85rem;"><input type="checkbox" name="days_of_week" value="Fri"> Fri</label>
-                    <button type="submit" class="btn-action btn-primary" style="padding: 6px 14px; font-size: 0.85rem; margin-left: auto;">+ Add Medication</button>
-                </div>
-            </form>
-
-            <!-- Checklist Item List -->
-            {% if medicines %}
-                <ul class="checklist">
-                    {% for med in medicines %}
-                    <li class="checklist-item" data-time="{{ med.reminder_time }}" data-name="{{ med.name }}">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <input type="checkbox" class="med-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
-                            <span style="font-size: 1.4rem;">💊</span>
-                            <div>
-                                <strong style="color: var(--text-dark); display: block;">{{ med.name }} <span style="font-weight: 400; color: var(--text-sub); font-size: 0.875rem;">({{ med.dosage }})</span></strong>
-                                <small style="color: var(--text-sub);">
-                                    {% if med.instructions %}{{ med.instructions }} &bull; {% endif %}Recurrence: {{ med.recurrence|capitalize }}
-                                </small>
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span class="pill-badge">⏱️ {{ med.reminder_time }}</span>
-                            <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
-                            <form action="{{ url_for('delete_medicine', med_id=med.id) }}" method="POST" style="display:inline;">
-                                <button type="submit" style="color: var(--danger); background: none; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Delete</button>
-                            </form>
-                        </div>
-                    </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p style="text-align: center; color: var(--text-sub); padding: 16px;">No medicine reminders added yet.</p>
-            {% endif %}
-        </div>
-
-        <!-- FULL APPOINTMENTS TABLE SECTION -->
-        <div class="card" id="appointmentsSection">
-            <h3 style="font-size: 1.15rem; margin-bottom: 12px;">All Patient Consultations</h3>
-            {% if appointments %}
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
-                        <thead>
-                            <tr style="background: var(--bg-body); border-bottom: 2px solid var(--border); color: var(--text-sub);">
-                                <th style="padding: 10px;">Physician</th>
-                                <th style="padding: 10px;">Date & Time</th>
-                                <th style="padding: 10px;">Status</th>
-                                <th style="padding: 10px;">Follow-Up Alert</th>
-                                <th style="padding: 10px; text-align: right;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for appt in appointments %}
-                            <tr style="border-bottom: 1px solid var(--border);">
-                                <td style="padding: 12px;">
-                                    <strong>{{ appt.doctor_name }}</strong><br>
-                                    <small style="color: var(--text-sub);">{{ appt.specialty or 'Physician' }} &bull; 📞 {{ appt.doctor_phone or 'N/A' }}</small>
-                                </td>
-                                <td style="padding: 12px;">🗓️ {{ appt.appt_date }} at {{ appt.appt_time }}</td>
-                                <td style="padding: 12px;"><span class="badge-status status-normal">{{ appt.status }}</span></td>
-                                <td style="padding: 12px;">
-                                    {% if appt.days_until_follow_up is not none %}
-                                        {% if appt.days_until_follow_up >= 0 %}
-                                            <span style="background-color: #fef3c7; color: var(--warning); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
-                                                ⏳ Follow-up in {{ appt.days_until_follow_up }} days ({{ appt.follow_up_date }})
-                                            </span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span style="color: var(--text-sub); font-size: 0.85rem;">None</span>
-                                    {% endif %}
-                                </td>
-                                <td style="padding: 12px; text-align: right;">
-                                    <a href="{{ url_for('appointment_messages', appointment_id=appt.id) }}" class="btn-action btn-primary" style="padding: 6px 12px; font-size: 0.85rem;">💬 Chat</a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p style="text-align: center; color: var(--text-sub); padding: 16px;">No consultation history found.</p>
-            {% endif %}
-        </div>
-
-    </main>
-
-</div>
-
-<!-- LOG NEW VITALS MODAL -->
-<div class="modal-overlay" id="vitalsModal">
-    <div class="modal-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="font-size: 1.25rem;">Log Vitals Measurement</h3>
-            <button type="button" onclick="closeVitalsModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer;">&times;</button>
-        </div>
-        <form action="{{ url_for('add_vitals') }}" method="POST">
-            <div style="margin-bottom: 12px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Heart Rate (bpm) [Normal: 60-100]</label>
-                <input type="number" name="heart_rate" placeholder="e.g. 72" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-            </div>
-            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
-                <div style="flex: 1;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Systolic BP (mmHg)</label>
-                    <input type="number" name="blood_pressure_systolic" placeholder="e.g. 120" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-                </div>
-                <div style="flex: 1;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Diastolic BP (mmHg)</label>
-                    <input type="number" name="blood_pressure_diastolic" placeholder="e.g. 80" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-                </div>
-            </div>
-            <div style="margin-bottom: 12px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Fasting Blood Sugar (mg/dL) [Normal: 70-99]</label>
-                <input type="number" name="blood_sugar" placeholder="e.g. 95" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-            </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">Body Weight (kg)</label>
-                <input type="number" step="0.1" name="weight_kg" placeholder="e.g. 68.5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-            </div>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" onclick="closeVitalsModal()" class="btn-action" style="background: transparent; border: 1px solid var(--border);">Cancel</button>
-                <button type="submit" class="btn-action btn-primary">Save Measurement</button>
-            </div>
-        </form>
     </div>
-</div>
 
-<!-- PRESERVED AI SYMPTOM CHECKER MODAL -->
-<div class="modal-overlay" id="symptomModal">
-    <div class="modal-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="font-size: 1.25rem;">✨ AI Symptom Assessment</h3>
-            <button type="button" id="closeSymptomBtn" style="background: none; border: none; font-size: 1.4rem; cursor: pointer;">&times;</button>
-        </div>
-        <p style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 12px;">Describe what symptoms you are experiencing to receive AI guidance.</p>
-        <form id="symptomForm">
-            <textarea id="symptomText" rows="4" placeholder="e.g. Mild fever and sore throat for 2 days..." required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 12px; outline: none;"></textarea>
-            <button type="submit" class="btn-action btn-ai" style="width: 100%; justify-content: center;">Analyze Symptoms ✨</button>
-        </form>
-        <div id="aiAnalysisResult" style="background-color: #ccfbf1; border-left: 4px solid var(--accent-teal); padding: 12px; border-radius: 6px; font-size: 0.9rem; color: #0f766e; display: none; margin-top: 14px;"></div>
-    </div>
-</div>
-
-<script>
-// Booking Form Route Binding
-function updateBookingAction() {
-    const docId = document.getElementById('doctorSelect').value;
-    if(docId) document.getElementById('bookingForm').action = `/book/${docId}`;
-}
-
-// Vitals Modal Control
-function openVitalsModal() {
-    document.getElementById('vitalsModal').classList.add('active');
-}
-function closeVitalsModal() {
-    document.getElementById('vitalsModal').classList.remove('active');
-}
-
-// Checkbox Strikethrough for Medicines
-document.querySelectorAll('.med-checkbox').forEach(box => {
-    box.addEventListener('change', function() {
-        this.closest('.checklist-item').classList.toggle('taken', this.checked);
-    });
-});
-
-// Preserved Emergency SOS Action
-document.getElementById('btnEmergencySos').addEventListener('click', () => {
-    if (confirm("🚨 EMERGENCY SOS:\n\nAre you sure you want to alert emergency services and broadcast your geolocation?")) {
-        alert("🔴 SOS ALERT DISPATCHED!\n\nHelp is on the way.");
-    }
-});
-
-// Preserved Symptom Checker Modal Action
-const symptomModal = document.getElementById('symptomModal');
-document.getElementById('btnSymptomChecker').addEventListener('click', () => {
-    document.getElementById('aiAnalysisResult').style.display = 'none';
-    document.getElementById('symptomText').value = '';
-    symptomModal.classList.add('active');
-});
-document.getElementById('closeSymptomBtn').addEventListener('click', () => symptomModal.classList.remove('active'));
-
-document.getElementById('symptomForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const inputVal = document.getElementById('symptomText').value;
-    const res = document.getElementById('aiAnalysisResult');
-    res.innerHTML = `<strong>🤖 AI Triage Assessment:</strong><br>Based on reported symptoms (<em>"${inputVal.substring(0, 30)}..."</em>), we recommend consulting a <strong>General Physician</strong>.<br><br><small style="opacity: 0.8;">⚠️ Note: This is an automated assessment for demo purposes — please consult a doctor.</small>`;
-    res.style.display = 'block';
-});
-
-// Web Notifications Engine
-if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
-    Notification.requestPermission();
-}
-
-setInterval(() => {
-    if (Notification.permission === "granted") {
-        const now = new Date();
-        const currentTime = now.toTimeString().substring(0, 5);
-
-        document.querySelectorAll('li[data-time]').forEach(item => {
-            if (item.getAttribute('data-time') === currentTime && !item.hasAttribute('data-notified')) {
-                new Notification("💊 MediMind AI Reminder", {
-                    body: `It is time to take your medication: ${item.getAttribute('data-name')}`,
+    <!-- Chart.js & AI Chat Logic -->
+    <script>
+        // Initialize Vitals Chart
+        fetch('/api/vitals-chart-data')
+            .then(res => res.json())
+            .then(data => {
+                const ctx = document.getElementById('vitalsChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels.length ? data.labels : ['No Data'],
+                        datasets: [
+                            { label: 'Systolic BP', data: data.systolic, borderColor: '#ef4444', backgroundColor: '#ef444420', fill: true, tension: 0.3 },
+                            { label: 'Diastolic BP', data: data.diastolic, borderColor: '#3b82f6', backgroundColor: '#3b82f620', fill: true, tension: 0.3 },
+                            { label: 'Heart Rate (BPM)', data: data.heart_rate, borderColor: '#2dd4bf', backgroundColor: '#2dd4bf20', fill: true, tension: 0.3 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: {
+                            x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
+                            y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+                        }
+                    }
                 });
-                item.setAttribute('data-notified', 'true');
-            }
+            });
+
+        // AI Assistant Chat Form
+        document.getElementById('aiForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const input = document.getElementById('aiInput');
+            const chatBox = document.getElementById('chatBox');
+            const msg = input.value;
+            if(!msg) return;
+
+            // Render User Message
+            chatBox.innerHTML += `<div class="bg-teal-500/20 text-teal-200 p-3 rounded-2xl max-w-[85%] ml-auto text-right">${msg}</div>`;
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Query Backend AI Endpoint
+            fetch('/api/ai-assistant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg })
+            })
+            .then(res => res.json())
+            .then(data => {
+                chatBox.innerHTML += `<div class="bg-slate-700/50 p-3 rounded-2xl max-w-[85%] text-slate-200">${data.reply}</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
         });
-    }
-}, 30000);
-</script>
-{% endblock %}
+    </script>
+</body>
+</html>
