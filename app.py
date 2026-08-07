@@ -13,7 +13,7 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
 # ---------------------------------------------------------------------------
-# Database Models (Security, Roles, Vitals, Appointments)
+# Database Models
 # ---------------------------------------------------------------------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,17 +40,21 @@ class Appointment(db.Model):
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default='Confirmed')
 
+# Ensure tables are created safely
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        print("Database sync info:", e)
 
 # ---------------------------------------------------------------------------
-# Routes & Controllers
+# Core Routes
 # ---------------------------------------------------------------------------
 @app.route('/')
 def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
-    return render_template('index.html')
+    return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -61,18 +65,23 @@ def register():
         role = request.form.get('role', 'patient')
         specialty = request.form.get('specialty', '')
 
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            flash('Email already registered!', 'danger')
-            return redirect(url_for('register'))
+        try:
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                flash('Email already registered!', 'danger')
+                return redirect(url_for('register'))
 
-        hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
-        user = User(full_name=full_name, email=email, password=hashed_pw, role=role, specialty=specialty)
-        db.session.add(user)
-        db.session.commit()
+            hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+            user = User(full_name=full_name, email=email, password=hashed_pw, role=role, specialty=specialty)
+            db.session.add(user)
+            db.session.commit()
 
-        flash('Account created successfully! Please log in.', 'success')
-        return redirect(url_for('login'))
+            flash('Account created successfully! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating account. Please try again.', 'danger')
+
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -80,16 +89,20 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        user = User.query.filter_by(email=email).first()
 
-        if user and bcrypt.check_password_hash(user.password, password):
-            session['user_id'] = user.id
-            session['user_name'] = user.full_name
-            session['user_role'] = user.role
-            flash('Welcome back to MediBro!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid email or password.', 'danger')
+        try:
+            user = User.query.filter_by(email=email).first()
+            if user and bcrypt.check_password_hash(user.password, password):
+                session['user_id'] = user.id
+                session['user_name'] = user.full_name
+                session['user_role'] = user.role
+                flash('Welcome back to MediBro!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid email or password.', 'danger')
+        except Exception as e:
+            flash('Database connecting... please refresh in a moment.', 'warning')
+
     return render_template('login.html')
 
 @app.route('/logout')
@@ -104,9 +117,12 @@ def dashboard():
         return redirect(url_for('login'))
 
     user_id = session['user_id']
-    vitals = Vital.query.filter_by(patient_id=user_id).order_by(Vital.recorded_at.desc()).limit(10).all()
-    appointments = Appointment.query.filter_by(patient_id=user_id).all()
-    doctors = User.query.filter_by(role='doctor').all()
+    try:
+        vitals = Vital.query.filter_by(patient_id=user_id).order_by(Vital.recorded_at.desc()).limit(10).all()
+        appointments = Appointment.query.filter_by(patient_id=user_id).all()
+        doctors = User.query.filter_by(role='doctor').all()
+    except Exception:
+        vitals, appointments, doctors = [], [], []
 
     return render_template('dashboard.html', vitals=vitals, appointments=appointments, doctors=doctors)
 
@@ -117,7 +133,7 @@ def dashboard():
 def add_vital():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    
+
     systolic = int(request.form.get('systolic', 120))
     diastolic = int(request.form.get('diastolic', 80))
     heart_rate = int(request.form.get('heart_rate', 72))
@@ -133,11 +149,14 @@ def vitals_chart_data():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
 
-    vitals = Vital.query.filter_by(patient_id=session['user_id']).order_by(Vital.recorded_at.asc()).limit(10).all()
-    labels = [v.recorded_at.strftime('%b %d %H:%M') for v in vitals]
-    systolic_data = [v.systolic for v in vitals]
-    diastolic_data = [v.diastolic for v in vitals]
-    heart_rate_data = [v.heart_rate for v in vitals]
+    try:
+        vitals = Vital.query.filter_by(patient_id=session['user_id']).order_by(Vital.recorded_at.asc()).limit(10).all()
+        labels = [v.recorded_at.strftime('%b %d %H:%M') for v in vitals]
+        systolic_data = [v.systolic for v in vitals]
+        diastolic_data = [v.diastolic for v in vitals]
+        heart_rate_data = [v.heart_rate for v in vitals]
+    except Exception:
+        labels, systolic_data, diastolic_data, heart_rate_data = [], [], [], []
 
     return jsonify({
         'labels': labels,
