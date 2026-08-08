@@ -12,25 +12,73 @@
 
     
     
-        Verified Medical Specialists
-        Browse our roster of verified medical professionals available on MediBro.
+        📅 Book an Appointment
+        {% if doctors %}
+        
+            
+                Select Doctor
+                
+                    -- Choose Specialist --
+                    {% for doc in doctors %}
+                    Dr. {{ doc.full_name }} ({{ doc.specialty or 'General' }})
+                    {% endfor %}
+                
+            
+            
+                Date
+                
+            
+            
+                Time
+                
+            
+            
+                Reason for Visit
+                
+            
+            
+                Request Appointment
+            
+        
+        {% else %}
+        No verified doctors currently available for booking.
+        {% endif %}
     
 
     
     
-        🩺 Available Specialists
-        {% if doctors %}
+        📋 My Appointments
+        {% if appointments %}
         
-            {% for doc in doctors %}
+                {% for appt in appointments %}
+                
+                {% endfor %}
             
-                Dr. {{ doc.full_name }}
-                Specialty: {{ doc.specialty or 'General Medicine' }}
-                Phone: {{ doc.phone or 'N/A' }}
             
-            {% endfor %}
+                
+                    Doctor
+                    Date & Time
+                    Reason
+                    Status
+                
+            
+            
+                    Dr. {{ appt.doctor.full_name }}
+                    {{ appt.appointment_date }} at {{ appt.appointment_time }}
+                    {{ appt.reason or 'N/A' }}
+                    
+                        {% if appt.status == 'accepted' %}
+                        Accepted
+                        {% elif appt.status == 'declined' %}
+                        Declined
+                        {% else %}
+                        Pending
+                        {% endif %}
+                    
+                
         
         {% else %}
-        No doctors currently registered on the platform.
+        You have not booked any appointments yet.
         {% endif %}
     
 

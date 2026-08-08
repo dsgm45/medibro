@@ -18,7 +18,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- CORE USER MODEL ---
+# --- MODELS ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -29,6 +29,19 @@ class User(db.Model):
     phone = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='approved')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Appointment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    appointment_date = db.Column(db.String(50), nullable=False)
+    appointment_time = db.Column(db.String(50), nullable=False)
+    reason = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
+    doctor = db.relationship('User', foreign_keys=[doctor_id], backref='doctor_appointments')
 
 def init_db():
     with app.app_context():
@@ -154,15 +167,69 @@ def register():
 @login_required
 @role_required('patient')
 def patient_dashboard():
+    patient_id = session.get('user_id')
     doctors = User.query.filter_by(role='doctor', status='approved').all()
-    return render_template('patient_dashboard.html', doctors=doctors)
+    my_appointments = Appointment.query.filter_by(patient_id=patient_id).order_by(Appointment.created_at.desc()).all()
+    return render_template('patient_dashboard.html', doctors=doctors, appointments=my_appointments)
+
+@app.route('/book-appointment', methods=['POST'])
+@login_required
+@role_required('patient')
+def book_appointment():
+    doctor_id = request.form.get('doctor_id')
+    appointment_date = request.form.get('appointment_date')
+    appointment_time = request.form.get('appointment_time')
+    reason = request.form.get('reason', '').strip()
+
+    if not doctor_id or not appointment_date or not appointment_time:
+        flash('Please fill in all required appointment fields.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    try:
+        new_app = Appointment(
+            patient_id=session['user_id'],
+            doctor_id=int(doctor_id),
+            appointment_date=appointment_date,
+            appointment_time=appointment_time,
+            reason=reason,
+            status='pending'
+        )
+        db.session.add(new_app)
+        db.session.commit()
+        flash('Appointment requested successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error booking appointment: {str(e)}', 'error')
+
+    return redirect(url_for('patient_dashboard'))
 
 @app.route('/doctor')
 @login_required
 @role_required('doctor')
 def doctor_dashboard():
-    doctor = User.query.get(session.get('user_id'))
-    return render_template('doctor_dashboard.html', doctor=doctor)
+    doctor_id = session.get('user_id')
+    doctor = User.query.get_or_404(doctor_id)
+    appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(Appointment.created_at.desc()).all()
+    return render_template('doctor_dashboard.html', doctor=doctor, appointments=appointments)
+
+@app.route('/appointment//')
+@login_required
+@role_required('doctor')
+def handle_appointment(app_id, action):
+    appt = Appointment.query.get_or_404(app_id)
+    if appt.doctor_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('doctor_dashboard'))
+
+    if action == 'accept':
+        appt.status = 'accepted'
+        flash('Appointment accepted!', 'success')
+    elif action == 'decline':
+        appt.status = 'declined'
+        flash('Appointment declined.', 'error')
+
+    db.session.commit()
+    return redirect(url_for('doctor_dashboard'))
 
 @app.route('/admin')
 @login_required
