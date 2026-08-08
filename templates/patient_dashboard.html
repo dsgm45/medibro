@@ -1,85 +1,86 @@
 {% extends "base.html" %}
 {% block title %}Patient Portal - MediBro{% endblock %}
 {% block content %}
+<div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px;">
+        <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Patient Portal</h1>
+        <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+    </div>
 
-    
-        
-            Patient Portal
-            Welcome back, {{ session.full_name }}
-        
-        Log Out
-    
-
-    
-    
-        📅 Book an Appointment
+    <!-- Section 1: Book Appointment Card -->
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Book an Appointment</h2>
         {% if doctors %}
-        
-            
-                Select Doctor
-                
-                    -- Choose Specialist --
-                    {% for doc in doctors %}
-                    Dr. {{ doc.full_name }} ({{ doc.specialty or 'General' }})
-                    {% endfor %}
-                
-            
-            
-                Date
-                
-            
-            
-                Time
-                
-            
-            
-                Reason for Visit
-                
-            
-            
-                Request Appointment
-            
-        
+        <form action="{{ url_for('book_appointment') }}" method="POST">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor</label>
+                    <select name="doctor_id" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; font-size: 0.95rem; color: #0f172a;">
+                        <option value="">-- Choose Specialist --</option>
+                        {% for doc in doctors %}
+                        <option value="{{ doc.id }}">Dr. {{ doc.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doc.specialty or 'General Practice' }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Date</label>
+                    <input type="date" name="appointment_date" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time</label>
+                    <input type="time" name="appointment_time" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reason for Visit</label>
+                <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+            </div>
+            <div style="text-align: right;">
+                <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Request Appointment</button>
+            </div>
+        </form>
         {% else %}
-        No verified doctors currently available for booking.
+        <p style="color: #64748b; margin: 0;">No verified doctors are currently available for booking.</p>
         {% endif %}
-    
+    </div>
 
-    
-    
-        📋 My Appointments
+    <!-- Section 2: My Scheduled Appointments Card -->
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📋 My Appointments</h2>
         {% if appointments %}
-        
-                {% for appt in appointments %}
-                
-                {% endfor %}
-            
-            
-                
-                    Doctor
-                    Date & Time
-                    Reason
-                    Status
-                
-            
-            
-                    Dr. {{ appt.doctor.full_name }}
-                    {{ appt.appointment_date }} at {{ appt.appointment_time }}
-                    {{ appt.reason or 'N/A' }}
-                    
-                        {% if appt.status == 'accepted' %}
-                        Accepted
-                        {% elif appt.status == 'declined' %}
-                        Declined
-                        {% else %}
-                        Pending
-                        {% endif %}
-                    
-                
-        
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.85rem;">
+                        <th style="padding: 12px 10px;">Doctor</th>
+                        <th style="padding: 12px 10px;">Date & Time</th>
+                        <th style="padding: 12px 10px;">Reason</th>
+                        <th style="padding: 12px 10px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for appt in appointments %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
+                        <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }} at {{ appt.appointment_time }}</td>
+                        <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                        <td style="padding: 14px 10px;">
+                            {% if appt.status == 'accepted' %}
+                            <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                            {% elif appt.status == 'declined' %}
+                            <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                            {% else %}
+                            <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-        You have not booked any appointments yet.
+        <p style="color: #64748b; margin: 0;">You have not booked any appointments yet.</p>
         {% endif %}
-    
-
+    </div>
+</div>
 {% endblock %}
