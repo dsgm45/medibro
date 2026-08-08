@@ -75,6 +75,42 @@
         {% endif %}
     </div>
 
+    <!-- Active Doctors Directory -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">👨‍⚕️ Active Doctors</h2>
+        {% if approved_doctors %}
+        <input type="text" id="activeDoctorSearch" onkeyup="filterTable('activeDoctorSearch', 'activeDoctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <table id="activeDoctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
+                    <th style="padding: 10px;">Name</th>
+                    <th style="padding: 10px;">Email</th>
+                    <th style="padding: 10px;">Specialty</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px; text-align: right;">Account Control</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in approved_doctors %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.email }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
+                    <td style="padding: 12px 10px;">
+                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: var(--success-light); color: var(--success);">Approved</span>
+                    </td>
+                    <td style="padding: 12px 10px; text-align: right;">
+                        <a href="{{ url_for('toggle_user_status', user_id=doc.id) }}" style="padding: 6px 12px; background: var(--danger-light); color: var(--danger); border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Suspend</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No active doctors yet.</p>
+        {% endif %}
+    </div>
+
     <!-- Patient Directory -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
         <h2 style="font-size: 1.25rem; margin-top: 0;">👥 Patient Directory</h2>

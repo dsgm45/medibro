@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Chat with {{ other_user.full_name }} - MediBro{% endblock %}
+{% block content %}
+{% if session.role == 'patient' %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}" class="active">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+    <main class="patient-main">
+{% else %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+{% endif %}
+
+        <div style="margin-bottom: 20px;">
+            <a href="{{ url_for('chat_list') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; All Conversations</a>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <h1 style="margin: 0; font-size: 1.4rem; color: var(--text-dark);">
+                {% if session.role == 'patient' %}Dr. {{ other_user.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ other_user.full_name }}{% endif %}
+            </h1>
+        </div>
+
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 16px; min-height: 300px; max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+            {% if messages %}
+            {% for msg in messages %}
+            <div style="display: flex; {% if msg.sender_id == my_user_id %}justify-content: flex-end;{% else %}justify-content: flex-start;{% endif %}">
+                <div style="max-width: 75%; padding: 10px 14px; border-radius: 12px; {% if msg.sender_id == my_user_id %}background-color: var(--primary); color: #ffffff;{% else %}background-color: #f1f5f9; color: var(--text-dark);{% endif %}">
+                    <p style="margin: 0; font-size: 0.9rem;">{{ msg.content }}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 0.7rem; opacity: 0.8;">{{ msg.created_at.strftime('%b %d, %I:%M %p') }}</p>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-sub); margin: auto;">No messages yet. Say hello!</p>
+            {% endif %}
+        </div>
+
+        <form action="{{ url_for('chat_thread', other_id=other_user.id) }}" method="POST" style="display: flex; gap: 10px;">
+            <input type="text" name="content" required placeholder="Type a message..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Send</button>
+        </form>
+
+{% if session.role == 'patient' %}
+    </main>
+</div>
+{% else %}
+</div>
+{% endif %}
+{% endblock %}

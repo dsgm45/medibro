@@ -68,6 +68,56 @@
         .flash.info { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
         .flash.info::before { content: "ℹ️"; }
 
+        .patient-layout {
+            display: flex;
+            gap: 24px;
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+            align-items: flex-start;
+        }
+        .patient-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 220px;
+            flex-shrink: 0;
+            background-color: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 12px;
+            position: sticky;
+            top: 16px;
+        }
+        .patient-sidebar a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #334155;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .patient-sidebar a:hover {
+            background-color: #f1f5f9;
+        }
+        .patient-sidebar a.active {
+            background-color: #2563eb;
+            color: #ffffff;
+        }
+        .patient-sidebar a.sos-link {
+            color: #dc2626;
+        }
+        .patient-sidebar a.sos-link:hover {
+            background-color: #fee2e2;
+        }
+        .patient-main {
+            flex: 1;
+            min-width: 0;
+        }
+
         @media (max-width: 640px) {
             nav {
                 padding: 12px 16px;
@@ -83,6 +133,22 @@
             main > div {
                 padding-left: 12px !important;
                 padding-right: 12px !important;
+            }
+            .patient-layout {
+                flex-direction: column;
+                padding: 0 12px;
+                margin: 16px auto;
+            }
+            .patient-sidebar {
+                flex-direction: row;
+                width: 100%;
+                overflow-x: auto;
+                position: static;
+                gap: 6px;
+            }
+            .patient-sidebar a {
+                white-space: nowrap;
+                flex-shrink: 0;
             }
         }
     </style>

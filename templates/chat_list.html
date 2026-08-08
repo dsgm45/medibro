@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Chat - MediBro{% endblock %}
+{% block content %}
+{% if session.role == 'patient' %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}" class="active">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+    <main class="patient-main">
+{% else %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+{% endif %}
+
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Messages</h1>
+        </div>
+
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
+            {% if conversations %}
+            {% for convo in conversations %}
+            <a href="{{ url_for('chat_thread', other_id=convo.partner.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; text-decoration: none; border-bottom: 1px solid #f1f5f9; color: inherit;">
+                <div>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark);">
+                        {% if session.role == 'patient' %}Dr. {{ convo.partner.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ convo.partner.full_name }}{% endif %}
+                    </p>
+                    {% if convo.last_message %}
+                    <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ convo.last_message.content }}</p>
+                    {% else %}
+                    <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem;">No messages yet</p>
+                    {% endif %}
+                </div>
+                <span style="color: var(--primary); font-size: 0.85rem; font-weight: 600;">Open →</span>
+            </a>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-sub); margin: 0; padding: 24px;">No conversations yet. You can message someone once you have an appointment together.</p>
+            {% endif %}
+        </div>
+
+{% if session.role == 'patient' %}
+    </main>
+</div>
+{% else %}
+</div>
+{% endif %}
+{% endblock %}

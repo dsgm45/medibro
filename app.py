@@ -68,7 +68,9 @@ class Appointment(db.Model):
     appointment_date = db.Column(db.String(50), nullable=False)
     appointment_time = db.Column(db.String(50), nullable=False)
     reason = db.Column(db.Text, nullable=True)
+    phone_number = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
+    follow_up_requested = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
@@ -125,12 +127,38 @@ class AdminAuditLog(db.Model):
 
     admin = db.relationship('User', foreign_keys=[admin_id])
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id])
+    doctor = db.relationship('User', foreign_keys=[doctor_id])
+    sender = db.relationship('User', foreign_keys=[sender_id])
+
+class Medicine(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    dosage = db.Column(db.String(80), nullable=True)
+    frequency = db.Column(db.String(80), nullable=True)
+    time_of_day = db.Column(db.String(120), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
+
 def migrate_schema():
     """Adds any new columns to existing tables. Safe to run on every startup."""
     with app.app_context():
         migrations = [
             'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS bio TEXT',
             'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS hours VARCHAR(200)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS follow_up_requested BOOLEAN DEFAULT FALSE',
         ]
         for stmt in migrations:
             try:
@@ -330,13 +358,18 @@ def patient_dashboard():
         except (ValueError, TypeError):
             continue
 
+    follow_ups = [a for a in my_appointments if a.follow_up_requested and a.status == 'completed']
+    pre_doctor_id = request.args.get('book_with', type=int)
+
     return render_template(
         'patient_dashboard.html',
         doctors=doctors,
         appointments=my_appointments,
         all_specialties=all_specialties,
         specialty_filter=specialty_filter,
-        upcoming=upcoming
+        upcoming=upcoming,
+        follow_ups=follow_ups,
+        pre_doctor_id=pre_doctor_id
     )
 
 @app.route('/book-appointment', methods=['POST'])
@@ -347,9 +380,14 @@ def book_appointment():
     appointment_date = request.form.get('appointment_date')
     appointment_time = request.form.get('appointment_time')
     reason = request.form.get('reason', '').strip()
+    phone_number = request.form.get('phone_number', '').strip()
 
     if not doctor_id or not appointment_date or not appointment_time:
         flash('Please fill in all required appointment fields.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    if not phone_number:
+        flash('Please provide a phone number so your doctor can reach you, since video consultation is not yet available.', 'error')
         return redirect(url_for('patient_dashboard'))
 
     try:
@@ -359,6 +397,7 @@ def book_appointment():
             appointment_date=appointment_date,
             appointment_time=appointment_time,
             reason=reason,
+            phone_number=phone_number,
             status='pending'
         )
         db.session.add(new_app)
@@ -427,12 +466,41 @@ def handle_appointment(app_id, action):
         elif action == 'decline':
             appt.status = 'declined'
             flash('Appointment declined.', 'error')
+        elif action == 'complete':
+            if appt.status != 'accepted':
+                flash('Only accepted appointments can be marked completed.', 'error')
+                return redirect(url_for('doctor_dashboard'))
+            appt.status = 'completed'
+            flash('Appointment marked as completed.', 'success')
 
         db.session.commit()
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Appointment handle error: {e}")
         flash('Database error updating appointment.', 'error')
+
+    return redirect(url_for('doctor_dashboard'))
+
+@app.route('/appointment/<int:app_id>/request-follow-up')
+@login_required
+@role_required('doctor')
+def request_follow_up(app_id):
+    try:
+        appt = Appointment.query.get_or_404(app_id)
+        if appt.doctor_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('doctor_dashboard'))
+        if appt.status != 'completed':
+            flash('Follow-up can only be requested for completed appointments.', 'error')
+            return redirect(url_for('doctor_dashboard'))
+
+        appt.follow_up_requested = True
+        db.session.commit()
+        flash('Follow-up requested. The patient will see a prompt to book one.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Request follow-up error: {e}")
+        flash('Error requesting follow-up.', 'error')
 
     return redirect(url_for('doctor_dashboard'))
 
@@ -485,6 +553,68 @@ def view_patient_history(patient_id):
         vitals_history=vitals_history,
         symptom_history=symptom_history
     )
+
+@app.route('/chat')
+@login_required
+@role_required('patient', 'doctor')
+def chat_list():
+    user_id = session.get('user_id')
+    role = session.get('role')
+
+    if role == 'patient':
+        partner_ids = [row[0] for row in db.session.query(Appointment.doctor_id).filter_by(patient_id=user_id).distinct().all()]
+    else:
+        partner_ids = [row[0] for row in db.session.query(Appointment.patient_id).filter_by(doctor_id=user_id).distinct().all()]
+
+    partners = User.query.filter(User.id.in_(partner_ids)).all() if partner_ids else []
+
+    conversations = []
+    for partner in partners:
+        if role == 'patient':
+            last_msg = Message.query.filter_by(patient_id=user_id, doctor_id=partner.id).order_by(Message.created_at.desc()).first()
+        else:
+            last_msg = Message.query.filter_by(doctor_id=user_id, patient_id=partner.id).order_by(Message.created_at.desc()).first()
+        conversations.append({'partner': partner, 'last_message': last_msg})
+
+    conversations.sort(key=lambda c: c['last_message'].created_at if c['last_message'] else datetime.min, reverse=True)
+
+    return render_template('chat_list.html', conversations=conversations)
+
+@app.route('/chat/<int:other_id>', methods=['GET', 'POST'])
+@login_required
+@role_required('patient', 'doctor')
+def chat_thread(other_id):
+    user_id = session.get('user_id')
+    role = session.get('role')
+
+    if role == 'patient':
+        patient_id, doctor_id = user_id, other_id
+    else:
+        patient_id, doctor_id = other_id, user_id
+
+    has_appointment = Appointment.query.filter_by(patient_id=patient_id, doctor_id=doctor_id).first()
+    if not has_appointment:
+        flash('You can only message someone you have an appointment history with.', 'error')
+        return redirect(url_for('chat_list'))
+
+    other_user = User.query.get_or_404(other_id)
+
+    if request.method == 'POST':
+        content = request.form.get('content', '').strip()
+        if content:
+            try:
+                msg = Message(patient_id=patient_id, doctor_id=doctor_id, sender_id=user_id, content=content)
+                db.session.add(msg)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Send message error: {e}")
+                flash('Error sending message.', 'error')
+        return redirect(url_for('chat_thread', other_id=other_id))
+
+    messages = Message.query.filter_by(patient_id=patient_id, doctor_id=doctor_id).order_by(Message.created_at.asc()).all()
+
+    return render_template('chat_thread.html', other_user=other_user, messages=messages, my_user_id=user_id)
 
 @app.route('/admin')
 @login_required
@@ -728,6 +858,59 @@ def sos():
         return redirect(url_for('sos'))
 
     return render_template('sos.html', contact=contact)
+
+@app.route('/medicines', methods=['GET', 'POST'])
+@login_required
+@role_required('patient')
+def medicines():
+    patient_id = session.get('user_id')
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        dosage = request.form.get('dosage', '').strip()
+        frequency = request.form.get('frequency', '').strip()
+        time_of_day = request.form.get('time_of_day', '').strip()
+        notes = request.form.get('notes', '').strip()
+
+        if not name:
+            flash('Please enter the medicine name.', 'error')
+            return redirect(url_for('medicines'))
+
+        try:
+            med = Medicine(
+                patient_id=patient_id, name=name, dosage=dosage,
+                frequency=frequency, time_of_day=time_of_day, notes=notes
+            )
+            db.session.add(med)
+            db.session.commit()
+            flash('Medicine reminder added.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Add medicine error: {e}")
+            flash('Error adding medicine reminder.', 'error')
+
+        return redirect(url_for('medicines'))
+
+    my_medicines = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
+    return render_template('medicines.html', medicines=my_medicines)
+
+@app.route('/medicines/<int:med_id>/delete')
+@login_required
+@role_required('patient')
+def delete_medicine(med_id):
+    try:
+        med = Medicine.query.get_or_404(med_id)
+        if med.patient_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('medicines'))
+        db.session.delete(med)
+        db.session.commit()
+        flash('Medicine reminder removed.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Delete medicine error: {e}")
+        flash('Error removing medicine reminder.', 'error')
+    return redirect(url_for('medicines'))
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required

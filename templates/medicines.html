@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Medicines - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}" class="active">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Medicine Reminders</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Keep track of what you're taking and when</p>
+        </div>
+
+        <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 24px; font-size: 0.8rem; color: #1e40af;">
+            ℹ️ This is a personal tracker — MediBro does not currently send push notifications or alerts for reminder times.
+        </div>
+
+        <!-- Add Medicine -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">➕ Add Medicine</h2>
+            <form action="{{ url_for('medicines') }}" method="POST">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name</label>
+                        <input type="text" name="name" required placeholder="e.g. Metformin" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Dosage</label>
+                        <input type="text" name="dosage" placeholder="e.g. 500mg" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency</label>
+                        <input type="text" name="frequency" placeholder="e.g. Twice daily" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Times</label>
+                        <input type="text" name="time_of_day" placeholder="e.g. 8:00 AM, 8:00 PM" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)</label>
+                    <input type="text" name="notes" placeholder="e.g. Take with food" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div style="text-align: right;">
+                    <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Add Medicine</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Medicine List -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">💊 Your Medicines</h2>
+            {% if medicines %}
+            <div style="display: grid; gap: 12px;">
+                {% for med in medicines %}
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <p style="margin: 0; font-weight: 700; color: #0f172a;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+                        {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                        {% if med.time_of_day %}<p style="margin: 4px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.time_of_day }}</p>{% endif %}
+                        {% if med.notes %}<p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.8rem;">{{ med.notes }}</p>{% endif %}
+                    </div>
+                    <a href="{{ url_for('delete_medicine', med_id=med.id) }}" onclick="return confirm('Remove this medicine reminder?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Remove</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No medicines added yet.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}

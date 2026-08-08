@@ -35,7 +35,7 @@
                             <td style="padding: 12px 10px; font-weight: 600; color: #0f172a;">
                                 <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #0f172a; text-decoration: none;">{{ appt.patient.full_name }}</a>
                             </td>
-                            <td style="padding: 12px 10px; color: #334155;">{{ appt.patient.phone or 'N/A' }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.phone_number or appt.patient.phone or 'N/A' }}</td>
                             <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time }}</td>
                             <td style="padding: 12px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
                             <td style="padding: 12px 10px;">
@@ -45,6 +45,8 @@
                                 <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
                                 {% elif appt.status == 'cancelled' %}
                                 <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                {% elif appt.status == 'completed' %}
+                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed{% if appt.follow_up_requested %} &middot; Follow-up sent{% endif %}</span>
                                 {% else %}
                                 <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
                                 {% endif %}
@@ -53,6 +55,14 @@
                                 {% if appt.status == 'pending' %}
                                 <a href="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 6px; display: inline-block;">Accept</a>
                                 <a href="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Decline</a>
+                                {% elif appt.status == 'accepted' %}
+                                <a href="{{ url_for('chat_thread', other_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='complete') }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
+                                {% elif appt.status == 'completed' %}
+                                <a href="{{ url_for('chat_thread', other_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                {% if not appt.follow_up_requested %}
+                                <a href="{{ url_for('request_follow_up', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Request Follow-up</a>
+                                {% endif %}
                                 {% else %}
                                 <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none;">View History</a>
                                 {% endif %}
