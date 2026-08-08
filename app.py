@@ -315,6 +315,21 @@ def toggle_user_status(user_id):
         flash('Error toggling user status.', 'error')
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/fix-vitals-table')
+@login_required
+@role_required('hospital', 'admin')
+def fix_vitals_table():
+    try:
+        db.session.execute(text('DROP TABLE IF EXISTS vital CASCADE'))
+        db.session.commit()
+        db.create_all()
+        flash('Vitals table has been reset and recreated with the correct schema.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Fix vitals table error: {e}")
+        flash(f'Error fixing vitals table: {str(e)}', 'error')
+    return redirect(url_for('admin_dashboard'))
+
 # --- VITALS ---
 @app.route('/vitals', methods=['GET', 'POST'])
 @login_required
