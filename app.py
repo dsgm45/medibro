@@ -32,6 +32,7 @@ class User(db.Model):
 def init_db():
     with app.app_context():
         try:
+            db.drop_all()
             db.create_all()
             admin = User.query.filter_by(email='admin@medibro.com').first()
             if not admin:
