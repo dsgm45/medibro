@@ -15,6 +15,10 @@ if db_url.startswith('postgres://'):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300
+}
 
 db = SQLAlchemy(app)
 
@@ -84,7 +88,7 @@ def role_required(*roles):
         return decorated_function
     return decorator
 
-# --- ROUTES ---
+# --- BASE / PUBLIC ROUTES ---
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -163,6 +167,7 @@ def register():
 
     return render_template('register.html')
 
+# --- DASHBOARD ROUTES ---
 @app.route('/patient')
 @login_required
 @role_required('patient')
@@ -281,6 +286,27 @@ def toggle_user_status(user_id):
             flash(f'Account for {user.full_name} has been reactivated.', 'success')
         db.session.commit()
     return redirect(url_for('admin_dashboard'))
+
+# --- NAVIGATION STUB ROUTES (Prevents Jinja BuildErrors from base.html links) ---
+@app.route('/vitals', methods=['GET', 'POST'])
+@login_required
+def vitals():
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/symptoms', methods=['GET', 'POST'])
+@login_required
+def symptoms():
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/sos', methods=['GET', 'POST'])
+@login_required
+def sos():
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/profile')
+@login_required
+def profile():
+    return redirect(url_for('patient_dashboard'))
 
 @app.route('/logout')
 def logout():
