@@ -33,18 +33,12 @@
         .flash { padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 10px; font-size: 0.9rem; font-weight: 500; }
         .flash-success { background: var(--success-light); color: var(--success); }
         .flash-error { background: var(--danger-light); color: var(--danger); }
-        .sos-btn { background: var(--danger); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; }
     </style>
 </head>
 <body>
     <nav class="top-nav">
         <a class="brand" href="{{ url_for('index') }}">🩺 MediBro</a>
         <div style="display: flex; align-items: center; gap: 16px;">
-            {% if session.get('user_id') and session.get('role') == 'patient' %}
-                <form action="{{ url_for('trigger-sos' if False else 'trigger_sos') }}" method="POST" style="margin: 0;" onsubmit="return confirm('ARE YOU SURE? This will send an immediate Emergency SOS alert to Hospital Admins!');">
-                    <button type="submit" class="sos-btn">🚨 Emergency SOS</button>
-                </form>
-            {% endif %}
             {% if session.get('user_id') %}
                 <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-sub);">{{ session.get('full_name') }}</span>
                 <a href="{{ url_for('logout') }}" style="color: var(--danger); text-decoration: none; font-size: 0.9rem; font-weight: 600;">Log Out</a>
