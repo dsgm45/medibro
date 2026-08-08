@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -50,7 +51,11 @@ class Appointment(db.Model):
 def init_db():
     with app.app_context():
         try:
+            # Re-create appointment schema on PostgreSQL if doctor_id is missing
+            db.session.execute(text("DROP TABLE IF EXISTS appointment CASCADE;"))
+            db.session.commit()
             db.create_all()
+
             admin = User.query.filter_by(email='admin@medibro.com').first()
             if not admin:
                 admin = User(
@@ -287,7 +292,7 @@ def toggle_user_status(user_id):
         db.session.commit()
     return redirect(url_for('admin_dashboard'))
 
-# --- NAVIGATION STUB ROUTES (Prevents Jinja BuildErrors from base.html links) ---
+# --- NAVIGATION STUB ROUTES ---
 @app.route('/vitals', methods=['GET', 'POST'])
 @login_required
 def vitals():
