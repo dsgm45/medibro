@@ -6,7 +6,7 @@ from functools import wraps
 from collections import defaultdict
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
 
@@ -129,14 +129,12 @@ class AdminAuditLog(db.Model):
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    patient = db.relationship('User', foreign_keys=[patient_id])
-    doctor = db.relationship('User', foreign_keys=[doctor_id])
+    appointment = db.relationship('Appointment', backref='messages')
     sender = db.relationship('User', foreign_keys=[sender_id])
 
 class Medicine(db.Model):
@@ -167,6 +165,25 @@ def migrate_schema():
             except Exception as e:
                 db.session.rollback()
                 app.logger.warning(f"Migration statement skipped (may already be applied): {e}")
+
+        # The 'message' table previously existed with an incompatible schema
+        # left over from an earlier, never-completed chat feature. Detect and
+        # fix it automatically. This check is idempotent: once the table has
+        # the correct schema, it becomes a no-op on every future startup, so
+        # it's safe to leave in place permanently and will never touch real
+        # message data once the fix has applied once.
+        try:
+            inspector = inspect(db.engine)
+            if inspector.has_table('message'):
+                existing_columns = {col['name'] for col in inspector.get_columns('message')}
+                if 'appointment_id' not in existing_columns:
+                    db.session.execute(text('DROP TABLE IF EXISTS message'))
+                    db.session.commit()
+                    db.create_all()
+                    app.logger.warning('Recreated "message" table with the current schema (old incompatible table removed).')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"Message table schema check skipped: {e}")
 
 def init_db():
     with app.app_context():
@@ -562,59 +579,64 @@ def chat_list():
     role = session.get('role')
 
     if role == 'patient':
-        partner_ids = [row[0] for row in db.session.query(Appointment.doctor_id).filter_by(patient_id=user_id).distinct().all()]
+        appts = Appointment.query.filter(
+            Appointment.patient_id == user_id,
+            Appointment.status.in_(['accepted', 'completed'])
+        ).order_by(Appointment.appointment_date.desc()).all()
     else:
-        partner_ids = [row[0] for row in db.session.query(Appointment.patient_id).filter_by(doctor_id=user_id).distinct().all()]
-
-    partners = User.query.filter(User.id.in_(partner_ids)).all() if partner_ids else []
+        appts = Appointment.query.filter(
+            Appointment.doctor_id == user_id,
+            Appointment.status.in_(['accepted', 'completed'])
+        ).order_by(Appointment.appointment_date.desc()).all()
 
     conversations = []
-    for partner in partners:
-        if role == 'patient':
-            last_msg = Message.query.filter_by(patient_id=user_id, doctor_id=partner.id).order_by(Message.created_at.desc()).first()
-        else:
-            last_msg = Message.query.filter_by(doctor_id=user_id, patient_id=partner.id).order_by(Message.created_at.desc()).first()
-        conversations.append({'partner': partner, 'last_message': last_msg})
+    for appt in appts:
+        partner = appt.doctor if role == 'patient' else appt.patient
+        last_msg = Message.query.filter_by(appointment_id=appt.id).order_by(Message.created_at.desc()).first()
+        conversations.append({'appointment': appt, 'partner': partner, 'last_message': last_msg})
 
     conversations.sort(key=lambda c: c['last_message'].created_at if c['last_message'] else datetime.min, reverse=True)
 
     return render_template('chat_list.html', conversations=conversations)
 
-@app.route('/chat/<int:other_id>', methods=['GET', 'POST'])
+@app.route('/chat/<int:appointment_id>', methods=['GET', 'POST'])
 @login_required
 @role_required('patient', 'doctor')
-def chat_thread(other_id):
+def chat_thread(appointment_id):
     user_id = session.get('user_id')
     role = session.get('role')
 
-    if role == 'patient':
-        patient_id, doctor_id = user_id, other_id
-    else:
-        patient_id, doctor_id = other_id, user_id
+    appt = Appointment.query.get_or_404(appointment_id)
 
-    has_appointment = Appointment.query.filter_by(patient_id=patient_id, doctor_id=doctor_id).first()
-    if not has_appointment:
-        flash('You can only message someone you have an appointment history with.', 'error')
+    if role == 'patient' and appt.patient_id != user_id:
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('chat_list'))
+    if role == 'doctor' and appt.doctor_id != user_id:
+        flash('Unauthorized action.', 'error')
         return redirect(url_for('chat_list'))
 
-    other_user = User.query.get_or_404(other_id)
+    if appt.status not in ('accepted', 'completed'):
+        flash('Chat is only available for accepted or completed appointments.', 'error')
+        return redirect(url_for('chat_list'))
+
+    other_user = appt.doctor if role == 'patient' else appt.patient
 
     if request.method == 'POST':
         content = request.form.get('content', '').strip()
         if content:
             try:
-                msg = Message(patient_id=patient_id, doctor_id=doctor_id, sender_id=user_id, content=content)
+                msg = Message(appointment_id=appt.id, sender_id=user_id, content=content)
                 db.session.add(msg)
                 db.session.commit()
             except Exception as e:
                 db.session.rollback()
                 app.logger.error(f"Send message error: {e}")
                 flash('Error sending message.', 'error')
-        return redirect(url_for('chat_thread', other_id=other_id))
+        return redirect(url_for('chat_thread', appointment_id=appt.id))
 
-    messages = Message.query.filter_by(patient_id=patient_id, doctor_id=doctor_id).order_by(Message.created_at.asc()).all()
+    messages = Message.query.filter_by(appointment_id=appt.id).order_by(Message.created_at.asc()).all()
 
-    return render_template('chat_thread.html', other_user=other_user, messages=messages, my_user_id=user_id)
+    return render_template('chat_thread.html', appointment=appt, other_user=other_user, messages=messages, my_user_id=user_id)
 
 @app.route('/admin')
 @login_required

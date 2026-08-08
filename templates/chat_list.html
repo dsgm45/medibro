@@ -28,10 +28,11 @@
         <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
             {% if conversations %}
             {% for convo in conversations %}
-            <a href="{{ url_for('chat_thread', other_id=convo.partner.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; text-decoration: none; border-bottom: 1px solid #f1f5f9; color: inherit;">
+            <a href="{{ url_for('chat_thread', appointment_id=convo.appointment.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; text-decoration: none; border-bottom: 1px solid #f1f5f9; color: inherit;">
                 <div>
                     <p style="margin: 0; font-weight: 700; color: var(--text-dark);">
                         {% if session.role == 'patient' %}Dr. {{ convo.partner.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ convo.partner.full_name }}{% endif %}
+                        <span style="font-weight: 500; color: var(--text-sub); font-size: 0.8rem;">&middot; {{ convo.appointment.appointment_date }}</span>
                     </p>
                     {% if convo.last_message %}
                     <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ convo.last_message.content }}</p>
@@ -43,7 +44,7 @@
             </a>
             {% endfor %}
             {% else %}
-            <p style="color: var(--text-sub); margin: 0; padding: 24px;">No conversations yet. You can message someone once you have an appointment together.</p>
+            <p style="color: var(--text-sub); margin: 0; padding: 24px;">No conversations yet. Chat opens up once an appointment is accepted.</p>
             {% endif %}
         </div>
 

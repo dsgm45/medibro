@@ -137,7 +137,7 @@
                                 {% if appt.status == 'pending' %}
                                 <a href="{{ url_for('cancel_appointment', app_id=appt.id) }}" onclick="return confirm('Cancel this appointment request?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Cancel</a>
                                 {% elif appt.status in ['accepted', 'completed'] %}
-                                <a href="{{ url_for('chat_thread', other_id=appt.doctor.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
                                 {% endif %}
                             </td>
                         </tr>

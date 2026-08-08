@@ -26,6 +26,7 @@
             <h1 style="margin: 0; font-size: 1.4rem; color: var(--text-dark);">
                 {% if session.role == 'patient' %}Dr. {{ other_user.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ other_user.full_name }}{% endif %}
             </h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem;">Appointment on {{ appointment.appointment_date }} at {{ appointment.appointment_time }} &middot; {{ appointment.reason or 'General Consultation' }}</p>
         </div>
 
         <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 16px; min-height: 300px; max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
@@ -43,7 +44,7 @@
             {% endif %}
         </div>
 
-        <form action="{{ url_for('chat_thread', other_id=other_user.id) }}" method="POST" style="display: flex; gap: 10px;">
+        <form action="{{ url_for('chat_thread', appointment_id=appointment.id) }}" method="POST" style="display: flex; gap: 10px;">
             <input type="text" name="content" required placeholder="Type a message..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
             <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Send</button>
         </form>
