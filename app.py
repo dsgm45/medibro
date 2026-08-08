@@ -4,7 +4,6 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -33,25 +32,20 @@ class User(db.Model):
 def init_db():
     with app.app_context():
         try:
-            # Force-drop existing user table on Postgres to resolve column mismatch
-            db.session.execute(text('DROP TABLE IF EXISTS "user" CASCADE;'))
-            db.session.commit()
-            
             db.create_all()
-            
-            admin = User(
-                email='admin@medibro.com',
-                password_hash=generate_password_hash('admin123'),
-                role='hospital',
-                full_name='System Admin',
-                status='approved'
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("Database reset & Admin created successfully.")
+            admin = User.query.filter_by(email='admin@medibro.com').first()
+            if not admin:
+                admin = User(
+                    email='admin@medibro.com',
+                    password_hash=generate_password_hash('admin123'),
+                    role='hospital',
+                    full_name='System Admin',
+                    status='approved'
+                )
+                db.session.add(admin)
+                db.session.commit()
         except Exception as e:
             db.session.rollback()
-            print(f"Database initialization error: {e}")
 
 init_db()
 
@@ -99,6 +93,10 @@ def login():
                 session['role'] = user.role
                 session['full_name'] = user.full_name
                 flash(f'Welcome back, {user.full_name}!', 'success')
+
+                # Redirect based on role
+                if user.role in ['hospital', 'admin']:
+                    return redirect(url_for('admin_dashboard'))
                 return redirect(url_for('index'))
             else:
                 flash('Invalid email or password.', 'error')
@@ -106,6 +104,28 @@ def login():
             app.logger.error(f"Login error: {e}")
             flash(f'Database error: {str(e)}', 'error')
     return render_template('login.html')
+
+@app.route('/admin')
+@login_required
+@role_required('hospital', 'admin')
+def admin_dashboard():
+    pending_doctors = User.query.filter_by(role='doctor', status='pending').all()
+    approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
+    return render_template('admin.html', pending_doctors=pending_doctors, approved_doctors=approved_doctors)
+
+@app.route('/admin/verify/<int:doctor_id>/<action>')
+@login_required
+@role_required('hospital', 'admin')
+def verify_doctor(doctor_id, action):
+    doctor = User.query.get_or_404(doctor_id)
+    if action == 'approve':
+        doctor.status = 'approved'
+        flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
+    elif action == 'reject':
+        doctor.status = 'rejected'
+        flash(f'Doctor {doctor.full_name} rejected.', 'error')
+    db.session.commit()
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
