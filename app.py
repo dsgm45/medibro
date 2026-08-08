@@ -4,7 +4,6 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -86,7 +85,7 @@ def login():
                     flash('Your doctor account is pending verification by hospital admin.', 'error')
                     return redirect(url_for('login'))
                 if user.status in ['rejected', 'suspended']:
-                    flash('Your account has been suspended or rejected. Please contact support.', 'error')
+                    flash('Your account is suspended or rejected. Please contact support.', 'error')
                     return redirect(url_for('login'))
                 
                 session['user_id'] = user.id
@@ -95,15 +94,32 @@ def login():
                 session['full_name'] = user.full_name
                 flash(f'Welcome back, {user.full_name}!', 'success')
 
+                # Smart Redirection based on role
                 if user.role in ['hospital', 'admin']:
                     return redirect(url_for('admin_dashboard'))
-                return redirect(url_for('index'))
+                elif user.role == 'doctor':
+                    return redirect(url_for('doctor_dashboard'))
+                else:
+                    return redirect(url_for('patient_dashboard'))
             else:
                 flash('Invalid email or password.', 'error')
         except Exception as e:
             app.logger.error(f"Login error: {e}")
             flash(f'Database error: {str(e)}', 'error')
     return render_template('login.html')
+
+@app.route('/patient')
+@login_required
+@role_required('patient')
+def patient_dashboard():
+    doctors = User.query.filter_by(role='doctor', status='approved').all()
+    return render_template('patient_dashboard.html', doctors=doctors)
+
+@app.route('/doctor')
+@login_required
+@role_required('doctor')
+def doctor_dashboard():
+    return render_template('doctor_dashboard.html')
 
 @app.route('/admin')
 @login_required

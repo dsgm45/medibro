@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Patient Portal - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Patient Portal</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Welcome back, {{ session.full_name }}</p>
+        </div>
+        <a href="{{ url_for('logout') }}" style="padding: 8px 16px; background: var(--danger-light); color: var(--danger); font-weight: 600; text-decoration: none; border-radius: 6px;">Log Out</a>
+    </div>
+
+    <!-- Quick Action Banner -->
+    <div style="background: linear-gradient(135deg, #1e56a0, #0d9488); color: white; border-radius: var(--radius); padding: 28px; margin-bottom: 32px;">
+        <h2 style="margin-top: 0; font-size: 1.5rem;">Need to consult a doctor?</h2>
+        <p style="margin-bottom: 20px; opacity: 0.9;">Browse our roster of verified medical specialists and request consultations online.</p>
+        <a href="#doctors" style="padding: 10px 20px; background: white; color: var(--primary); font-weight: 700; border-radius: 6px; text-decoration: none; display: inline-block;">View Verified Doctors</a>
+    </div>
+
+    <!-- Verified Doctor Roster -->
+    <div id="doctors" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 16px;">🩺 Available Specialists</h2>
+        {% if doctors %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            {% for doc in doctors %}
+            <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: var(--bg-light);">
+                <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary);">Dr. {{ doc.full_name }}</div>
+                <div style="color: var(--text-sub); font-size: 0.875rem; margin-top: 4px;"><strong style="color: var(--accent-teal);">Specialty:</strong> {{ doc.specialty or 'General Medicine' }}</div>
+                <div style="color: var(--text-sub); font-size: 0.85rem; margin-top: 2px;">Phone: {{ doc.phone or 'N/A' }}</div>
+                <button style="margin-top: 14px; width: 100%; padding: 8px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Book Appointment</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No doctors currently available for booking.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
