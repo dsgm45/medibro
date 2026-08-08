@@ -200,6 +200,21 @@ def verify_doctor(doctor_id, action):
     db.session.commit()
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/toggle-user/')
+@login_required
+@role_required('hospital', 'admin')
+def toggle_user_status(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.role not in ['hospital', 'admin']:
+        if user.status == 'approved':
+            user.status = 'suspended'
+            flash(f'Account for {user.full_name} has been suspended.', 'error')
+        else:
+            user.status = 'approved'
+            flash(f'Account for {user.full_name} has been reactivated.', 'success')
+        db.session.commit()
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/logout')
 def logout():
     session.clear()
