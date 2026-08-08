@@ -99,8 +99,10 @@ def init_db():
                 )
                 db.session.add(admin)
                 db.session.commit()
+            print("All database tables verified/created on Render.")
         except Exception as e:
             db.session.rollback()
+            print(f"Database init error: {e}")
 
 init_db()
 
