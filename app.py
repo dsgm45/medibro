@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -84,8 +85,8 @@ def login():
                 if user.status == 'pending':
                     flash('Your doctor account is pending verification by hospital admin.', 'error')
                     return redirect(url_for('login'))
-                if user.status == 'rejected':
-                    flash('Your account application was rejected.', 'error')
+                if user.status in ['rejected', 'suspended']:
+                    flash('Your account has been suspended or rejected. Please contact support.', 'error')
                     return redirect(url_for('login'))
                 
                 session['user_id'] = user.id
@@ -94,7 +95,6 @@ def login():
                 session['full_name'] = user.full_name
                 flash(f'Welcome back, {user.full_name}!', 'success')
 
-                # Redirect based on role
                 if user.role in ['hospital', 'admin']:
                     return redirect(url_for('admin_dashboard'))
                 return redirect(url_for('index'))
@@ -111,7 +111,21 @@ def login():
 def admin_dashboard():
     pending_doctors = User.query.filter_by(role='doctor', status='pending').all()
     approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
-    return render_template('admin.html', pending_doctors=pending_doctors, approved_doctors=approved_doctors)
+    patients = User.query.filter_by(role='patient').all()
+
+    stats = {
+        'total_patients': len(patients),
+        'active_doctors': len(approved_doctors),
+        'pending_approvals': len(pending_doctors)
+    }
+
+    return render_template(
+        'admin.html',
+        pending_doctors=pending_doctors,
+        approved_doctors=approved_doctors,
+        patients=patients,
+        stats=stats
+    )
 
 @app.route('/admin/verify/<int:doctor_id>/<action>')
 @login_required
@@ -124,6 +138,25 @@ def verify_doctor(doctor_id, action):
     elif action == 'reject':
         doctor.status = 'rejected'
         flash(f'Doctor {doctor.full_name} rejected.', 'error')
+    db.session.commit()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/toggle-user/<int:user_id>')
+@login_required
+@role_required('hospital', 'admin')
+def toggle_user_status(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.role in ['hospital', 'admin']:
+        flash('Cannot suspend system admin account.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    if user.status == 'approved':
+        user.status = 'suspended'
+        flash(f'Account for {user.full_name} has been suspended.', 'error')
+    else:
+        user.status = 'approved'
+        flash(f'Account for {user.full_name} is now active.', 'success')
+    
     db.session.commit()
     return redirect(url_for('admin_dashboard'))
 
