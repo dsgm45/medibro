@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -32,22 +33,24 @@ class User(db.Model):
 def init_db():
     with app.app_context():
         try:
-            db.drop_all()
+            # Force-drop existing user table on Postgres to resolve column mismatch
+            db.session.execute(text('DROP TABLE IF EXISTS "user" CASCADE;'))
+            db.session.commit()
+            
             db.create_all()
-            admin = User.query.filter_by(email='admin@medibro.com').first()
-            if not admin:
-                admin = User(
-                    email='admin@medibro.com',
-                    password_hash=generate_password_hash('admin123'),
-                    role='hospital',
-                    full_name='System Admin',
-                    status='approved'
-                )
-                db.session.add(admin)
-                db.session.commit()
-                print("Default admin created successfully.")
-            print("Database tables verified/created successfully.")
+            
+            admin = User(
+                email='admin@medibro.com',
+                password_hash=generate_password_hash('admin123'),
+                role='hospital',
+                full_name='System Admin',
+                status='approved'
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Database reset & Admin created successfully.")
         except Exception as e:
+            db.session.rollback()
             print(f"Database initialization error: {e}")
 
 init_db()
