@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Audit Log - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 1000px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Admin Audit Log</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Most recent 100 admin actions</p>
+        </div>
+        <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Admin</a>
+    </div>
+
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        {% if logs %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">Admin</th>
+                        <th style="padding: 10px;">Action</th>
+                        <th style="padding: 10px;">Target</th>
+                        <th style="padding: 10px;">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{{ log.admin.full_name if log.admin else 'Unknown' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ log.action }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ log.target_name or '—' }}</td>
+                        <td style="padding: 10px; color: var(--text-sub);">{{ log.details or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No admin actions logged yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

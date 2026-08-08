@@ -2,6 +2,10 @@
 {% block title %}Admin Dashboard - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+
+    <div style="margin-bottom: 20px; text-align: right;">
+        <a href="{{ url_for('admin_audit_log') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">📜 View Audit Log</a>
+    </div>
     
     <!-- Emergency SOS High-Priority Banner -->
     {% if emergency_alerts %}
@@ -42,7 +46,8 @@
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
         <h2 style="font-size: 1.25rem; margin-top: 0;">⏳ Pending Doctor Approvals</h2>
         {% if pending_doctors %}
-        <table style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 12px;">
+        <input type="text" id="doctorSearch" onkeyup="filterTable('doctorSearch', 'doctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <table id="doctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                     <th style="padding: 10px;">Name</th>
@@ -74,7 +79,8 @@
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
         <h2 style="font-size: 1.25rem; margin-top: 0;">👥 Patient Directory</h2>
         {% if patients %}
-        <table style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 12px;">
+        <input type="text" id="patientSearch" onkeyup="filterTable('patientSearch', 'patientTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <table id="patientTable" style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                     <th style="padding: 10px;">Name</th>
@@ -107,4 +113,15 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function filterTable(inputId, tableId) {
+    const query = document.getElementById(inputId).value.toLowerCase();
+    const rows = document.getElementById(tableId).getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    for (let i = 0; i < rows.length; i++) {
+        const text = rows[i].textContent.toLowerCase();
+        rows[i].style.display = text.includes(query) ? '' : 'none';
+    }
+}
+</script>
 {% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 480px; margin: 80px auto; padding: 0 20px; text-align: center;">
+    <p style="font-size: 3rem; font-weight: 800; color: var(--primary); margin: 0;">{{ code }}</p>
+    <p style="font-size: 1.1rem; color: var(--text-dark); margin: 8px 0 24px 0;">{{ message }}</p>
+    <a href="{{ url_for('index') }}" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.95rem;">Go to Homepage</a>
+</div>
+{% endblock %}

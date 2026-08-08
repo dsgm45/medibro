@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.full_name }} - Patient History{% endblock %}
+{% block content %}
+<div style="max-width: 1000px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">{{ patient.full_name }}</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ patient.phone or 'No phone on file' }} &middot; {{ patient.email }}</p>
+        </div>
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+
+    <!-- Vitals History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💓 Vitals History</h2>
+        {% if vitals_history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">BP</th>
+                        <th style="padding: 10px;">HR</th>
+                        <th style="padding: 10px;">SpO2</th>
+                        <th style="padding: 10px;">Temp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vitals_history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}&mdash;{% endif %}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.heart_rate or '—' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.spo2 or '—' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.temperature or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No vitals logged by this patient.</p>
+        {% endif %}
+    </div>
+
+    <!-- Symptom History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">🩺 Symptom History</h2>
+        {% if symptom_history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">Symptoms</th>
+                        <th style="padding: 10px;">Severity</th>
+                        <th style="padding: 10px;">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in symptom_history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{{ log.symptoms }}</td>
+                        <td style="padding: 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
+                        <td style="padding: 10px; color: var(--text-sub);">{{ log.description or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No symptoms logged by this patient.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

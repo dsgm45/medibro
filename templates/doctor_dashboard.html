@@ -2,56 +2,68 @@
 {% block title %}Doctor Workspace - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
-    <div style="margin-bottom: 24px;">
-        <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Doctor Workspace</h1>
-        <p style="margin: 4px 0 0 0; color: #64748b;">Welcome, Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doctor.specialty or 'General Medicine' }})</p>
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Doctor Workspace</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome, Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doctor.specialty or 'General Medicine' }})</p>
+        </div>
+        <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">⚙️ Edit Profile</a>
     </div>
 
-    <!-- Incoming Appointment Requests Card -->
+    <!-- Appointments grouped by day -->
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">🩺 Patient Appointment Requests</h2>
-        {% if appointments %}
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.85rem;">
-                        <th style="padding: 12px 10px;">Patient Name</th>
-                        <th style="padding: 12px 10px;">Phone</th>
-                        <th style="padding: 12px 10px;">Date & Time</th>
-                        <th style="padding: 12px 10px;">Reason</th>
-                        <th style="padding: 12px 10px;">Status</th>
-                        <th style="padding: 12px 10px; text-align: right;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for appt in appointments %}
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">{{ appt.patient.full_name }}</td>
-                        <td style="padding: 14px 10px; color: #334155;">{{ appt.patient.phone or 'N/A' }}</td>
-                        <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }} at {{ appt.appointment_time }}</td>
-                        <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
-                        <td style="padding: 14px 10px;">
-                            {% if appt.status == 'accepted' %}
-                            <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
-                            {% elif appt.status == 'declined' %}
-                            <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
-                            {% else %}
-                            <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
-                            {% endif %}
-                        </td>
-                        <td style="padding: 14px 10px; text-align: right;">
-                            {% if appt.status == 'pending' %}
-                            <a href="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 6px; display: inline-block;">Accept</a>
-                            <a href="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Decline</a>
-                            {% else %}
-                            <span style="color: #64748b; font-size: 0.85rem;">Completed</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        {% if grouped_appointments %}
+        {% for date_label, day_appointments in grouped_appointments %}
+        <div style="margin-bottom: 24px;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #2563eb; margin: 0 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0;">{{ date_label }}</h3>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.8rem;">
+                            <th style="padding: 10px;">Patient Name</th>
+                            <th style="padding: 10px;">Phone</th>
+                            <th style="padding: 10px;">Time</th>
+                            <th style="padding: 10px;">Reason</th>
+                            <th style="padding: 10px;">Status</th>
+                            <th style="padding: 10px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appt in day_appointments %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 12px 10px; font-weight: 600; color: #0f172a;">
+                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #0f172a; text-decoration: none;">{{ appt.patient.full_name }}</a>
+                            </td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.patient.phone or 'N/A' }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                            <td style="padding: 12px 10px;">
+                                {% if appt.status == 'accepted' %}
+                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                {% elif appt.status == 'declined' %}
+                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                                {% elif appt.status == 'cancelled' %}
+                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                {% else %}
+                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px 10px; text-align: right;">
+                                {% if appt.status == 'pending' %}
+                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 6px; display: inline-block;">Accept</a>
+                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Decline</a>
+                                {% else %}
+                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none;">View History</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
+        {% endfor %}
         {% else %}
         <p style="color: #64748b; margin: 0;">No appointment requests received yet.</p>
         {% endif %}

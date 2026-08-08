@@ -2,9 +2,12 @@
 {% block title %}Profile - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 480px; margin: 50px auto; padding: 0 20px;">
-    <div style="margin-bottom: 24px;">
-        <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Profile & Security</h1>
-        <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ session.full_name }} ({{ session.email }})</p>
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Profile & Security</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ session.full_name }} ({{ session.email }})</p>
+        </div>
+        <a href="{{ url_for(back_endpoint) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Portal</a>
     </div>
 
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Edit Profile - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 640px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Edit Profile</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+        </div>
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Portal</a>
+    </div>
+
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <form method="POST" style="display: grid; gap: 16px;">
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Specialty</label>
+                <input type="text" name="specialty" value="{{ doctor.specialty or '' }}" placeholder="e.g. Cardiology" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone</label>
+                <input type="text" name="phone" value="{{ doctor.phone or '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Working Hours</label>
+                <input type="text" name="hours" value="{{ doctor.hours or '' }}" placeholder="e.g. Mon-Fri, 9:00 AM - 5:00 PM" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            </div>
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Bio</label>
+                <textarea name="bio" rows="5" placeholder="A short introduction patients will see..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ doctor.bio or '' }}</textarea>
+            </div>
+            <div style="text-align: right;">
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Profile</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

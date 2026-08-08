@@ -14,9 +14,32 @@
         </div>
     </div>
 
+    <!-- Upcoming Appointment Reminders -->
+    {% if upcoming %}
+    <div style="background-color: var(--warning-light, #fef3c7); border: 1px solid #fde68a; border-radius: var(--radius, 8px); padding: 16px 20px; margin-bottom: 24px;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; color: #92400e; font-size: 0.9rem;">⏰ Upcoming Appointments</p>
+        {% for appt in upcoming %}
+        <p style="margin: 4px 0; color: #92400e; font-size: 0.85rem;">
+            Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &mdash; {{ appt.appointment_date }} at {{ appt.appointment_time }}
+        </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Section 1: Book Appointment Card -->
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Book an Appointment</h2>
+
+        {% if all_specialties %}
+        <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Filter by specialty:</span>
+            <a href="{{ url_for('patient_dashboard') }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if not specialty_filter %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">All</a>
+            {% for spec in all_specialties %}
+            <a href="{{ url_for('patient_dashboard', specialty=spec) }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if specialty_filter == spec %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">{{ spec }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if doctors %}
         <form action="{{ url_for('book_appointment') }}" method="POST">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
@@ -47,7 +70,7 @@
             </div>
         </form>
         {% else %}
-        <p style="color: #64748b; margin: 0;">No verified doctors are currently available for booking.</p>
+        <p style="color: #64748b; margin: 0;">No verified doctors are currently available for booking{% if specialty_filter %} in this specialty{% endif %}.</p>
         {% endif %}
     </div>
 
@@ -63,6 +86,7 @@
                         <th style="padding: 12px 10px;">Date & Time</th>
                         <th style="padding: 12px 10px;">Reason</th>
                         <th style="padding: 12px 10px;">Status</th>
+                        <th style="padding: 12px 10px; text-align: right;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -76,8 +100,15 @@
                             <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
                             {% elif appt.status == 'declined' %}
                             <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                            {% elif appt.status == 'cancelled' %}
+                            <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
                             {% else %}
                             <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 14px 10px; text-align: right;">
+                            {% if appt.status == 'pending' %}
+                            <a href="{{ url_for('cancel_appointment', app_id=appt.id) }}" onclick="return confirm('Cancel this appointment request?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Cancel</a>
                             {% endif %}
                         </td>
                     </tr>
