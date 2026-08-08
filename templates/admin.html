@@ -2,16 +2,28 @@
 {% block title %}Admin Dashboard - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <div>
-            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Hospital Admin Portal</h1>
-            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Manage platform doctors, patient accounts, and verification requests.</p>
+    
+    <!-- Emergency SOS High-Priority Banner -->
+    {% if emergency_alerts %}
+    <div style="background: var(--danger-light); border: 2px solid var(--danger); border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
+        <h2 style="color: var(--danger); margin-top: 0; display: flex; align-items: center; gap: 8px;">🚨 ACTIVE EMERGENCY SOS ALERTS ({{ emergency_alerts | length }})</h2>
+        <div style="display: grid; gap: 12px; margin-top: 12px;">
+            {% for sos in emergency_alerts %}
+            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong style="color: var(--danger); font-size: 1.1rem;">{{ sos.patient_name }}</strong>
+                    <div style="font-size: 0.9rem; color: var(--text-dark);">Contact Phone: <strong>{{ sos.phone }}</strong></div>
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">Alert Time: {{ sos.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                </div>
+                <a href="{{ url_for('resolve_sos', sos_id=sos.id) }}" style="padding: 8px 16px; background: var(--success); color: white; text-decoration: none; border-radius: 6px; font-weight: 700;">Mark Resolved</a>
+            </div>
+            {% endfor %}
         </div>
-        <a href="{{ url_for('logout') }}" style="padding: 8px 16px; background: var(--danger-light); color: var(--danger); font-weight: 600; text-decoration: none; border-radius: 6px;">Log Out</a>
     </div>
+    {% endif %}
 
     <!-- Analytics Stats Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 32px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
         <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Total Patients</div>
             <div style="font-size: 2rem; font-weight: 700; color: var(--primary); margin-top: 4px;">{{ stats.total_patients }}</div>
@@ -21,22 +33,21 @@
             <div style="font-size: 2rem; font-weight: 700; color: var(--success); margin-top: 4px;">{{ stats.active_doctors }}</div>
         </div>
         <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
-            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Pending Verification</div>
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Pending Approvals</div>
             <div style="font-size: 2rem; font-weight: 700; color: var(--warning); margin-top: 4px;">{{ stats.pending_approvals }}</div>
         </div>
     </div>
 
-    <!-- Section 1: Pending Doctor Approvals -->
+    <!-- Doctor Verification Queue -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 16px;">⏳ Pending Doctor Approvals</h2>
+        <h2 style="font-size: 1.25rem; margin-top: 0;">⏳ Pending Doctor Approvals</h2>
         {% if pending_doctors %}
-        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 12px;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                     <th style="padding: 10px;">Name</th>
                     <th style="padding: 10px;">Email</th>
                     <th style="padding: 10px;">Specialty</th>
-                    <th style="padding: 10px;">Phone</th>
                     <th style="padding: 10px; text-align: right;">Actions</th>
                 </tr>
             </thead>
@@ -45,10 +56,9 @@
                 <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
                     <td style="padding: 12px 10px;">{{ doc.email }}</td>
-                    <td style="padding: 12px 10px;"><span style="background: var(--primary-light); color: var(--primary); padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">{{ doc.specialty or 'General' }}</span></td>
-                    <td style="padding: 12px 10px;">{{ doc.phone or 'N/A' }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
                     <td style="padding: 12px 10px; text-align: right;">
-                        <a href="{{ url_for('verify_doctor', doctor_id=doc.id, action='approve') }}" style="padding: 6px 12px; background: var(--success); color: white; border-radius: 6px; text-decoration: none; font-size: 0.85rem; margin-right: 6px; font-weight: 600;">Approve</a>
+                        <a href="{{ url_for('verify_doctor', doctor_id=doc.id, action='approve') }}" style="padding: 6px 12px; background: var(--success); color: white; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Approve</a>
                         <a href="{{ url_for('verify_doctor', doctor_id=doc.id, action='reject') }}" style="padding: 6px 12px; background: var(--danger); color: white; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Reject</a>
                     </td>
                 </tr>
@@ -56,20 +66,19 @@
             </tbody>
         </table>
         {% else %}
-        <p style="color: var(--text-sub); margin: 0; font-size: 0.95rem;">No pending doctor verifications at this time.</p>
+        <p style="color: var(--text-sub); margin: 0;">No pending doctor approvals.</p>
         {% endif %}
     </div>
 
-    <!-- Section 2: Patient Directory & Controls -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 16px;">👥 Patient Directory</h2>
+    <!-- Patient Directory -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">👥 Patient Directory</h2>
         {% if patients %}
-        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 12px;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                     <th style="padding: 10px;">Name</th>
                     <th style="padding: 10px;">Email</th>
-                    <th style="padding: 10px;">Phone</th>
                     <th style="padding: 10px;">Status</th>
                     <th style="padding: 10px; text-align: right;">Account Control</th>
                 </tr>
@@ -79,9 +88,8 @@
                 <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 12px 10px; font-weight: 600;">{{ p.full_name }}</td>
                     <td style="padding: 12px 10px;">{{ p.email }}</td>
-                    <td style="padding: 12px 10px;">{{ p.phone or 'N/A' }}</td>
                     <td style="padding: 12px 10px;">
-                        <span style="background: {{ 'var(--success-light)' if p.status == 'approved' else 'var(--danger-light)' }}; color: {{ 'var(--success)' if p.status == 'approved' else 'var(--danger)' }}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
+                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: {{ 'var(--success-light)' if p.status == 'approved' else 'var(--danger-light)' }}; color: {{ 'var(--success)' if p.status == 'approved' else 'var(--danger)' }};">
                             {{ p.status | capitalize }}
                         </span>
                     </td>
@@ -95,46 +103,7 @@
             </tbody>
         </table>
         {% else %}
-        <p style="color: var(--text-sub); margin: 0; font-size: 0.95rem;">No registered patients yet.</p>
-        {% endif %}
-    </div>
-
-    <!-- Section 3: Verified Doctors Roster -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 16px;">🩺 Verified Doctor Roster</h2>
-        {% if approved_doctors %}
-        <table style="width: 100%; border-collapse: collapse; text-align: left;">
-            <thead>
-                <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
-                    <th style="padding: 10px;">Name</th>
-                    <th style="padding: 10px;">Email</th>
-                    <th style="padding: 10px;">Specialty</th>
-                    <th style="padding: 10px;">Status</th>
-                    <th style="padding: 10px; text-align: right;">Account Control</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for doc in approved_doctors %}
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
-                    <td style="padding: 12px 10px;">{{ doc.email }}</td>
-                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
-                    <td style="padding: 12px 10px;">
-                        <span style="background: var(--success-light); color: var(--success); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
-                            Active
-                        </span>
-                    </td>
-                    <td style="padding: 12px 10px; text-align: right;">
-                        <a href="{{ url_for('toggle_user_status', user_id=doc.id) }}" style="padding: 6px 12px; background: var(--danger-light); color: var(--danger); border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">
-                            Suspend
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p style="color: var(--text-sub); margin: 0; font-size: 0.95rem;">No verified doctors on the platform yet.</p>
+        <p style="color: var(--text-sub); margin: 0;">No patients registered yet.</p>
         {% endif %}
     </div>
 </div>

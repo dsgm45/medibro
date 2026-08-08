@@ -2,38 +2,142 @@
 {% block title %}Patient Portal - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <div>
-            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Patient Portal</h1>
-            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Welcome back, {{ session.full_name }}</p>
+
+    <!-- AI Symptom Checker Tool -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0; color: var(--primary);">🤖 AI Symptom Checker</h2>
+        <form action="{{ url_for('symptom_checker') }}" method="POST" style="display: flex; gap: 12px; margin-top: 12px;">
+            <input type="text" name="symptoms" placeholder="Describe symptoms (e.g. fever, cough, chest pain, stomach ache)..." required style="flex: 1; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <button type="submit" style="padding: 12px 20px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Analyze Symptoms</button>
+        </form>
+
+        {% if session.get('symptom_result') %}
+        <div style="margin-top: 20px; padding: 16px; background: var(--bg-light); border-left: 4px solid var(--primary); border-radius: 4px;">
+            <div style="font-weight: 700; color: var(--text-dark);">Analysis Result for: "{{ session.symptom_result.query }}"</div>
+            <div style="margin-top: 6px;"><strong>Urgency Level:</strong> <span style="color: var(--danger); font-weight: 700;">{{ session.symptom_result.urgency }}</span></div>
+            <div style="margin-top: 4px;"><strong>Recommended Specialty:</strong> {{ session.symptom_result.specialty }}</div>
+            <div style="margin-top: 4px; color: var(--text-sub);">{{ session.symptom_result.advice }}</div>
         </div>
-        <a href="{{ url_for('logout') }}" style="padding: 8px 16px; background: var(--danger-light); color: var(--danger); font-weight: 600; text-decoration: none; border-radius: 6px;">Log Out</a>
+        {% endif %}
     </div>
 
-    <!-- Quick Action Banner -->
-    <div style="background: linear-gradient(135deg, #1e56a0, #0d9488); color: white; border-radius: var(--radius); padding: 28px; margin-bottom: 32px;">
-        <h2 style="margin-top: 0; font-size: 1.5rem;">Need to consult a doctor?</h2>
-        <p style="margin-bottom: 20px; opacity: 0.9;">Browse our roster of verified medical specialists and request consultations online.</p>
-        <a href="#doctors" style="padding: 10px 20px; background: white; color: var(--primary); font-weight: 700; border-radius: 6px; text-decoration: none; display: inline-block;">View Verified Doctors</a>
+    <!-- Smart Vitals Tracker -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">🩺 Smart Vitals Tracker</h2>
+        <form action="{{ url_for('log_vitals') }}" method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 12px;">
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Systolic BP</label>
+                <input type="number" name="sys_bp" placeholder="120" required style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Diastolic BP</label>
+                <input type="number" name="dia_bp" placeholder="80" required style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Heart Rate (BPM)</label>
+                <input type="number" name="heart_rate" placeholder="72" required style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">SpO2 (%)</label>
+                <input type="number" name="spo2" placeholder="98" required style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 600;">Temp (°F)</label>
+                <input type="number" step="0.1" name="temp" placeholder="98.6" required style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+            </div>
+            <div style="grid-column: 1 / -1;">
+                <button type="submit" style="padding: 10px 16px; background: var(--accent-teal); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Log Vitals</button>
+            </div>
+        </form>
+
+        {% if vitals_history %}
+        <div style="margin-top: 20px;">
+            <h4 style="margin-bottom: 8px;">Recent Vitals Logs</h4>
+            <div style="display: grid; gap: 8px;">
+                {% for v in vitals_history[:3] %}
+                <div style="padding: 12px; background: {{ 'var(--danger-light)' if v.is_abnormal else 'var(--bg-light)' }}; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>BP:</strong> {{ v.sys_bp }}/{{ v.dia_bp }} mmHg | <strong>HR:</strong> {{ v.heart_rate }} BPM | <strong>SpO2:</strong> {{ v.spo2 }}% | <strong>Temp:</strong> {{ v.temp }}°F
+                    </div>
+                    <div>
+                        <span style="font-weight: 700; color: {{ 'var(--danger)' if v.is_abnormal else 'var(--success)' }}; font-size: 0.85rem;">
+                            {{ v.warnings }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Verified Doctor Roster -->
-    <div id="doctors" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 16px;">🩺 Available Specialists</h2>
+    <!-- Doctor Roster & Booking -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">📅 Book an Appointment</h2>
         {% if doctors %}
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
             {% for doc in doctors %}
             <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: var(--bg-light);">
-                <div style="font-weight: 700; font-size: 1.1rem; color: var(--primary);">Dr. {{ doc.full_name }}</div>
-                <div style="color: var(--text-sub); font-size: 0.875rem; margin-top: 4px;"><strong style="color: var(--accent-teal);">Specialty:</strong> {{ doc.specialty or 'General Medicine' }}</div>
-                <div style="color: var(--text-sub); font-size: 0.85rem; margin-top: 2px;">Phone: {{ doc.phone or 'N/A' }}</div>
-                <button style="margin-top: 14px; width: 100%; padding: 8px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Book Appointment</button>
+                <div style="font-weight: 700; color: var(--primary);">Dr. {{ doc.full_name }}</div>
+                <div style="font-size: 0.85rem; color: var(--accent-teal); font-weight: 600;">{{ doc.specialty or 'General Medicine' }}</div>
+                <form action="{{ url_for('book_appointment') }}" method="POST" style="margin-top: 12px; display: grid; gap: 8px;">
+                    <input type="hidden" name="doctor_id" value="{{ doc.id }}">
+                    <input type="date" name="appointment_date" required style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);">
+                    <select name="time_slot" required style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);">
+                        <option value="09:00 AM">09:00 AM</option>
+                        <option value="11:30 AM">11:30 AM</option>
+                        <option value="02:00 PM">02:00 PM</option>
+                        <option value="04:30 PM">04:30 PM</option>
+                    </select>
+                    <input type="text" name="reason" placeholder="Reason for visit" required style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);">
+                    <button type="submit" style="padding: 8px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Request Appointment</button>
+                </form>
             </div>
             {% endfor %}
         </div>
         {% else %}
-        <p style="color: var(--text-sub); margin: 0;">No doctors currently available for booking.</p>
+        <p style="color: var(--text-sub);">No active doctors currently available.</p>
         {% endif %}
+    </div>
+
+    <!-- My Appointments & Prescriptions -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <h3 style="margin-top: 0;">My Appointments</h3>
+            {% if appointments %}
+                {% for a in appointments %}
+                <div style="border-bottom: 1px solid var(--border); padding: 10px 0;">
+                    <div style="font-weight: 600;">Dr. {{ a.doctor.full_name }}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-sub);">{{ a.appointment_date }} at {{ a.time_slot }}</div>
+                    <div style="margin-top: 4px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: {{ 'var(--warning)' if a.status=='pending' else ('var(--success)' if a.status=='confirmed' else 'var(--primary)') }};">
+                            Status: {{ a.status | capitalize }}
+                        </span>
+                        {% if a.status in ['confirmed', 'completed'] %}
+                        <a href="{{ url_for('chat', appt_id=a.id) }}" style="font-size: 0.8rem; padding: 4px 8px; background: var(--primary-light); color: var(--primary); text-decoration: none; border-radius: 4px; font-weight: 600;">💬 Consultation Chat</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: var(--text-sub); font-size: 0.9rem;">No appointments booked yet.</p>
+            {% endif %}
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <h3 style="margin-top: 0;">💊 My Digital Prescriptions</h3>
+            {% if prescriptions %}
+                {% for p in prescriptions %}
+                <div style="border-bottom: 1px solid var(--border); padding: 10px 0;">
+                    <div style="font-weight: 600; color: var(--primary);">Prescribed by Dr. {{ p.doctor.full_name }}</div>
+                    <div style="font-size: 0.9rem; margin-top: 4px;"><strong>Medicines:</strong> {{ p.medicines }}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-sub); margin-top: 2px;"><strong>Instructions:</strong> {{ p.instructions }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: var(--text-sub); font-size: 0.9rem;">No prescriptions issued yet.</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

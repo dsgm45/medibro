@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}MediBro{% endblock %}</title>
+    <title>{% block title %}MediBro | Health Platform{% endblock %}</title>
     <style>
         :root {
-            --primary: #0284c7;
-            --primary-dark: #0369a1;
-            --primary-light: #e0f2fe;
+            --primary: #1e56a0;
+            --primary-dark: #194682;
+            --primary-light: #e3f2fd;
             --accent-teal: #0d9488;
             --success: #16a34a;
             --success-light: #dcfce7;
@@ -26,46 +26,32 @@
             --radius-sm: 8px;
         }
         * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-body);
-            color: var(--text-dark);
-        }
-        a { color: inherit; }
-        .top-nav {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 14px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .top-nav .brand {
-            font-weight: 700;
-            font-size: 1.15rem;
-            color: var(--primary-dark);
-            text-decoration: none;
-        }
-        .flash-wrap {
-            max-width: 1100px;
-            margin: 16px auto 0 auto;
-            padding: 0 20px;
-        }
-        .flash {
-            padding: 12px 16px;
-            border-radius: var(--radius-sm);
-            margin-bottom: 10px;
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg-body); color: var(--text-dark); }
+        .top-nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+        .top-nav .brand { font-weight: 700; font-size: 1.2rem; color: var(--primary); text-decoration: none; }
+        .flash-wrap { max-width: 1100px; margin: 16px auto 0 auto; padding: 0 20px; }
+        .flash { padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 10px; font-size: 0.9rem; font-weight: 500; }
         .flash-success { background: var(--success-light); color: var(--success); }
         .flash-error { background: var(--danger-light); color: var(--danger); }
+        .sos-btn { background: var(--danger); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; }
     </style>
 </head>
 <body>
     <nav class="top-nav">
         <a class="brand" href="{{ url_for('index') }}">🩺 MediBro</a>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            {% if session.get('user_id') and session.get('role') == 'patient' %}
+                <form action="{{ url_for('trigger-sos' if False else 'trigger_sos') }}" method="POST" style="margin: 0;" onsubmit="return confirm('ARE YOU SURE? This will send an immediate Emergency SOS alert to Hospital Admins!');">
+                    <button type="submit" class="sos-btn">🚨 Emergency SOS</button>
+                </form>
+            {% endif %}
+            {% if session.get('user_id') %}
+                <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-sub);">{{ session.get('full_name') }}</span>
+                <a href="{{ url_for('logout') }}" style="color: var(--danger); text-decoration: none; font-size: 0.9rem; font-weight: 600;">Log Out</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" style="color: var(--primary); text-decoration: none; font-weight: 600;">Log In</a>
+            {% endif %}
+        </div>
     </nav>
 
     <div class="flash-wrap">
