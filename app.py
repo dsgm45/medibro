@@ -2,8 +2,7 @@ import os
 import secrets
 from datetime import datetime
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, 
-flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -38,25 +37,20 @@ class User(db.Model):
 
 class Appointment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), 
-nullable=False)
-    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), 
-nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     appointment_date = db.Column(db.String(50), nullable=False)
     appointment_time = db.Column(db.String(50), nullable=False)
     reason = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    patient = db.relationship('User', foreign_keys=[patient_id], 
-backref='patient_appointments')
-    doctor = db.relationship('User', foreign_keys=[doctor_id], 
-backref='doctor_appointments')
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
+    doctor = db.relationship('User', foreign_keys=[doctor_id], backref='doctor_appointments')
 
 class Vital(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), 
-nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     systolic = db.Column(db.Integer, nullable=True)
     diastolic = db.Column(db.Integer, nullable=True)
     heart_rate = db.Column(db.Integer, nullable=True)
@@ -65,15 +59,13 @@ nullable=False)
     notes = db.Column(db.Text, nullable=True)
     recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    patient = db.relationship('User', foreign_keys=[patient_id], 
-backref='vitals')
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='vitals')
 
 def init_db():
     with app.app_context():
         try:
             db.create_all()
-            admin = 
-User.query.filter_by(email='admin@medibro.com').first()
+            admin = User.query.filter_by(email='admin@medibro.com').first()
             if not admin:
                 admin = User(
                     email='admin@medibro.com',
@@ -124,12 +116,10 @@ def login():
             user = User.query.filter_by(email=email).first()
             if user and check_password_hash(user.password_hash, password):
                 if user.status == 'pending':
-                    flash('Your doctor account is pending verification by 
-hospital admin.', 'error')
+                    flash('Your doctor account is pending verification by hospital admin.', 'error')
                     return redirect(url_for('login'))
                 if user.status in ['rejected', 'suspended']:
-                    flash('Your account is suspended or rejected.', 
-'error')
+                    flash('Your account is suspended or rejected.', 'error')
                     return redirect(url_for('login'))
                 
                 session['user_id'] = user.id
@@ -181,11 +171,9 @@ def register():
             db.session.commit()
 
             if status == 'pending':
-                flash('Registration successful! Account pending hospital 
-verification.', 'success')
+                flash('Registration successful! Account pending hospital verification.', 'success')
             else:
-                flash('Registration successful! You can now log in.', 
-'success')
+                flash('Registration successful! You can now log in.', 'success')
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
@@ -200,10 +188,8 @@ verification.', 'success')
 def patient_dashboard():
     patient_id = session.get('user_id')
     doctors = User.query.filter_by(role='doctor', status='approved').all()
-    my_appointments = 
-Appointment.query.filter_by(patient_id=patient_id).order_by(Appointment.created_at.desc()).all()
-    return render_template('patient_dashboard.html', doctors=doctors, 
-appointments=my_appointments)
+    my_appointments = Appointment.query.filter_by(patient_id=patient_id).order_by(Appointment.created_at.desc()).all()
+    return render_template('patient_dashboard.html', doctors=doctors, appointments=my_appointments)
 
 @app.route('/book-appointment', methods=['POST'])
 @login_required
@@ -242,10 +228,8 @@ def book_appointment():
 def doctor_dashboard():
     doctor_id = session.get('user_id')
     doctor = User.query.get_or_404(doctor_id)
-    appointments = 
-Appointment.query.filter_by(doctor_id=doctor_id).order_by(Appointment.created_at.desc()).all()
-    return render_template('doctor_dashboard.html', doctor=doctor, 
-appointments=appointments)
+    appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(Appointment.created_at.desc()).all()
+    return render_template('doctor_dashboard.html', doctor=doctor, appointments=appointments)
 
 @app.route('/appointment/<int:app_id>/<action>')
 @login_required
@@ -276,10 +260,8 @@ def handle_appointment(app_id, action):
 @login_required
 @role_required('hospital', 'admin')
 def admin_dashboard():
-    pending_doctors = User.query.filter_by(role='doctor', 
-status='pending').all()
-    approved_doctors = User.query.filter_by(role='doctor', 
-status='approved').all()
+    pending_doctors = User.query.filter_by(role='doctor', status='pending').all()
+    approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
     patients = User.query.filter_by(role='patient').all()
 
     stats = {
@@ -304,8 +286,7 @@ def verify_doctor(doctor_id, action):
         doctor = User.query.get_or_404(doctor_id)
         if action == 'approve':
             doctor.status = 'approved'
-            flash(f'Doctor {doctor.full_name} approved successfully!', 
-'success')
+            flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
         elif action == 'reject':
             doctor.status = 'rejected'
             flash(f'Doctor {doctor.full_name} rejected.', 'error')
@@ -324,12 +305,10 @@ def toggle_user_status(user_id):
         if user.role not in ['hospital', 'admin']:
             if user.status == 'approved':
                 user.status = 'suspended'
-                flash(f'Account for {user.full_name} has been suspended.', 
-'error')
+                flash(f'Account for {user.full_name} has been suspended.', 'error')
             else:
                 user.status = 'approved'
-                flash(f'Account for {user.full_name} has been 
-reactivated.', 'success')
+                flash(f'Account for {user.full_name} has been reactivated.', 'success')
             db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -379,13 +358,11 @@ def vitals():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Vitals log error: {e}")
-            flash('Error saving vitals. Please check your entries and try 
-again.', 'error')
+            flash('Error saving vitals. Please check your entries and try again.', 'error')
 
         return redirect(url_for('vitals'))
 
-    history = 
-Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
+    history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     latest = history[0] if history else None
     return render_template('vitals.html', history=history, latest=latest)
 
