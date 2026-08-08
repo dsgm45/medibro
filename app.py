@@ -119,7 +119,8 @@ def patient_dashboard():
 @login_required
 @role_required('doctor')
 def doctor_dashboard():
-    return render_template('doctor_dashboard.html')
+    doctor = User.query.get(session.get('user_id'))
+    return render_template('doctor_dashboard.html', doctor=doctor)
 
 @app.route('/admin')
 @login_required
