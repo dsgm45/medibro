@@ -4,7 +4,6 @@ from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -171,9 +170,23 @@ def doctor_dashboard():
 def admin_dashboard():
     pending_doctors = User.query.filter_by(role='doctor', status='pending').all()
     approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
-    return render_template('admin.html', pending_doctors=pending_doctors, approved_doctors=approved_doctors)
+    patients = User.query.filter_by(role='patient').all()
 
-@app.route('/admin/verify/<int:doctor_id>/<action>')
+    stats = {
+        'total_patients': len(patients),
+        'active_doctors': len(approved_doctors),
+        'pending_approvals': len(pending_doctors)
+    }
+
+    return render_template(
+        'admin.html',
+        pending_doctors=pending_doctors,
+        approved_doctors=approved_doctors,
+        patients=patients,
+        stats=stats
+    )
+
+@app.route('/admin/verify//')
 @login_required
 @role_required('hospital', 'admin')
 def verify_doctor(doctor_id, action):
