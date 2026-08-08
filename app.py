@@ -6,7 +6,7 @@ from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'medibro-super-secret-key-2026')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///medibro.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -20,8 +20,10 @@ class User(db.Model):
     full_name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='patient')
+    role = db.Column(db.String(20), default='patient')  # 'patient', 'doctor', 'admin'
     specialty = db.Column(db.String(100), nullable=True)
+    status = db.Column(db.String(20), default='Approved')  # 'Approved', 'Pending Verification', 'Rejected'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Vital(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -43,17 +45,27 @@ class Appointment(db.Model):
 with app.app_context():
     try:
         db.create_all()
+        # Seed initial admin if not exists
+        if not User.query.filter_by(email='admin@medibro.com').first():
+            hashed_admin = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            admin_user = User(
+                full_name='System Administrator',
+                email='admin@medibro.com',
+                password=hashed_admin,
+                role='admin',
+                status='Approved'
+            )
+            db.session.add(admin_user)
+            db.session.commit()
     except Exception as e:
-        print("DB init error:", e)
+        print("DB Initialization info:", e)
 
 # ---------------------------------------------------------------------------
-# Core Routes (Fix 405 by adding GET/POST explicitly)
+# Core Routes
 # ---------------------------------------------------------------------------
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 def index():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    return render_template('index.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -67,16 +79,31 @@ def register():
         try:
             existing_user = User.query.filter_by(email=email).first()
             if existing_user:
-                flash('Email already registered!', 'danger')
+                flash('Email is already registered. Please log in.', 'danger')
                 return redirect(url_for('register'))
 
             hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
-            user = User(full_name=full_name, email=email, password=hashed_pw, role=role, specialty=specialty)
+            
+            # Doctors require admin verification by default
+            initial_status = 'Pending Verification' if role == 'doctor' else 'Approved'
+
+            user = User(
+                full_name=full_name,
+                email=email,
+                password=hashed_pw,
+                role=role,
+                specialty=specialty,
+                status=initial_status
+            )
             db.session.add(user)
             db.session.commit()
 
-            flash('Account created successfully! Please log in.', 'success')
+            if role == 'doctor':
+                flash('Account created! Your doctor profile is currently pending Admin verification.', 'info')
+            else:
+                flash('Account created successfully! Please log in.', 'success')
             return redirect(url_for('login'))
+
         except Exception as e:
             db.session.rollback()
             flash('Error creating account. Please try again.', 'danger')
@@ -95,6 +122,11 @@ def login():
                 session['user_id'] = user.id
                 session['user_name'] = user.full_name
                 session['user_role'] = user.role
+                session['user_status'] = user.status
+
+                if user.role == 'admin':
+                    return redirect(url_for('admin_dashboard'))
+
                 flash('Welcome back to MediBro!', 'success')
                 return redirect(url_for('dashboard'))
             else:
@@ -116,18 +148,71 @@ def dashboard():
         return redirect(url_for('login'))
 
     user_id = session['user_id']
-    try:
-        vitals = Vital.query.filter_by(patient_id=user_id).order_by(Vital.recorded_at.desc()).limit(10).all()
-        appointments = Appointment.query.filter_by(patient_id=user_id).all()
-        doctors = User.query.filter_by(role='doctor').all()
-    except Exception:
-        vitals, appointments, doctors = [], [], []
+    user_role = session.get('user_role', 'patient')
 
-    return render_template('dashboard.html', vitals=vitals, appointments=appointments, doctors=doctors)
+    try:
+        user = User.query.get(user_id)
+        if user_role == 'doctor':
+            appointments = Appointment.query.all()
+            vitals = Vital.query.order_by(Vital.recorded_at.desc()).limit(15).all()
+            doctors = []
+        else:
+            vitals = Vital.query.filter_by(patient_id=user_id).order_by(Vital.recorded_at.desc()).limit(10).all()
+            appointments = Appointment.query.filter_by(patient_id=user_id).all()
+            doctors = User.query.filter_by(role='doctor', status='Approved').all()
+    except Exception:
+        user, vitals, appointments, doctors = None, [], [], []
+
+    return render_template('dashboard.html', user=user, vitals=vitals, appointments=appointments, doctors=doctors)
+
+@app.route('/admin', methods=['GET'])
+def admin_dashboard():
+    if 'user_id' not in session or session.get('user_role') != 'admin':
+        flash('Unauthorized access. Admin privileges required.', 'danger')
+        return redirect(url_for('login'))
+
+    users = User.query.all()
+    pending_doctors = User.query.filter_by(role='doctor', status='Pending Verification').all()
+    verified_doctors = User.query.filter_by(role='doctor', status='Approved').all()
+    total_patients = User.query.filter_by(role='patient').count()
+    total_appointments = Appointment.query.count()
+
+    return render_template(
+        'admin.html',
+        users=users,
+        pending_doctors=pending_doctors,
+        verified_doctors=verified_doctors,
+        total_patients=total_patients,
+        total_appointments=total_appointments
+    )
 
 # ---------------------------------------------------------------------------
 # API Endpoints
 # ---------------------------------------------------------------------------
+@app.route('/api/approve-doctor/<int:doctor_id>', methods=['POST'])
+def approve_doctor(doctor_id):
+    if 'user_id' not in session or session.get('user_role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    doctor = User.query.get(doctor_id)
+    if doctor:
+        doctor.status = 'Approved'
+        db.session.commit()
+        flash(f'Dr. {doctor.full_name} has been verified and approved!', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/api/reject-doctor/<int:doctor_id>', methods=['POST'])
+def reject_doctor(doctor_id):
+    if 'user_id' not in session or session.get('user_role') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    doctor = User.query.get(doctor_id)
+    if doctor:
+        doctor.status = 'Rejected'
+        db.session.commit()
+        flash(f'Doctor registration for {doctor.full_name} was rejected.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/api/add-vital', methods=['POST'])
 def add_vital():
     if 'user_id' not in session:
@@ -140,29 +225,8 @@ def add_vital():
     vital = Vital(patient_id=session['user_id'], systolic=systolic, diastolic=diastolic, heart_rate=heart_rate)
     db.session.add(vital)
     db.session.commit()
-    flash('Vitals recorded!', 'success')
+    flash('Vitals recorded successfully!', 'success')
     return redirect(url_for('dashboard'))
-
-@app.route('/api/vitals-chart-data', methods=['GET'])
-def vitals_chart_data():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    try:
-        vitals = Vital.query.filter_by(patient_id=session['user_id']).order_by(Vital.recorded_at.asc()).limit(10).all()
-        labels = [v.recorded_at.strftime('%b %d %H:%M') for v in vitals]
-        systolic_data = [v.systolic for v in vitals]
-        diastolic_data = [v.diastolic for v in vitals]
-        heart_rate_data = [v.heart_rate for v in vitals]
-    except Exception:
-        labels, systolic_data, diastolic_data, heart_rate_data = [], [], [], []
-
-    return jsonify({
-        'labels': labels,
-        'systolic': systolic_data,
-        'diastolic': diastolic_data,
-        'heart_rate': heart_rate_data
-    })
 
 @app.route('/api/book-appointment', methods=['POST'])
 def book_appointment():
@@ -186,13 +250,13 @@ def ai_assistant():
     message = data.get('message', '').lower()
 
     if 'headache' in message or 'migraine' in message:
-        reply = "A headache can be caused by stress, dehydration, or tension. Stay hydrated and rest in a dim room. If severe, consult a physician."
+        reply = "A headache can stem from stress, dehydration, or tension. Stay hydrated and rest in a dim room. If severe or accompanied by nausea, consult a physician."
     elif 'fever' in message or 'temperature' in message:
-        reply = "A fever indicates your body is fighting off an infection. Rest, stay hydrated, and monitor temperature. If it exceeds 102°F, consult a doctor."
+        reply = "A fever indicates an immune response. Rest, stay hydrated with fluids, and monitor your temperature. Seek care if it exceeds 102°F (38.9°C)."
     elif 'bp' in message or 'blood pressure' in message:
-        reply = "Normal blood pressure is around 120/80 mmHg. You can log your readings directly on your MediBro dashboard chart!"
+        reply = "Normal blood pressure is around 120/80 mmHg. You can log new readings directly on your MediBro Vitals panel!"
     else:
-        reply = "Hello! I am MediBro AI. How can I assist with your health questions today?"
+        reply = "Hello! I am your MediBro AI Assistant. Describe any symptoms or questions you have today."
 
     return jsonify({'reply': reply})
 
