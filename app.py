@@ -51,11 +51,7 @@ class Appointment(db.Model):
 def init_db():
     with app.app_context():
         try:
-            # Re-create appointment schema on PostgreSQL if doctor_id is missing
-            db.session.execute(text("DROP TABLE IF EXISTS appointment CASCADE;"))
-            db.session.commit()
             db.create_all()
-
             admin = User.query.filter_by(email='admin@medibro.com').first()
             if not admin:
                 admin = User(
@@ -222,23 +218,29 @@ def doctor_dashboard():
     appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(Appointment.created_at.desc()).all()
     return render_template('doctor_dashboard.html', doctor=doctor, appointments=appointments)
 
-@app.route('/appointment//')
+@app.route('/appointment/<int:app_id>/<action>')
 @login_required
 @role_required('doctor')
 def handle_appointment(app_id, action):
-    appt = Appointment.query.get_or_404(app_id)
-    if appt.doctor_id != session.get('user_id'):
-        flash('Unauthorized action.', 'error')
-        return redirect(url_for('doctor_dashboard'))
+    try:
+        appt = Appointment.query.get_or_404(app_id)
+        if appt.doctor_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('doctor_dashboard'))
 
-    if action == 'accept':
-        appt.status = 'accepted'
-        flash('Appointment accepted!', 'success')
-    elif action == 'decline':
-        appt.status = 'declined'
-        flash('Appointment declined.', 'error')
+        if action == 'accept':
+            appt.status = 'accepted'
+            flash('Appointment accepted!', 'success')
+        elif action == 'decline':
+            appt.status = 'declined'
+            flash('Appointment declined.', 'error')
 
-    db.session.commit()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Appointment handle error: {e}")
+        flash('Database error updating appointment.', 'error')
+
     return redirect(url_for('doctor_dashboard'))
 
 @app.route('/admin')
@@ -263,33 +265,41 @@ def admin_dashboard():
         stats=stats
     )
 
-@app.route('/admin/verify//')
+@app.route('/admin/verify/<int:doctor_id>/<action>')
 @login_required
 @role_required('hospital', 'admin')
 def verify_doctor(doctor_id, action):
-    doctor = User.query.get_or_404(doctor_id)
-    if action == 'approve':
-        doctor.status = 'approved'
-        flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
-    elif action == 'reject':
-        doctor.status = 'rejected'
-        flash(f'Doctor {doctor.full_name} rejected.', 'error')
-    db.session.commit()
+    try:
+        doctor = User.query.get_or_404(doctor_id)
+        if action == 'approve':
+            doctor.status = 'approved'
+            flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
+        elif action == 'reject':
+            doctor.status = 'rejected'
+            flash(f'Doctor {doctor.full_name} rejected.', 'error')
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash('Error updating doctor verification.', 'error')
     return redirect(url_for('admin_dashboard'))
 
-@app.route('/admin/toggle-user/')
+@app.route('/admin/toggle-user/<int:user_id>')
 @login_required
 @role_required('hospital', 'admin')
 def toggle_user_status(user_id):
-    user = User.query.get_or_404(user_id)
-    if user.role not in ['hospital', 'admin']:
-        if user.status == 'approved':
-            user.status = 'suspended'
-            flash(f'Account for {user.full_name} has been suspended.', 'error')
-        else:
-            user.status = 'approved'
-            flash(f'Account for {user.full_name} has been reactivated.', 'success')
-        db.session.commit()
+    try:
+        user = User.query.get_or_404(user_id)
+        if user.role not in ['hospital', 'admin']:
+            if user.status == 'approved':
+                user.status = 'suspended'
+                flash(f'Account for {user.full_name} has been suspended.', 'error')
+            else:
+                user.status = 'approved'
+                flash(f'Account for {user.full_name} has been reactivated.', 'success')
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash('Error toggling user status.', 'error')
     return redirect(url_for('admin_dashboard'))
 
 # --- NAVIGATION STUB ROUTES ---
