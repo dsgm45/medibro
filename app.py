@@ -168,19 +168,24 @@ def migrate_schema():
 
         # The 'message' table previously existed with an incompatible schema
         # left over from an earlier, never-completed chat feature. Detect and
-        # fix it automatically. This check is idempotent: once the table has
-        # the correct schema, it becomes a no-op on every future startup, so
-        # it's safe to leave in place permanently and will never touch real
-        # message data once the fix has applied once.
+        # fix it automatically. This compares the FULL column set (not just
+        # one column) so leftover extra columns from the old schema (like a
+        # stray NOT NULL column the current model doesn't know about) are
+        # caught too. This check is idempotent: once the table matches the
+        # current model exactly, it becomes a no-op on every future startup,
+        # so it's safe to leave in place permanently.
         try:
             inspector = inspect(db.engine)
             if inspector.has_table('message'):
                 existing_columns = {col['name'] for col in inspector.get_columns('message')}
-                if 'appointment_id' not in existing_columns:
+                expected_columns = {c.name for c in Message.__table__.columns}
+                if existing_columns != expected_columns:
                     db.session.execute(text('DROP TABLE IF EXISTS message'))
                     db.session.commit()
                     db.create_all()
-                    app.logger.warning('Recreated "message" table with the current schema (old incompatible table removed).')
+                    app.logger.warning(
+                        f'Recreated "message" table with the current schema (had: {existing_columns}, expected: {expected_columns}).'
+                    )
         except Exception as e:
             db.session.rollback()
             app.logger.warning(f"Message table schema check skipped: {e}")
