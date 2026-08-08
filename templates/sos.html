@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}SOS - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Emergency SOS</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Quick access to help when you need it</p>
+        </div>
+        <a href="{{ url_for('patient_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Portal</a>
+    </div>
+
+    <!-- Big SOS trigger -->
+    <div style="background-color: var(--danger-light); border: 1px solid #fecaca; border-radius: var(--radius); padding: 28px; margin-bottom: 24px; text-align: center;">
+        <p style="margin: 0 0 16px 0; color: var(--danger); font-weight: 600; font-size: 0.95rem;">
+            If this is a life-threatening emergency, call your local emergency number now.
+        </p>
+        <form action="{{ url_for('sos') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="action" value="trigger_sos">
+            <button type="submit" style="padding: 16px 40px; background-color: var(--danger); color: #ffffff; border: none; border-radius: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer;">🚨 Trigger SOS Alert</button>
+        </form>
+        {% if contact %}
+        <p style="margin: 16px 0 0 0; color: #7f1d1d; font-size: 0.9rem;">
+            Your emergency contact: <strong>{{ contact.contact_name }}</strong>
+            &mdash; <a href="tel:{{ contact.contact_phone }}" style="color: var(--danger); font-weight: 700;">{{ contact.contact_phone }}</a>
+        </p>
+        {% else %}
+        <p style="margin: 16px 0 0 0; color: #7f1d1d; font-size: 0.9rem;">
+            No emergency contact saved yet. Add one below so it's ready when you need it.
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Emergency contact form -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">📇 Emergency Contact</h2>
+        <form action="{{ url_for('sos') }}" method="POST">
+            <input type="hidden" name="action" value="save_contact">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Name</label>
+                    <input type="text" name="contact_name" required value="{{ contact.contact_name if contact else '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number</label>
+                    <input type="tel" name="contact_phone" required value="{{ contact.contact_phone if contact else '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Relationship</label>
+                    <input type="text" name="relation" placeholder="e.g. Spouse, Parent" value="{{ contact.relation if contact else '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Contact</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

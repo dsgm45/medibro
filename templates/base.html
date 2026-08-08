@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}MediBro Healthcare{% endblock %}</title>
     <style>
+        :root {
+            --surface: #ffffff;
+            --border: #cbd5e1;
+            --radius: 8px;
+            --primary: #2563eb;
+            --text-dark: #0f172a;
+            --text-sub: #64748b;
+            --success: #15803d;
+            --success-light: #dcfce7;
+            --danger: #b91c1c;
+            --danger-light: #fee2e2;
+            --warning: #b45309;
+        }
         * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -48,7 +61,7 @@
         <a href="{{ url_for('index') }}" class="nav-brand">🩺 MediBro</a>
         <div style="display: flex; align-items: center; gap: 16px;">
             {% if session.get('user_id') %}
-                <span style="color: #64748b; font-weight: 500;">{{ session.get('full_name') }}</span>
+                <a href="{{ url_for('profile') }}" style="color: #64748b; text-decoration: none; font-weight: 500;">{{ session.get('full_name') }}</a>
                 <a href="{{ url_for('logout') }}" style="color: #dc2626; text-decoration: none; font-weight: 600; background-color: #fee2e2; padding: 6px 12px; border-radius: 6px;">Log Out</a>
             {% else %}
                 <a href="{{ url_for('login') }}" style="color: #2563eb; text-decoration: none; font-weight: 600;">Log In</a>

@@ -7,7 +7,11 @@
             <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Patient Portal</h1>
             <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
         </div>
-        <a href="{{ url_for('vitals') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">💓 Log Vitals</a>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('vitals') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">💓 Log Vitals</a>
+            <a href="{{ url_for('symptoms') }}" style="padding: 10px 20px; background-color: #059669; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">🩺 Symptom Checker</a>
+            <a href="{{ url_for('sos') }}" style="padding: 10px 20px; background-color: #dc2626; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">🚨 SOS</a>
+        </div>
     </div>
 
     <!-- Section 1: Book Appointment Card -->

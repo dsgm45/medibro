@@ -61,15 +61,50 @@ class Vital(db.Model):
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='vitals')
 
+class SymptomLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    symptoms = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.String(20), nullable=False, default='mild')
+    description = db.Column(db.Text, nullable=True)
+    guidance = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='symptom_logs')
+
+class EmergencyContact(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    contact_name = db.Column(db.String(120), nullable=False)
+    contact_phone = db.Column(db.String(20), nullable=False)
+    relation = db.Column(db.String(50), nullable=True)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='emergency_contact')
+
+class SosEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='sos_events')
+
 def init_db():
     with app.app_context():
         try:
             db.create_all()
             admin = User.query.filter_by(email='admin@medibro.com').first()
             if not admin:
+                admin_password = os.environ.get('ADMIN_INITIAL_PASSWORD', 'admin123')
+                if admin_password == 'admin123':
+                    app.logger.warning(
+                        'SECURITY WARNING: Admin account created with the default password. '
+                        'Log in and change it immediately at /profile, or set the '
+                        'ADMIN_INITIAL_PASSWORD environment variable before first run.'
+                    )
                 admin = User(
                     email='admin@medibro.com',
-                    password_hash=generate_password_hash('admin123'),
+                    password_hash=generate_password_hash(admin_password),
                     role='hospital',
                     full_name='System Admin',
                     status='approved'
@@ -315,21 +350,6 @@ def toggle_user_status(user_id):
         flash('Error toggling user status.', 'error')
     return redirect(url_for('admin_dashboard'))
 
-@app.route('/admin/fix-vitals-table')
-@login_required
-@role_required('hospital', 'admin')
-def fix_vitals_table():
-    try:
-        db.session.execute(text('DROP TABLE IF EXISTS vital CASCADE'))
-        db.session.commit()
-        db.create_all()
-        flash('Vitals table has been reset and recreated with the correct schema.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Fix vitals table error: {e}")
-        flash(f'Error fixing vitals table: {str(e)}', 'error')
-    return redirect(url_for('admin_dashboard'))
-
 # --- VITALS ---
 @app.route('/vitals', methods=['GET', 'POST'])
 @login_required
@@ -381,20 +401,148 @@ def vitals():
     latest = history[0] if history else None
     return render_template('vitals.html', history=history, latest=latest)
 
+SYMPTOM_OPTIONS = [
+    'Fever', 'Cough', 'Chest pain', 'Shortness of breath', 'Headache',
+    'Nausea or vomiting', 'Dizziness', 'Rash', 'Abdominal pain', 'Fatigue'
+]
+EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
+
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
+@role_required('patient')
 def symptoms():
-    return redirect(url_for('patient_dashboard'))
+    patient_id = session.get('user_id')
+
+    if request.method == 'POST':
+        selected = request.form.getlist('symptoms')
+        severity = request.form.get('severity', 'mild')
+        description = request.form.get('description', '').strip()
+
+        if not selected and not description:
+            flash('Please select at least one symptom or describe what you are experiencing.', 'error')
+            return redirect(url_for('symptoms'))
+
+        has_emergency_symptom = any(s in EMERGENCY_SYMPTOMS for s in selected)
+        if has_emergency_symptom or severity == 'severe':
+            guidance = ('This could be serious. Please seek emergency care immediately '
+                        'or call your local emergency number. Do not wait.')
+            flash_category = 'error'
+        elif severity == 'moderate' or len(selected) >= 3:
+            guidance = ('Your symptoms may need medical attention. Please book an '
+                        'appointment with a doctor soon.')
+            flash_category = 'error'
+        else:
+            guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
+                        'appointment if things worsen or persist beyond a few days.')
+            flash_category = 'success'
+
+        try:
+            entry = SymptomLog(
+                patient_id=patient_id,
+                symptoms=', '.join(selected) if selected else 'Not specified',
+                severity=severity,
+                description=description,
+                guidance=guidance
+            )
+            db.session.add(entry)
+            db.session.commit()
+            flash(guidance, flash_category)
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Symptom log error: {e}")
+            flash('Error saving your symptom log. Please try again.', 'error')
+
+        return redirect(url_for('symptoms'))
+
+    history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
+    return render_template('symptoms.html', symptom_options=SYMPTOM_OPTIONS, history=history)
 
 @app.route('/sos', methods=['GET', 'POST'])
 @login_required
+@role_required('patient')
 def sos():
-    return redirect(url_for('patient_dashboard'))
+    patient_id = session.get('user_id')
+    contact = EmergencyContact.query.filter_by(patient_id=patient_id).first()
 
-@app.route('/profile')
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'save_contact':
+            name = request.form.get('contact_name', '').strip()
+            phone = request.form.get('contact_phone', '').strip()
+            relation = request.form.get('relation', '').strip()
+
+            if not name or not phone:
+                flash('Please provide a contact name and phone number.', 'error')
+                return redirect(url_for('sos'))
+
+            try:
+                if contact:
+                    contact.contact_name = name
+                    contact.contact_phone = phone
+                    contact.relation = relation
+                else:
+                    contact = EmergencyContact(
+                        patient_id=patient_id, contact_name=name,
+                        contact_phone=phone, relation=relation
+                    )
+                    db.session.add(contact)
+                db.session.commit()
+                flash('Emergency contact saved.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Emergency contact save error: {e}")
+                flash('Error saving emergency contact.', 'error')
+
+        elif action == 'trigger_sos':
+            try:
+                event = SosEvent(patient_id=patient_id, notes='SOS triggered from patient portal')
+                db.session.add(event)
+                db.session.commit()
+                flash('SOS alert logged. Please call your emergency contact or local emergency number now.', 'error')
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"SOS event error: {e}")
+                flash('Error logging SOS alert, but please still call for help if needed.', 'error')
+
+        return redirect(url_for('sos'))
+
+    return render_template('sos.html', contact=contact)
+
+@app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    return redirect(url_for('patient_dashboard'))
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        user = User.query.get(session.get('user_id'))
+
+        if not user or not check_password_hash(user.password_hash, current_password):
+            flash('Current password is incorrect.', 'error')
+            return redirect(url_for('profile'))
+
+        if len(new_password) < 6:
+            flash('New password must be at least 6 characters.', 'error')
+            return redirect(url_for('profile'))
+
+        if new_password != confirm_password:
+            flash('New passwords do not match.', 'error')
+            return redirect(url_for('profile'))
+
+        try:
+            user.password_hash = generate_password_hash(new_password)
+            db.session.commit()
+            flash('Password updated successfully.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Password change error: {e}")
+            flash('Error updating password.', 'error')
+
+        return redirect(url_for('profile'))
+
+    return render_template('profile.html')
 
 @app.route('/logout')
 def logout():

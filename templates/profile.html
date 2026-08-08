@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Profile - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 480px; margin: 50px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px;">
+        <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Profile & Security</h1>
+        <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ session.full_name }} ({{ session.email }})</p>
+    </div>
+
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">🔒 Change Password</h2>
+        <form method="POST" style="display: grid; gap: 14px;">
+            <div>
+                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Current Password</label>
+                <input type="password" name="current_password" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            </div>
+            <div>
+                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">New Password</label>
+                <input type="password" name="new_password" required minlength="6" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            </div>
+            <div>
+                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Confirm New Password</label>
+                <input type="password" name="confirm_password" required minlength="6" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            </div>
+            <button type="submit" style="padding:10px; border:none; border-radius:6px; background:var(--primary); color:white; font-weight:600; cursor:pointer;">Update Password</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
