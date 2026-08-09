@@ -1,3 +1,14 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Security hardening - headers, cookie flags, debug mode fix ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+cat > app.py << 'APP_PY_EOF'
 import os
 import re
 import secrets
@@ -11,20 +22,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
 from flask_wtf import CSRFProtect
 from flask_migrate import Migrate, upgrade, stamp
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
-
-# Render sits in front of this app as a single reverse-proxy hop, so without
-# this, request.remote_addr would always show Render's internal proxy
-# address instead of the real visitor IP - which would silently break any
-# IP-based rate limiting (either treating every user as the same address,
-# or being trivially bypassable). x_for=1 means "trust exactly one hop" -
-# matching Render's setup. This must NOT be set higher than the actual
-# number of trusted proxies in front of the app, or IP spoofing becomes
-# possible.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-
 app.secret_key = os.environ.get('SECRET_KEY', 'medibro_secret_key_2026')
 if app.secret_key == 'medibro_secret_key_2026':
     import logging
@@ -77,23 +76,6 @@ def record_failed_login(email):
 def clear_login_attempts(email):
     LOGIN_ATTEMPTS.pop(email, None)
 
-# --- REGISTRATION RATE LIMITING ---
-# Keyed by IP rather than email, since a script spamming registrations uses
-# a different email each time - the IP is the only consistent signal.
-REGISTER_ATTEMPTS = defaultdict(list)
-MAX_REGISTER_ATTEMPTS = 5
-REGISTER_WINDOW_MINUTES = 60
-
-def is_registration_rate_limited(ip):
-    now = datetime.utcnow()
-    window_start = now - timedelta(minutes=REGISTER_WINDOW_MINUTES)
-    attempts = [t for t in REGISTER_ATTEMPTS[ip] if t > window_start]
-    REGISTER_ATTEMPTS[ip] = attempts
-    return len(attempts) >= MAX_REGISTER_ATTEMPTS
-
-def record_registration_attempt(ip):
-    REGISTER_ATTEMPTS[ip].append(datetime.utcnow())
-
 # --- MODELS ---
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -118,9 +100,6 @@ class Appointment(db.Model):
     phone_number = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
     follow_up_requested = db.Column(db.Boolean, nullable=False, default=False)
-    diagnosis = db.Column(db.Text, nullable=True)
-    visit_notes = db.Column(db.Text, nullable=True)
-    completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
@@ -302,7 +281,7 @@ def dashboard_endpoint_for_role(role):
     elif role == 'doctor':
         return 'doctor_dashboard'
     else:
-        return 'my_health'
+        return 'patient_dashboard'
 
 # --- SECURITY HEADERS ---
 # The CSP below allows 'unsafe-inline' for scripts and styles because this
@@ -364,7 +343,7 @@ def login():
                 elif user.role == 'doctor':
                     return redirect(url_for('doctor_dashboard'))
                 else:
-                    return redirect(url_for('my_health'))
+                    return redirect(url_for('patient_dashboard'))
             else:
                 record_failed_login(email)
                 flash('Invalid email or password.', 'error')
@@ -376,14 +355,6 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        client_ip = request.remote_addr
-
-        if is_registration_rate_limited(client_ip):
-            flash(f'Too many registration attempts from this network. Please try again in an hour.', 'error')
-            return redirect(url_for('register'))
-
-        record_registration_attempt(client_ip)
-
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         full_name = request.form.get('full_name', '').strip()
@@ -437,49 +408,6 @@ def register():
     return render_template('register.html')
 
 # --- DASHBOARD ROUTES ---
-@app.route('/my-health')
-@login_required
-@role_required('patient')
-def my_health():
-    patient_id = session.get('user_id')
-    today = datetime.utcnow().date()
-
-    latest_vital = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).first()
-    latest_symptom = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).first()
-
-    active_medicines = Medicine.query.filter(
-        Medicine.patient_id == patient_id,
-        db.or_(Medicine.start_date == None, Medicine.start_date <= today),
-        db.or_(Medicine.end_date == None, Medicine.end_date >= today)
-    ).order_by(Medicine.created_at.desc()).all()
-
-    now = datetime.utcnow()
-    upcoming_appointments = Appointment.query.filter_by(patient_id=patient_id, status='accepted').all()
-    next_appointment = None
-    soonest_diff = None
-    for appt in upcoming_appointments:
-        try:
-            appt_dt = datetime.strptime(f"{appt.appointment_date} {appt.appointment_time}", '%Y-%m-%d %H:%M')
-            diff = (appt_dt - now).total_seconds()
-            if diff >= 0 and (soonest_diff is None or diff < soonest_diff):
-                soonest_diff = diff
-                next_appointment = appt
-        except (ValueError, TypeError):
-            continue
-
-    follow_ups = Appointment.query.filter_by(
-        patient_id=patient_id, status='completed', follow_up_requested=True
-    ).all()
-
-    return render_template(
-        'my_health.html',
-        latest_vital=latest_vital,
-        latest_symptom=latest_symptom,
-        active_medicines=active_medicines,
-        next_appointment=next_appointment,
-        follow_ups=follow_ups
-    )
-
 @app.route('/patient')
 @login_required
 @role_required('patient')
@@ -619,6 +547,12 @@ def handle_appointment(app_id, action):
         elif action == 'decline':
             appt.status = 'declined'
             flash('Appointment declined.', 'error')
+        elif action == 'complete':
+            if appt.status != 'accepted':
+                flash('Only accepted appointments can be marked completed.', 'error')
+                return redirect(url_for('doctor_dashboard'))
+            appt.status = 'completed'
+            flash('Appointment marked as completed.', 'success')
 
         db.session.commit()
     except Exception as e:
@@ -627,53 +561,6 @@ def handle_appointment(app_id, action):
         flash('Database error updating appointment.', 'error')
 
     return redirect(url_for('doctor_dashboard'))
-
-@app.route('/appointment/<int:app_id>/complete', methods=['GET', 'POST'])
-@login_required
-@role_required('doctor')
-def complete_appointment(app_id):
-    appt = Appointment.query.get_or_404(app_id)
-    if appt.doctor_id != session.get('user_id'):
-        flash('Unauthorized action.', 'error')
-        return redirect(url_for('doctor_dashboard'))
-    if appt.status not in ('accepted', 'completed'):
-        flash('Only accepted or completed appointments can have a visit summary.', 'error')
-        return redirect(url_for('doctor_dashboard'))
-
-    if request.method == 'POST':
-        diagnosis = request.form.get('diagnosis', '').strip()
-        visit_notes = request.form.get('visit_notes', '').strip()
-
-        try:
-            appt.diagnosis = diagnosis
-            appt.visit_notes = visit_notes
-            if appt.status == 'accepted':
-                appt.status = 'completed'
-                appt.completed_at = datetime.utcnow()
-            db.session.commit()
-            flash('Visit summary saved.', 'success')
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Complete appointment error: {e}")
-            flash('Error saving visit summary.', 'error')
-
-        return redirect(url_for('doctor_dashboard'))
-
-    return render_template('appointment_complete.html', appt=appt)
-
-@app.route('/my-appointment/<int:app_id>/summary')
-@login_required
-@role_required('patient')
-def appointment_summary(app_id):
-    appt = Appointment.query.get_or_404(app_id)
-    if appt.patient_id != session.get('user_id'):
-        flash('Unauthorized action.', 'error')
-        return redirect(url_for('patient_dashboard'))
-    if appt.status != 'completed':
-        flash('This appointment does not have a visit summary yet.', 'error')
-        return redirect(url_for('patient_dashboard'))
-
-    return render_template('appointment_summary.html', appt=appt)
 
 @app.route('/appointment/<int:app_id>/request-follow-up', methods=['POST'])
 @login_required
@@ -741,15 +628,13 @@ def view_patient_history(patient_id):
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
-    visit_history = Appointment.query.filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(20).all()
 
     return render_template(
         'patient_history_view.html',
         patient=patient,
         vitals_history=vitals_history,
         symptom_history=symptom_history,
-        medicine_history=medicine_history,
-        visit_history=visit_history
+        medicine_history=medicine_history
     )
 
 @app.route('/chat')
@@ -952,20 +837,7 @@ def vitals():
 
     history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     latest = history[0] if history else None
-
-    bp_chart_data = [
-        {'date': v.recorded_at.strftime('%m/%d'), 'systolic': v.systolic, 'diastolic': v.diastolic}
-        for v in reversed(history) if v.systolic and v.diastolic
-    ]
-    hr_chart_data = [
-        {'date': v.recorded_at.strftime('%m/%d'), 'heart_rate': v.heart_rate}
-        for v in reversed(history) if v.heart_rate
-    ]
-
-    return render_template(
-        'vitals.html', history=history, latest=latest,
-        bp_chart_data=bp_chart_data, hr_chart_data=hr_chart_data
-    )
+    return render_template('vitals.html', history=history, latest=latest)
 
 SYMPTOM_OPTIONS = [
     'Fever', 'Cough', 'Chest pain', 'Shortness of breath', 'Headache',
@@ -1326,7 +1198,7 @@ def profile():
     back_endpoint = dashboard_endpoint_for_role(session.get('role'))
     return render_template('profile.html', back_endpoint=back_endpoint)
 
-@app.route('/logout', methods=['POST'])
+@app.route('/logout')
 def logout():
     session.clear()
     flash('Logged out successfully.', 'success')
@@ -1344,3 +1216,22 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+APP_PY_EOF
+
+echo "app.py updated."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add app.py
+git commit -m "Security hardening: response security headers, session cookie flags, fix hardcoded debug mode"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "Verify the landing page still looks correct (Tailwind styling, custom"
+echo "font) after this deploys - the new Content-Security-Policy explicitly"
+echo "allows the two external resources it uses, but worth a visual check."

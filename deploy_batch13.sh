@@ -1,3 +1,17 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Doctor visit summaries (diagnosis + notes) ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p templates
+mkdir -p migrations/versions
+
+cat > app.py << 'FILEEOF_1'
 import os
 import re
 import secrets
@@ -11,20 +25,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
 from flask_wtf import CSRFProtect
 from flask_migrate import Migrate, upgrade, stamp
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
-
-# Render sits in front of this app as a single reverse-proxy hop, so without
-# this, request.remote_addr would always show Render's internal proxy
-# address instead of the real visitor IP - which would silently break any
-# IP-based rate limiting (either treating every user as the same address,
-# or being trivially bypassable). x_for=1 means "trust exactly one hop" -
-# matching Render's setup. This must NOT be set higher than the actual
-# number of trusted proxies in front of the app, or IP spoofing becomes
-# possible.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-
 app.secret_key = os.environ.get('SECRET_KEY', 'medibro_secret_key_2026')
 if app.secret_key == 'medibro_secret_key_2026':
     import logging
@@ -76,23 +78,6 @@ def record_failed_login(email):
 
 def clear_login_attempts(email):
     LOGIN_ATTEMPTS.pop(email, None)
-
-# --- REGISTRATION RATE LIMITING ---
-# Keyed by IP rather than email, since a script spamming registrations uses
-# a different email each time - the IP is the only consistent signal.
-REGISTER_ATTEMPTS = defaultdict(list)
-MAX_REGISTER_ATTEMPTS = 5
-REGISTER_WINDOW_MINUTES = 60
-
-def is_registration_rate_limited(ip):
-    now = datetime.utcnow()
-    window_start = now - timedelta(minutes=REGISTER_WINDOW_MINUTES)
-    attempts = [t for t in REGISTER_ATTEMPTS[ip] if t > window_start]
-    REGISTER_ATTEMPTS[ip] = attempts
-    return len(attempts) >= MAX_REGISTER_ATTEMPTS
-
-def record_registration_attempt(ip):
-    REGISTER_ATTEMPTS[ip].append(datetime.utcnow())
 
 # --- MODELS ---
 class User(db.Model):
@@ -376,14 +361,6 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        client_ip = request.remote_addr
-
-        if is_registration_rate_limited(client_ip):
-            flash(f'Too many registration attempts from this network. Please try again in an hour.', 'error')
-            return redirect(url_for('register'))
-
-        record_registration_attempt(client_ip)
-
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         full_name = request.form.get('full_name', '').strip()
@@ -952,20 +929,7 @@ def vitals():
 
     history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     latest = history[0] if history else None
-
-    bp_chart_data = [
-        {'date': v.recorded_at.strftime('%m/%d'), 'systolic': v.systolic, 'diastolic': v.diastolic}
-        for v in reversed(history) if v.systolic and v.diastolic
-    ]
-    hr_chart_data = [
-        {'date': v.recorded_at.strftime('%m/%d'), 'heart_rate': v.heart_rate}
-        for v in reversed(history) if v.heart_rate
-    ]
-
-    return render_template(
-        'vitals.html', history=history, latest=latest,
-        bp_chart_data=bp_chart_data, hr_chart_data=hr_chart_data
-    )
+    return render_template('vitals.html', history=history, latest=latest)
 
 SYMPTOM_OPTIONS = [
     'Fever', 'Cough', 'Chest pain', 'Shortness of breath', 'Headache',
@@ -1326,7 +1290,7 @@ def profile():
     back_endpoint = dashboard_endpoint_for_role(session.get('role'))
     return render_template('profile.html', back_endpoint=back_endpoint)
 
-@app.route('/logout', methods=['POST'])
+@app.route('/logout')
 def logout():
     session.clear()
     flash('Logged out successfully.', 'success')
@@ -1344,3 +1308,526 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+FILEEOF_1
+cat > templates/doctor_dashboard.html << 'FILEEOF_2'
+{% extends "base.html" %}
+{% block title %}Doctor Workspace - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Doctor Workspace</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome, Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doctor.specialty or 'General Medicine' }})</p>
+        </div>
+        <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">⚙️ Edit Profile</a>
+    </div>
+
+    <!-- Appointments grouped by day -->
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">🩺 Patient Appointment Requests</h2>
+        {% if grouped_appointments %}
+        {% for date_label, day_appointments in grouped_appointments %}
+        <div style="margin-bottom: 24px;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #2563eb; margin: 0 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0;">{{ date_label }}</h3>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.8rem;">
+                            <th style="padding: 10px;">Patient Name</th>
+                            <th style="padding: 10px;">Phone</th>
+                            <th style="padding: 10px;">Time</th>
+                            <th style="padding: 10px;">Reason</th>
+                            <th style="padding: 10px;">Status</th>
+                            <th style="padding: 10px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appt in day_appointments %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 12px 10px; font-weight: 600; color: #0f172a;">
+                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #0f172a; text-decoration: none;">{{ appt.patient.full_name }}</a>
+                            </td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.phone_number or appt.patient.phone or 'N/A' }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                            <td style="padding: 12px 10px;">
+                                {% if appt.status == 'accepted' %}
+                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                {% elif appt.status == 'declined' %}
+                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                                {% elif appt.status == 'cancelled' %}
+                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                {% elif appt.status == 'completed' %}
+                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed{% if appt.follow_up_requested %} &middot; Follow-up sent{% endif %}</span>
+                                {% else %}
+                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px 10px; text-align: right;">
+                                {% if appt.status == 'pending' %}
+                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer; margin-right: 6px;">Accept</button>
+                                </form>
+                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Decline</button>
+                                </form>
+                                {% elif appt.status == 'accepted' %}
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
+                                {% elif appt.status == 'completed' %}
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: #6d28d9; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">📝 Edit Summary</a>
+                                {% if not appt.follow_up_requested %}
+                                <form action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
+                                </form>
+                                {% endif %}
+                                {% else %}
+                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none;">View History</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color: #64748b; margin: 0;">No appointment requests received yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+FILEEOF_2
+cat > templates/patient_dashboard.html << 'FILEEOF_3'
+{% extends "base.html" %}
+{% block title %}Patient Portal - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}" class="active">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Patient Portal</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+        </div>
+
+        <!-- Upcoming Appointment Reminders -->
+        {% if upcoming %}
+        <div style="background-color: var(--warning-light, #fef3c7); border: 1px solid #fde68a; border-radius: var(--radius, 8px); padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #92400e; font-size: 0.9rem;">⏰ Upcoming Appointments</p>
+            {% for appt in upcoming %}
+            <p style="margin: 4px 0; color: #92400e; font-size: 0.85rem;">
+                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &mdash; {{ appt.appointment_date }} at {{ appt.appointment_time }}
+            </p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Follow-up Requests -->
+        {% if follow_ups %}
+        <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Requested</p>
+            {% for appt in follow_ups %}
+            <p style="margin: 4px 0; color: #6d28d9; font-size: 0.85rem;">
+                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} recommended a follow-up visit.
+                <a href="{{ url_for('patient_dashboard', book_with=appt.doctor.id) }}" style="color: #6d28d9; font-weight: 700; text-decoration: underline;">Book it now</a>
+            </p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Section 1: Book Appointment Card -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Book an Appointment</h2>
+
+            {% if all_specialties %}
+            <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Filter by specialty:</span>
+                <a href="{{ url_for('patient_dashboard') }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if not specialty_filter %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">All</a>
+                {% for spec in all_specialties %}
+                <a href="{{ url_for('patient_dashboard', specialty=spec) }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if specialty_filter == spec %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">{{ spec }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if doctors %}
+            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #1e40af;">
+                📞 Video consultation isn't available yet — please share a phone number so your doctor can reach you directly.
+            </div>
+            <form action="{{ url_for('book_appointment') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor</label>
+                        <select name="doctor_id" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; font-size: 0.95rem; color: #0f172a;">
+                            <option value="">-- Choose Specialist --</option>
+                            {% for doc in doctors %}
+                            <option value="{{ doc.id }}" {% if pre_doctor_id and doc.id == pre_doctor_id %}selected{% endif %}>Dr. {{ doc.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doc.specialty or 'General Practice' }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Date</label>
+                        <input type="date" name="appointment_date" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time</label>
+                        <input type="time" name="appointment_time" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number</label>
+                        <input type="tel" name="phone_number" required placeholder="For your doctor to reach you" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reason for Visit</label>
+                    <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div style="text-align: right;">
+                    <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Request Appointment</button>
+                </div>
+            </form>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No verified doctors are currently available for booking{% if specialty_filter %} in this specialty{% endif %}.</p>
+            {% endif %}
+        </div>
+
+        <!-- Section 2: My Scheduled Appointments Card -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📋 My Appointments</h2>
+            {% if appointments %}
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.85rem;">
+                            <th style="padding: 12px 10px;">Doctor</th>
+                            <th style="padding: 12px 10px;">Date & Time</th>
+                            <th style="padding: 12px 10px;">Reason</th>
+                            <th style="padding: 12px 10px;">Status</th>
+                            <th style="padding: 12px 10px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appt in appointments %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
+                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }} at {{ appt.appointment_time }}</td>
+                            <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                            <td style="padding: 14px 10px;">
+                                {% if appt.status == 'accepted' %}
+                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                {% elif appt.status == 'declined' %}
+                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                                {% elif appt.status == 'cancelled' %}
+                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                {% elif appt.status == 'completed' %}
+                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed</span>
+                                {% else %}
+                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 14px 10px; text-align: right;">
+                                {% if appt.status == 'pending' %}
+                                <form action="{{ url_for('cancel_appointment', app_id=appt.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Cancel this appointment request?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: #dc2626; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                                </form>
+                                {% elif appt.status == 'accepted' %}
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
+                                {% elif appt.status == 'completed' %}
+                                <a href="{{ url_for('appointment_summary', app_id=appt.id) }}" style="color: #6d28d9; text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-right: 10px;">📝 Summary</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">You have not booked any appointments yet.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}
+FILEEOF_3
+cat > templates/appointment_complete.html << 'FILEEOF_4'
+{% extends "base.html" %}
+{% block title %}Visit Summary - {{ appt.patient.full_name }} - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+
+    <div style="margin-bottom: 24px;">
+        <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">
+            {% if appt.status == 'completed' %}Edit Visit Summary{% else %}Complete Visit{% endif %}
+        </h1>
+        <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ appt.patient.full_name }} &middot; {{ appt.appointment_date }} at {{ appt.appointment_time }}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
+    </div>
+
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diagnosis</label>
+                <input type="text" name="diagnosis" value="{{ appt.diagnosis or '' }}" placeholder="e.g. Seasonal flu, mild dehydration" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Visit Notes</label>
+                <textarea name="visit_notes" rows="6" placeholder="What happened during this visit, recommendations, anything the patient should know..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ appt.visit_notes or '' }}</textarea>
+            </div>
+            <p style="margin: 0 0 20px 0; color: var(--text-sub); font-size: 0.8rem;">Both fields are optional, but filling them in gives the patient a real record of the visit.</p>
+            <div style="text-align: right;">
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
+                    {% if appt.status == 'completed' %}Save Changes{% else %}Mark Completed{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+FILEEOF_4
+cat > templates/appointment_summary.html << 'FILEEOF_5'
+{% extends "base.html" %}
+{% block title %}Visit Summary - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}" class="active">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 20px;">
+            <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Appointments</a>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Visit Summary</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &middot; {{ appt.appointment_date }} at {{ appt.appointment_time }}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="margin-bottom: 20px;">
+                <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Diagnosis</p>
+                {% if appt.diagnosis %}
+                <p style="margin: 0; color: #0f172a; font-size: 1.05rem; font-weight: 600;">{{ appt.diagnosis }}</p>
+                {% else %}
+                <p style="margin: 0; color: #94a3b8; font-size: 0.9rem;">No diagnosis was recorded for this visit.</p>
+                {% endif %}
+            </div>
+            <div>
+                <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Visit Notes</p>
+                {% if appt.visit_notes %}
+                <p style="margin: 0; color: #334155; font-size: 0.95rem; white-space: pre-wrap;">{{ appt.visit_notes }}</p>
+                {% else %}
+                <p style="margin: 0; color: #94a3b8; font-size: 0.9rem;">No additional notes were recorded for this visit.</p>
+                {% endif %}
+            </div>
+            {% if appt.completed_at %}
+            <p style="margin: 20px 0 0 0; color: #94a3b8; font-size: 0.78rem;">Visit completed {{ appt.completed_at.strftime('%b %d, %Y %I:%M %p') }}</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}
+FILEEOF_5
+cat > templates/patient_history_view.html << 'FILEEOF_6'
+{% extends "base.html" %}
+{% block title %}{{ patient.full_name }} - Patient History{% endblock %}
+{% block content %}
+<div style="max-width: 1000px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">{{ patient.full_name }}</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ patient.phone or 'No phone on file' }} &middot; {{ patient.email }}</p>
+        </div>
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+
+    <!-- Visit History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">📋 Visit History</h2>
+        <p style="margin: 0 0 16px 0; color: var(--text-sub); font-size: 0.78rem;">Shows completed visits with any doctor on MediBro, for continuity of care.</p>
+        {% if visit_history %}
+        <div style="display: grid; gap: 10px;">
+            {% for v in visit_history %}
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px;">
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ v.diagnosis or 'No diagnosis recorded' }}</p>
+                    <p style="margin: 0; color: var(--text-sub); font-size: 0.78rem;">{{ v.appointment_date }}</p>
+                </div>
+                <p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">Dr. {{ v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% if v.reason %} &middot; {{ v.reason }}{% endif %}</p>
+                {% if v.visit_notes %}<p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.85rem; white-space: pre-wrap;">{{ v.visit_notes }}</p>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No completed visits on record.</p>
+        {% endif %}
+    </div>
+
+    <!-- Medicines -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💊 Current Medicines</h2>
+        {% if medicine_history %}
+        <div style="display: grid; gap: 10px;">
+            {% for med in medicine_history %}
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+                {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                {% if med.doses %}<p style="margin: 4px 0 0 0; color: var(--primary); font-size: 0.8rem; font-weight: 600;">⏰ {{ med.doses | map(attribute='time') | join(', ') }}</p>{% endif %}
+                {% if med.start_date or med.end_date %}
+                <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.8rem;">
+                    {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
+                    {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No medicines logged by this patient.</p>
+        {% endif %}
+    </div>
+
+    <!-- Vitals History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💓 Vitals History</h2>
+        {% if vitals_history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">BP</th>
+                        <th style="padding: 10px;">HR</th>
+                        <th style="padding: 10px;">SpO2</th>
+                        <th style="padding: 10px;">Temp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vitals_history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}&mdash;{% endif %}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.heart_rate or '—' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.spo2 or '—' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.temperature or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No vitals logged by this patient.</p>
+        {% endif %}
+    </div>
+
+    <!-- Symptom History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">🩺 Symptom History</h2>
+        {% if symptom_history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">Symptoms</th>
+                        <th style="padding: 10px;">Severity</th>
+                        <th style="padding: 10px;">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in symptom_history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{{ log.symptoms }}</td>
+                        <td style="padding: 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
+                        <td style="padding: 10px; color: var(--text-sub);">{{ log.description or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No symptoms logged by this patient.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+FILEEOF_6
+cat > migrations/versions/0002_visit_summary.py << 'FILEEOF_7'
+"""add visit summary fields to appointment
+
+Revision ID: visit_summary_v1
+Revises: baseline_v1
+Create Date: 2026-08-09
+
+Adds diagnosis, visit_notes, and completed_at to the appointment table so
+doctors can capture what happened during a visit when marking it complete.
+"""
+from alembic import op
+import sqlalchemy as sa
+
+revision = 'visit_summary_v1'
+down_revision = 'baseline_v1'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    op.add_column('appointment', sa.Column('diagnosis', sa.Text(), nullable=True))
+    op.add_column('appointment', sa.Column('visit_notes', sa.Text(), nullable=True))
+    op.add_column('appointment', sa.Column('completed_at', sa.DateTime(), nullable=True))
+
+
+def downgrade():
+    op.drop_column('appointment', 'completed_at')
+    op.drop_column('appointment', 'visit_notes')
+    op.drop_column('appointment', 'diagnosis')
+FILEEOF_7
+
+echo "All files written."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add app.py templates/doctor_dashboard.html templates/patient_dashboard.html templates/appointment_complete.html templates/appointment_summary.html templates/patient_history_view.html migrations/versions/0002_visit_summary.py
+git commit -m "Add doctor visit summaries (diagnosis + notes), visit history for continuity of care"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "This is the first real test of the Alembic migration system set up"
+echo "earlier - it adds 3 new columns to the appointment table (diagnosis,"
+echo "visit_notes, completed_at) via a proper versioned migration file,"
+echo "applied automatically through 'upgrade()' at startup."

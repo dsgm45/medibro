@@ -89,7 +89,8 @@
             position: sticky;
             top: 16px;
         }
-        .patient-sidebar a {
+        .patient-sidebar a,
+        .patient-sidebar button.sidebar-logout {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -99,8 +100,15 @@
             color: #334155;
             font-weight: 600;
             font-size: 0.9rem;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            font-family: inherit;
+            cursor: pointer;
         }
-        .patient-sidebar a:hover {
+        .patient-sidebar a:hover,
+        .patient-sidebar button.sidebar-logout:hover {
             background-color: #f1f5f9;
         }
         .patient-sidebar a.active {
@@ -162,7 +170,10 @@
         <div style="display: flex; align-items: center; gap: 16px;">
             {% if session.get('user_id') %}
                 <a href="{{ url_for('profile') }}" style="color: #64748b; text-decoration: none; font-weight: 500;">{{ session.get('full_name') }}</a>
-                <a href="{{ url_for('logout') }}" style="color: #dc2626; text-decoration: none; font-weight: 600; background-color: #fee2e2; padding: 6px 12px; border-radius: 6px;">Log Out</a>
+                <form action="{{ url_for('logout') }}" method="POST" style="margin: 0; display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="color: #dc2626; text-decoration: none; font-weight: 600; background-color: #fee2e2; padding: 6px 12px; border-radius: 6px; border: none; font-family: inherit; font-size: inherit; cursor: pointer;">Log Out</button>
+                </form>
             {% else %}
                 <a href="{{ url_for('login') }}" style="color: #2563eb; text-decoration: none; font-weight: 600;">Log In</a>
                 <a href="{{ url_for('register') }}" style="background-color: #2563eb; color: #ffffff; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: 600;">Register</a>
