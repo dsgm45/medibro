@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Visit Summary - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}" class="active">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 20px;">
+            <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Appointments</a>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Visit Summary</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &middot; {{ appt.appointment_date }} at {{ appt.appointment_time }}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="margin-bottom: 20px;">
+                <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Diagnosis</p>
+                {% if appt.diagnosis %}
+                <p style="margin: 0; color: #0f172a; font-size: 1.05rem; font-weight: 600;">{{ appt.diagnosis }}</p>
+                {% else %}
+                <p style="margin: 0; color: #94a3b8; font-size: 0.9rem;">No diagnosis was recorded for this visit.</p>
+                {% endif %}
+            </div>
+            <div>
+                <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Visit Notes</p>
+                {% if appt.visit_notes %}
+                <p style="margin: 0; color: #334155; font-size: 0.95rem; white-space: pre-wrap;">{{ appt.visit_notes }}</p>
+                {% else %}
+                <p style="margin: 0; color: #94a3b8; font-size: 0.9rem;">No additional notes were recorded for this visit.</p>
+                {% endif %}
+            </div>
+            {% if appt.completed_at %}
+            <p style="margin: 20px 0 0 0; color: #94a3b8; font-size: 0.78rem;">Visit completed {{ appt.completed_at.strftime('%b %d, %Y %I:%M %p') }}</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}

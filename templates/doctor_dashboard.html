@@ -63,12 +63,10 @@
                                 </form>
                                 {% elif appt.status == 'accepted' %}
                                 <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
-                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='complete') }}" method="POST" style="display: inline;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Mark Completed</button>
-                                </form>
+                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
                                 {% elif appt.status == 'completed' %}
                                 <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: #6d28d9; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">📝 Edit Summary</a>
                                 {% if not appt.follow_up_requested %}
                                 <form action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

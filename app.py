@@ -89,6 +89,9 @@ class Appointment(db.Model):
     phone_number = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
     follow_up_requested = db.Column(db.Boolean, nullable=False, default=False)
+    diagnosis = db.Column(db.Text, nullable=True)
+    visit_notes = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
@@ -579,12 +582,6 @@ def handle_appointment(app_id, action):
         elif action == 'decline':
             appt.status = 'declined'
             flash('Appointment declined.', 'error')
-        elif action == 'complete':
-            if appt.status != 'accepted':
-                flash('Only accepted appointments can be marked completed.', 'error')
-                return redirect(url_for('doctor_dashboard'))
-            appt.status = 'completed'
-            flash('Appointment marked as completed.', 'success')
 
         db.session.commit()
     except Exception as e:
@@ -593,6 +590,53 @@ def handle_appointment(app_id, action):
         flash('Database error updating appointment.', 'error')
 
     return redirect(url_for('doctor_dashboard'))
+
+@app.route('/appointment/<int:app_id>/complete', methods=['GET', 'POST'])
+@login_required
+@role_required('doctor')
+def complete_appointment(app_id):
+    appt = Appointment.query.get_or_404(app_id)
+    if appt.doctor_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('doctor_dashboard'))
+    if appt.status not in ('accepted', 'completed'):
+        flash('Only accepted or completed appointments can have a visit summary.', 'error')
+        return redirect(url_for('doctor_dashboard'))
+
+    if request.method == 'POST':
+        diagnosis = request.form.get('diagnosis', '').strip()
+        visit_notes = request.form.get('visit_notes', '').strip()
+
+        try:
+            appt.diagnosis = diagnosis
+            appt.visit_notes = visit_notes
+            if appt.status == 'accepted':
+                appt.status = 'completed'
+                appt.completed_at = datetime.utcnow()
+            db.session.commit()
+            flash('Visit summary saved.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Complete appointment error: {e}")
+            flash('Error saving visit summary.', 'error')
+
+        return redirect(url_for('doctor_dashboard'))
+
+    return render_template('appointment_complete.html', appt=appt)
+
+@app.route('/my-appointment/<int:app_id>/summary')
+@login_required
+@role_required('patient')
+def appointment_summary(app_id):
+    appt = Appointment.query.get_or_404(app_id)
+    if appt.patient_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('patient_dashboard'))
+    if appt.status != 'completed':
+        flash('This appointment does not have a visit summary yet.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    return render_template('appointment_summary.html', appt=appt)
 
 @app.route('/appointment/<int:app_id>/request-follow-up', methods=['POST'])
 @login_required
@@ -660,13 +704,15 @@ def view_patient_history(patient_id):
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
+    visit_history = Appointment.query.filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(20).all()
 
     return render_template(
         'patient_history_view.html',
         patient=patient,
         vitals_history=vitals_history,
         symptom_history=symptom_history,
-        medicine_history=medicine_history
+        medicine_history=medicine_history,
+        visit_history=visit_history
     )
 
 @app.route('/chat')

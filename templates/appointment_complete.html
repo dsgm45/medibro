@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Visit Summary - {{ appt.patient.full_name }} - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+
+    <div style="margin-bottom: 24px;">
+        <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">
+            {% if appt.status == 'completed' %}Edit Visit Summary{% else %}Complete Visit{% endif %}
+        </h1>
+        <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ appt.patient.full_name }} &middot; {{ appt.appointment_date }} at {{ appt.appointment_time }}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
+    </div>
+
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diagnosis</label>
+                <input type="text" name="diagnosis" value="{{ appt.diagnosis or '' }}" placeholder="e.g. Seasonal flu, mild dehydration" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Visit Notes</label>
+                <textarea name="visit_notes" rows="6" placeholder="What happened during this visit, recommendations, anything the patient should know..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ appt.visit_notes or '' }}</textarea>
+            </div>
+            <p style="margin: 0 0 20px 0; color: var(--text-sub); font-size: 0.8rem;">Both fields are optional, but filling them in gives the patient a real record of the visit.</p>
+            <div style="text-align: right;">
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
+                    {% if appt.status == 'completed' %}Save Changes{% else %}Mark Completed{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
