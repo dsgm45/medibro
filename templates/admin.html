@@ -40,6 +40,37 @@
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Pending Approvals</div>
             <div style="font-size: 2rem; font-weight: 700; color: var(--warning); margin-top: 4px;">{{ stats.pending_approvals }}</div>
         </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Total Appointments</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #6d28d9; margin-top: 4px;">{{ stats.total_appointments }}</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Completed Visits</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #0ea5e9; margin-top: 4px;">{{ stats.completed_visits }}</div>
+        </div>
+    </div>
+
+    <!-- Appointment Volume + Doctor Utilization -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Appointment Volume (Last 14 Days)</p>
+            <div id="volume-chart"></div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Busiest Doctors</p>
+            {% if top_doctors %}
+            <div style="display: grid; gap: 10px;">
+                {% for doc in top_doctors %}
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <p style="margin: 0; font-weight: 600; color: var(--text-dark); font-size: 0.9rem;">Dr. {{ doc.name }}</p>
+                    <span style="background-color: #eff6ff; color: #1e40af; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">{{ doc.count }} appt{{ 's' if doc.count != 1 else '' }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0;">No appointment data yet.</p>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Doctor Verification Queue -->
@@ -171,5 +202,43 @@ function filterTable(inputId, tableId) {
         rows[i].style.display = text.includes(query) ? '' : 'none';
     }
 }
+
+function drawBarChart(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding: 20px 0;">No appointment activity yet.</p>';
+        return;
+    }
+    const width = 500;
+    const height = 160;
+    const padding = 28;
+    const maxCount = Math.max(...data.map(d => d.count), 1);
+    const barWidth = (width - padding * 2) / data.length * 0.7;
+    const gap = (width - padding * 2) / data.length;
+
+    let svg = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">`;
+    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="#e2e8f0" stroke-width="1"/>`;
+
+    data.forEach((d, i) => {
+        const barHeight = (d.count / maxCount) * (height - padding * 2 - 16);
+        const x = padding + i * gap + (gap - barWidth) / 2;
+        const y = height - padding - barHeight;
+        svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="#6d28d9" rx="2"/>`;
+        if (d.count > 0) {
+            svg += `<text x="${x + barWidth/2}" y="${y - 4}" font-size="9" fill="#6d28d9" text-anchor="middle" font-weight="700">${d.count}</text>`;
+        }
+    });
+
+    const labelIndices = data.length <= 7 ? data.map((_, i) => i) : [0, Math.floor((data.length-1)/2), data.length-1];
+    labelIndices.forEach(i => {
+        const x = padding + i * gap + gap / 2;
+        svg += `<text x="${x}" y="${height - 8}" font-size="9" fill="#94a3b8" text-anchor="middle">${data[i].date}</text>`;
+    });
+
+    svg += `</svg>`;
+    container.innerHTML = svg;
+}
+
+drawBarChart('volume-chart', {{ volume_by_day | tojson }});
 </script>
 {% endblock %}

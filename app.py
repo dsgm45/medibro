@@ -3,7 +3,7 @@ import re
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
-from collections import defaultdict
+from collections import defaultdict, Counter
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
@@ -843,10 +843,32 @@ def admin_dashboard():
     approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
     patients = User.query.filter_by(role='patient').all()
 
+    appointment_rows = db.session.query(
+        Appointment.status, Appointment.created_at, Appointment.doctor_id
+    ).all()
+    status_counts = Counter(row.status for row in appointment_rows)
+    total_appointments = len(appointment_rows)
+
+    today = datetime.utcnow().date()
+    volume_by_day = []
+    for i in range(13, -1, -1):
+        day = today - timedelta(days=i)
+        count = sum(1 for row in appointment_rows if row.created_at and row.created_at.date() == day)
+        volume_by_day.append({'date': day.strftime('%m/%d'), 'count': count})
+
+    doctor_counts = Counter(row.doctor_id for row in appointment_rows)
+    top_doctors = []
+    for doc_id, count in doctor_counts.most_common(5):
+        doc = User.query.get(doc_id)
+        if doc:
+            top_doctors.append({'name': doc.full_name, 'count': count})
+
     stats = {
         'total_patients': len(patients),
         'active_doctors': len(approved_doctors),
-        'pending_approvals': len(pending_doctors)
+        'pending_approvals': len(pending_doctors),
+        'total_appointments': total_appointments,
+        'completed_visits': status_counts.get('completed', 0),
     }
 
     return render_template(
@@ -854,7 +876,9 @@ def admin_dashboard():
         pending_doctors=pending_doctors,
         approved_doctors=approved_doctors,
         patients=patients,
-        stats=stats
+        stats=stats,
+        volume_by_day=volume_by_day,
+        top_doctors=top_doctors
     )
 
 @app.route('/admin/verify/<int:doctor_id>/<action>', methods=['POST'])
