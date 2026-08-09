@@ -270,7 +270,7 @@ def init_db():
                     )
                 admin = User(
                     email='admin@medibro.com',
-                    password_hash=generate_password_hash(admin_password),
+                    password_hash=generate_password_hash(admin_password, method='pbkdf2:sha256'),
                     role='hospital',
                     full_name='System Admin',
                     status='approved'
@@ -423,7 +423,7 @@ def register():
 
             new_user = User(
                 email=email,
-                password_hash=generate_password_hash(password),
+                password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
                 role=role,
                 full_name=full_name,
                 specialty=specialty if role == 'doctor' else None,
@@ -1526,7 +1526,7 @@ def profile():
             return redirect(url_for('profile'))
 
         try:
-            user.password_hash = generate_password_hash(new_password)
+            user.password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
             db.session.commit()
             flash('Password updated successfully.', 'success')
         except Exception as e:
