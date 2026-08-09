@@ -53,15 +53,27 @@
                             </td>
                             <td style="padding: 12px 10px; text-align: right;">
                                 {% if appt.status == 'pending' %}
-                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 6px; display: inline-block;">Accept</a>
-                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Decline</a>
+                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer; margin-right: 6px;">Accept</button>
+                                </form>
+                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Decline</button>
+                                </form>
                                 {% elif appt.status == 'accepted' %}
                                 <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
-                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='complete') }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
+                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='complete') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Mark Completed</button>
+                                </form>
                                 {% elif appt.status == 'completed' %}
                                 <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
                                 {% if not appt.follow_up_requested %}
-                                <a href="{{ url_for('request_follow_up', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Request Follow-up</a>
+                                <form action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
+                                </form>
                                 {% endif %}
                                 {% else %}
                                 <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none;">View History</a>

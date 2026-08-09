@@ -44,9 +44,12 @@
                     {% for item in period_items %}
                     <div style="display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid {{ period_colors[period] }}; border-radius: 10px; padding: 14px 18px; {% if item.taken %}opacity: 0.6;{% endif %} box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
                         <div style="display: flex; align-items: center; gap: 14px;">
-                            <a href="{{ url_for('toggle_dose_taken', dose_id=item.dose.id) }}" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid {% if item.taken %}#16a34a{% else %}#cbd5e1{% endif %}; background-color: {% if item.taken %}#16a34a{% else %}#ffffff{% endif %}; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0; transition: all 0.15s;">
-                                {% if item.taken %}<span style="color: white; font-size: 1rem;">✓</span>{% endif %}
-                            </a>
+                            <form action="{{ url_for('toggle_dose_taken', dose_id=item.dose.id) }}" method="POST" style="display: inline; flex-shrink: 0;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid {% if item.taken %}#16a34a{% else %}#cbd5e1{% endif %}; background-color: {% if item.taken %}#16a34a{% else %}#ffffff{% endif %}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: all 0.15s;">
+                                    {% if item.taken %}<span style="color: white; font-size: 1rem;">✓</span>{% endif %}
+                                </button>
+                            </form>
                             <div>
                                 <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 1rem; {% if item.taken %}text-decoration: line-through;{% endif %}">{{ item.medicine.name }}</p>
                                 {% if item.medicine.dosage %}<p style="margin: 2px 0 0 0; color: #64748b; font-size: 0.8rem;">{{ item.medicine.dosage }}</p>{% endif %}
@@ -161,9 +164,12 @@
                         {% endif %}
                         {% if med.notes %}<p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.78rem;">📝 {{ med.notes }}</p>{% endif %}
                     </div>
-                    <div style="display: flex; gap: 12px; flex-shrink: 0;">
+                    <div style="display: flex; gap: 12px; flex-shrink: 0; align-items: center;">
                         <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
-                        <a href="{{ url_for('delete_medicine', med_id=med.id) }}" onclick="return confirm('Remove this medicine reminder?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Remove</a>
+                        <form action="{{ url_for('delete_medicine', med_id=med.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Remove this medicine reminder?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: #dc2626; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Remove</button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}

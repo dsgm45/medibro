@@ -449,7 +449,7 @@ def book_appointment():
 
     return redirect(url_for('patient_dashboard'))
 
-@app.route('/my-appointment/<int:app_id>/cancel')
+@app.route('/my-appointment/<int:app_id>/cancel', methods=['POST'])
 @login_required
 @role_required('patient')
 def cancel_appointment(app_id):
@@ -489,7 +489,7 @@ def doctor_dashboard():
 
     return render_template('doctor_dashboard.html', doctor=doctor, grouped_appointments=grouped_appointments)
 
-@app.route('/appointment/<int:app_id>/<action>')
+@app.route('/appointment/<int:app_id>/<action>', methods=['POST'])
 @login_required
 @role_required('doctor')
 def handle_appointment(app_id, action):
@@ -520,7 +520,7 @@ def handle_appointment(app_id, action):
 
     return redirect(url_for('doctor_dashboard'))
 
-@app.route('/appointment/<int:app_id>/request-follow-up')
+@app.route('/appointment/<int:app_id>/request-follow-up', methods=['POST'])
 @login_required
 @role_required('doctor')
 def request_follow_up(app_id):
@@ -684,7 +684,7 @@ def admin_dashboard():
         stats=stats
     )
 
-@app.route('/admin/verify/<int:doctor_id>/<action>')
+@app.route('/admin/verify/<int:doctor_id>/<action>', methods=['POST'])
 @login_required
 @role_required('hospital', 'admin')
 def verify_doctor(doctor_id, action):
@@ -711,7 +711,7 @@ def verify_doctor(doctor_id, action):
         flash('Error updating doctor verification.', 'error')
     return redirect(url_for('admin_dashboard'))
 
-@app.route('/admin/toggle-user/<int:user_id>')
+@app.route('/admin/toggle-user/<int:user_id>', methods=['POST'])
 @login_required
 @role_required('hospital', 'admin')
 def toggle_user_status(user_id):
@@ -1053,7 +1053,7 @@ def edit_medicine(med_id):
 
     return render_template('medicine_edit.html', med=med)
 
-@app.route('/medicines/<int:med_id>/delete')
+@app.route('/medicines/<int:med_id>/delete', methods=['POST'])
 @login_required
 @role_required('patient')
 def delete_medicine(med_id):
@@ -1071,7 +1071,7 @@ def delete_medicine(med_id):
         flash('Error removing medicine reminder.', 'error')
     return redirect(url_for('medicines'))
 
-@app.route('/medicines/dose/<int:dose_id>/delete')
+@app.route('/medicines/dose/<int:dose_id>/delete', methods=['POST'])
 @login_required
 @role_required('patient')
 def delete_dose(dose_id):
@@ -1091,7 +1091,7 @@ def delete_dose(dose_id):
         flash('Error removing reminder time.', 'error')
         return redirect(url_for('medicines'))
 
-@app.route('/medicines/dose/<int:dose_id>/toggle-taken')
+@app.route('/medicines/dose/<int:dose_id>/toggle-taken', methods=['POST'])
 @login_required
 @role_required('patient')
 def toggle_dose_taken(dose_id):

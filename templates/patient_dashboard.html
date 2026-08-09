@@ -136,7 +136,10 @@
                             </td>
                             <td style="padding: 14px 10px; text-align: right;">
                                 {% if appt.status == 'pending' %}
-                                <a href="{{ url_for('cancel_appointment', app_id=appt.id) }}" onclick="return confirm('Cancel this appointment request?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Cancel</a>
+                                <form action="{{ url_for('cancel_appointment', app_id=appt.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Cancel this appointment request?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: #dc2626; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                                </form>
                                 {% elif appt.status in ['accepted', 'completed'] %}
                                 <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
                                 {% endif %}

@@ -63,8 +63,14 @@
                     <td style="padding: 12px 10px;">{{ doc.email }}</td>
                     <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
                     <td style="padding: 12px 10px; text-align: right;">
-                        <a href="{{ url_for('verify_doctor', doctor_id=doc.id, action='approve') }}" style="padding: 6px 12px; background: var(--success); color: white; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Approve</a>
-                        <a href="{{ url_for('verify_doctor', doctor_id=doc.id, action='reject') }}" style="padding: 6px 12px; background: var(--danger); color: white; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Reject</a>
+                        <form action="{{ url_for('verify_doctor', doctor_id=doc.id, action='approve') }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: var(--success); color: white; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
+                        </form>
+                        <form action="{{ url_for('verify_doctor', doctor_id=doc.id, action='reject') }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: var(--danger); color: white; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Reject</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
@@ -100,7 +106,10 @@
                         <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: var(--success-light); color: var(--success);">Approved</span>
                     </td>
                     <td style="padding: 12px 10px; text-align: right;">
-                        <a href="{{ url_for('toggle_user_status', user_id=doc.id) }}" style="padding: 6px 12px; background: var(--danger-light); color: var(--danger); border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Suspend</a>
+                        <form action="{{ url_for('toggle_user_status', user_id=doc.id) }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: var(--danger-light); color: var(--danger); border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Suspend</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
@@ -136,9 +145,12 @@
                         </span>
                     </td>
                     <td style="padding: 12px 10px; text-align: right;">
-                        <a href="{{ url_for('toggle_user_status', user_id=p.id) }}" style="padding: 6px 12px; background: {{ 'var(--danger-light)' if p.status == 'approved' else 'var(--success-light)' }}; color: {{ 'var(--danger)' if p.status == 'approved' else 'var(--success)' }}; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">
-                            {{ 'Suspend' if p.status == 'approved' else 'Activate' }}
-                        </a>
+                        <form action="{{ url_for('toggle_user_status', user_id=p.id) }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: {{ 'var(--danger-light)' if p.status == 'approved' else 'var(--success-light)' }}; color: {{ 'var(--danger)' if p.status == 'approved' else 'var(--success)' }}; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">
+                                {{ 'Suspend' if p.status == 'approved' else 'Activate' }}
+                            </button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
