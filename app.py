@@ -1,15 +1,18 @@
 import os
 import re
+import csv
+import io
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 from collections import defaultdict, Counter
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
 from flask_wtf import CSRFProtect
+from fpdf import FPDF
 from flask_migrate import Migrate, upgrade, stamp
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -51,6 +54,11 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = bool(os.environ.get('RENDER'))
+
+# How long a "Remember Me" session stays valid. Sessions where the person
+# didn't check that box remain regular session cookies that expire when
+# the browser closes, controlled per-login in the login route below.
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
@@ -353,6 +361,7 @@ def login():
                     return redirect(url_for('login'))
 
                 clear_login_attempts(email)
+                session.permanent = bool(request.form.get('remember_me'))
                 session['user_id'] = user.id
                 session['email'] = user.email
                 session['role'] = user.role
@@ -479,6 +488,101 @@ def my_health():
         next_appointment=next_appointment,
         follow_ups=follow_ups
     )
+
+def _pdf_safe_text(value):
+    """PDF core fonts only support Latin-1. Replace anything outside that
+    range instead of letting it crash the export - degraded output is far
+    better than a broken download."""
+    if value is None:
+        return ''
+    return str(value).encode('latin-1', errors='replace').decode('latin-1')
+
+@app.route('/my-health/export-pdf')
+@login_required
+@role_required('patient')
+def export_health_pdf():
+    patient = User.query.get_or_404(session.get('user_id'))
+    patient_id = patient.id
+
+    vitals = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(10).all()
+    symptoms = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(10).all()
+    medicines = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
+    visits = Appointment.query.filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(10).all()
+
+    t = _pdf_safe_text
+
+    pdf = FPDF()
+    pdf.add_page()
+
+    pdf.set_font('Helvetica', 'B', 18)
+    pdf.cell(0, 12, t('MediBro Health Summary'))
+    pdf.ln(12)
+
+    pdf.set_font('Helvetica', '', 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 6, t(f'{patient.full_name} - Generated {datetime.utcnow().strftime("%B %d, %Y")}'))
+    pdf.ln(10)
+    pdf.set_text_color(0, 0, 0)
+
+    def section_title(title):
+        pdf.set_font('Helvetica', 'B', 13)
+        pdf.cell(0, 8, t(title))
+        pdf.ln(9)
+        pdf.set_font('Helvetica', '', 10)
+
+    section_title('Recent Vitals')
+    if vitals:
+        for v in vitals:
+            date_str = v.recorded_at.strftime('%b %d, %Y') if v.recorded_at else ''
+            bp = f'{v.systolic}/{v.diastolic}' if v.systolic and v.diastolic else '-'
+            line = f'{date_str}  |  BP: {bp}  |  HR: {v.heart_rate or "-"} bpm  |  SpO2: {v.spo2 or "-"}%  |  Temp: {v.temperature or "-"} F'
+            pdf.cell(0, 6, t(line))
+            pdf.ln(6)
+    else:
+        pdf.cell(0, 6, t('No vitals logged.'))
+        pdf.ln(6)
+    pdf.ln(4)
+
+    section_title('Recent Symptoms')
+    if symptoms:
+        for s in symptoms:
+            date_str = s.created_at.strftime('%b %d, %Y') if s.created_at else ''
+            line = f'{date_str}  |  {s.symptoms}  |  Severity: {s.severity}'
+            pdf.multi_cell(0, 6, t(line))
+    else:
+        pdf.cell(0, 6, t('No symptoms logged.'))
+        pdf.ln(6)
+    pdf.ln(4)
+
+    section_title('Medicines')
+    if medicines:
+        for m in medicines:
+            times = ', '.join(d.time for d in m.doses) if m.doses else (m.time_of_day or '-')
+            line = f'{m.name}  |  {m.dosage or "-"}  |  {m.frequency or "-"}  |  Times: {times}'
+            pdf.multi_cell(0, 6, t(line))
+    else:
+        pdf.cell(0, 6, t('No medicines on record.'))
+        pdf.ln(6)
+    pdf.ln(4)
+
+    section_title('Visit History')
+    if visits:
+        for v in visits:
+            doc_name = v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') if v.doctor else 'Unknown'
+            line = f'{v.appointment_date}  |  Dr. {doc_name}  |  Diagnosis: {v.diagnosis or "Not recorded"}'
+            pdf.multi_cell(0, 6, t(line))
+            if v.visit_notes:
+                pdf.set_font('Helvetica', 'I', 9)
+                pdf.multi_cell(0, 5, t(f'  Notes: {v.visit_notes}'))
+                pdf.set_font('Helvetica', '', 10)
+    else:
+        pdf.cell(0, 6, t('No completed visits on record.'))
+        pdf.ln(6)
+
+    pdf_bytes = bytes(pdf.output())
+    response = Response(pdf_bytes, mimetype='application/pdf')
+    response.headers['Content-Disposition'] = 'attachment; filename=medibro_health_summary.pdf'
+    return response
 
 @app.route('/patient')
 @login_required
@@ -880,6 +984,56 @@ def admin_dashboard():
         volume_by_day=volume_by_day,
         top_doctors=top_doctors
     )
+
+def csv_response(filename, header, rows):
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(header)
+    writer.writerows(rows)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+@app.route('/admin/export/patients')
+@login_required
+@role_required('hospital', 'admin')
+def export_patients_csv():
+    patients = User.query.filter_by(role='patient').order_by(User.created_at.desc()).all()
+    rows = [
+        [p.full_name, p.email, p.phone or '', p.status, p.created_at.strftime('%Y-%m-%d') if p.created_at else '']
+        for p in patients
+    ]
+    return csv_response('medibro_patients.csv', ['Name', 'Email', 'Phone', 'Status', 'Registered'], rows)
+
+@app.route('/admin/export/doctors')
+@login_required
+@role_required('hospital', 'admin')
+def export_doctors_csv():
+    doctors = User.query.filter_by(role='doctor').order_by(User.created_at.desc()).all()
+    rows = [
+        [d.full_name, d.email, d.specialty or '', d.phone or '', d.status, d.created_at.strftime('%Y-%m-%d') if d.created_at else '']
+        for d in doctors
+    ]
+    return csv_response('medibro_doctors.csv', ['Name', 'Email', 'Specialty', 'Phone', 'Status', 'Registered'], rows)
+
+@app.route('/admin/export/audit-log')
+@login_required
+@role_required('hospital', 'admin')
+def export_audit_log_csv():
+    logs = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc()).all()
+    rows = [
+        [
+            log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '',
+            log.admin.full_name if log.admin else 'Unknown',
+            log.action,
+            log.target_name or '',
+            log.details or ''
+        ]
+        for log in logs
+    ]
+    return csv_response('medibro_audit_log.csv', ['Date', 'Admin', 'Action', 'Target', 'Details'], rows)
 
 @app.route('/admin/verify/<int:doctor_id>/<action>', methods=['POST'])
 @login_required

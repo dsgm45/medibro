@@ -18,9 +18,12 @@
     </aside>
 
     <main class="patient-main">
-        <div style="margin-bottom: 24px;">
-            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">My Health</h1>
-            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+        <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">My Health</h1>
+                <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+            </div>
+            <a href="{{ url_for('export_health_pdf') }}" style="padding: 8px 16px; background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.85rem;">⬇ Download PDF Summary</a>
         </div>
 
         <!-- Follow-up banner -->
