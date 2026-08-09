@@ -544,9 +544,25 @@ def book_appointment():
         return redirect(url_for('patient_dashboard'))
 
     try:
+        doctor_id = int(doctor_id)
+    except (ValueError, TypeError):
+        flash('Invalid doctor selection.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    existing_conflict = Appointment.query.filter_by(
+        doctor_id=doctor_id,
+        appointment_date=appointment_date,
+        appointment_time=appointment_time
+    ).filter(Appointment.status.in_(['pending', 'accepted'])).first()
+
+    if existing_conflict:
+        flash('This doctor already has a request or appointment at that date and time. Please choose a different time.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    try:
         new_app = Appointment(
             patient_id=session['user_id'],
-            doctor_id=int(doctor_id),
+            doctor_id=doctor_id,
             appointment_date=appointment_date,
             appointment_time=appointment_time,
             reason=reason,
