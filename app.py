@@ -152,12 +152,12 @@ class SymptomLog(db.Model):
 
 class EmergencyContact(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     contact_name = db.Column(db.String(120), nullable=False)
     contact_phone = db.Column(db.String(20), nullable=False)
     relation = db.Column(db.String(50), nullable=True)
 
-    patient = db.relationship('User', foreign_keys=[patient_id], backref='emergency_contact')
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='emergency_contacts')
 
 class SosEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1044,7 +1044,7 @@ def symptoms():
 @role_required('patient')
 def sos():
     patient_id = session.get('user_id')
-    contact = EmergencyContact.query.filter_by(patient_id=patient_id).first()
+    contacts = EmergencyContact.query.filter_by(patient_id=patient_id).order_by(EmergencyContact.id.asc()).all()
 
     if request.method == 'POST':
         action = request.form.get('action')
@@ -1058,17 +1058,16 @@ def sos():
                 flash('Please provide a contact name and phone number.', 'error')
                 return redirect(url_for('sos'))
 
+            if len(contacts) >= 5:
+                flash('You can save up to 5 emergency contacts. Remove one before adding another.', 'error')
+                return redirect(url_for('sos'))
+
             try:
-                if contact:
-                    contact.contact_name = name
-                    contact.contact_phone = phone
-                    contact.relation = relation
-                else:
-                    contact = EmergencyContact(
-                        patient_id=patient_id, contact_name=name,
-                        contact_phone=phone, relation=relation
-                    )
-                    db.session.add(contact)
+                contact = EmergencyContact(
+                    patient_id=patient_id, contact_name=name,
+                    contact_phone=phone, relation=relation
+                )
+                db.session.add(contact)
                 db.session.commit()
                 flash('Emergency contact saved.', 'success')
             except Exception as e:
@@ -1089,7 +1088,27 @@ def sos():
 
         return redirect(url_for('sos'))
 
-    return render_template('sos.html', contact=contact)
+    recent_events = SosEvent.query.filter_by(patient_id=patient_id).order_by(SosEvent.created_at.desc()).limit(10).all()
+
+    return render_template('sos.html', contacts=contacts, recent_events=recent_events)
+
+@app.route('/sos/contact/<int:contact_id>/delete', methods=['POST'])
+@login_required
+@role_required('patient')
+def delete_emergency_contact(contact_id):
+    try:
+        contact = EmergencyContact.query.get_or_404(contact_id)
+        if contact.patient_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('sos'))
+        db.session.delete(contact)
+        db.session.commit()
+        flash('Emergency contact removed.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Delete emergency contact error: {e}")
+        flash('Error removing emergency contact.', 'error')
+    return redirect(url_for('sos'))
 
 def classify_time_period(time_str):
     try:

@@ -36,42 +36,84 @@
             <input type="hidden" name="action" value="trigger_sos">
             <button type="submit" style="padding: 16px 40px; background-color: var(--danger); color: #ffffff; border: none; border-radius: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer;">🚨 Trigger SOS Alert</button>
         </form>
-        {% if contact %}
-        <p style="margin: 16px 0 0 0; color: #7f1d1d; font-size: 0.9rem;">
-            Your emergency contact: <strong>{{ contact.contact_name }}</strong>
-            &mdash; <a href="tel:{{ contact.contact_phone }}" style="color: var(--danger); font-weight: 700;">{{ contact.contact_phone }}</a>
-        </p>
+        {% if contacts %}
+        <div style="margin: 16px 0 0 0;">
+            {% for c in contacts %}
+            <p style="margin: 4px 0; color: #7f1d1d; font-size: 0.9rem;">
+                <strong>{{ c.contact_name }}</strong>{% if c.relation %} ({{ c.relation }}){% endif %}
+                &mdash; <a href="tel:{{ c.contact_phone }}" style="color: var(--danger); font-weight: 700;">{{ c.contact_phone }}</a>
+            </p>
+            {% endfor %}
+        </div>
         {% else %}
         <p style="margin: 16px 0 0 0; color: #7f1d1d; font-size: 0.9rem;">
-            No emergency contact saved yet. Add one below so it's ready when you need it.
+            No emergency contacts saved yet. Add one below so it's ready when you need it.
         </p>
         {% endif %}
     </div>
 
-    <!-- Emergency contact form -->
-    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">📇 Emergency Contact</h2>
+    <!-- Emergency contacts -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">📇 Emergency Contacts</h2>
+
+        {% if contacts %}
+        <div style="display: grid; gap: 10px; margin-bottom: 20px;">
+            {% for c in contacts %}
+            <div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+                <div>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ c.contact_name }}{% if c.relation %} <span style="font-weight: 500; color: var(--text-sub);">&middot; {{ c.relation }}</span>{% endif %}</p>
+                    <p style="margin: 2px 0 0 0; color: #334155; font-size: 0.85rem;">{{ c.contact_phone }}</p>
+                </div>
+                <form action="{{ url_for('delete_emergency_contact', contact_id=c.id) }}" method="POST" onsubmit="return confirm('Remove this emergency contact?');" style="margin: 0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: var(--danger); font-weight: 600; font-size: 0.85rem; cursor: pointer;">Remove</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if contacts|length < 5 %}
         <form action="{{ url_for('sos') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="save_contact">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px;">
                 <div>
                     <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Name</label>
-                    <input type="text" name="contact_name" required value="{{ contact.contact_name if contact else '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                    <input type="text" name="contact_name" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
                 </div>
                 <div>
                     <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number</label>
-                    <input type="tel" name="contact_phone" required value="{{ contact.contact_phone if contact else '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                    <input type="tel" name="contact_phone" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
                 </div>
                 <div>
                     <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Relationship</label>
-                    <input type="text" name="relation" placeholder="e.g. Spouse, Parent" value="{{ contact.relation if contact else '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                    <input type="text" name="relation" placeholder="e.g. Spouse, Parent" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
                 </div>
             </div>
             <div style="text-align: right;">
-                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Contact</button>
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Add Contact</button>
             </div>
         </form>
+        {% else %}
+        <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0;">You've reached the limit of 5 emergency contacts. Remove one above to add another.</p>
+        {% endif %}
+    </div>
+
+    <!-- SOS History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">🕐 SOS History</h2>
+        {% if recent_events %}
+        <div style="display: grid; gap: 8px;">
+            {% for event in recent_events %}
+            <p style="margin: 0; color: #334155; font-size: 0.85rem; border-left: 3px solid var(--danger); padding-left: 10px;">
+                SOS triggered on {{ event.created_at.strftime('%b %d, %Y %I:%M %p') }}
+            </p>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0; font-size: 0.85rem;">No SOS alerts triggered yet.</p>
+        {% endif %}
     </div>
 </main>
 </div>
