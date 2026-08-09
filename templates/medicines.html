@@ -20,7 +20,33 @@
         </div>
 
         <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 24px; font-size: 0.8rem; color: #1e40af;">
-            ℹ️ This is a personal tracker — MediBro does not currently send push notifications or alerts for reminder times.
+            ℹ️ This tracker shows an on-page alert while this tab is open near a scheduled time. It cannot send notifications when the app is closed — true push reminders would need additional infrastructure.
+        </div>
+
+        <div id="reminder-banner" style="display: none; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; font-weight: 700; color: #92400e;"></div>
+
+        <!-- Today's Schedule -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Today's Schedule</h2>
+            {% if todays_schedule %}
+            <div style="display: grid; gap: 10px;">
+                {% for item in todays_schedule %}
+                <div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; {% if item.taken %}background-color: #f0fdf4;{% endif %}">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <a href="{{ url_for('toggle_dose_taken', dose_id=item.dose.id) }}" style="width: 24px; height: 24px; border-radius: 6px; border: 2px solid {% if item.taken %}#16a34a{% else %}#cbd5e1{% endif %}; background-color: {% if item.taken %}#16a34a{% else %}#ffffff{% endif %}; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0;">
+                            {% if item.taken %}<span style="color: white; font-size: 0.9rem;">✓</span>{% endif %}
+                        </a>
+                        <div>
+                            <p style="margin: 0; font-weight: 700; color: #0f172a; {% if item.taken %}text-decoration: line-through; opacity: 0.6;{% endif %}">{{ item.medicine.name }}{% if item.medicine.dosage %} &middot; {{ item.medicine.dosage }}{% endif %}</p>
+                            <p style="margin: 2px 0 0 0; color: #2563eb; font-size: 0.8rem; font-weight: 600;">{{ item.dose.time }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No scheduled doses for today. Add a medicine with reminder times below.</p>
+            {% endif %}
         </div>
 
         <!-- Add Medicine -->
@@ -40,10 +66,25 @@
                         <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency</label>
                         <input type="text" name="frequency" placeholder="e.g. Twice daily" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
                     </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Times</label>
-                        <input type="text" name="time_of_day" placeholder="e.g. 8:00 AM, 8:00 PM" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Start Date</label>
+                        <input type="date" name="start_date" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
                     </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">End Date (leave blank if ongoing)</label>
+                        <input type="date" name="end_date" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reminder Times</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <input type="time" name="dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <input type="time" name="dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <input type="time" name="dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.75rem;">Leave any unused ones blank. You can add more later by editing the medicine.</p>
                 </div>
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)</label>
@@ -65,10 +106,23 @@
                     <div>
                         <p style="margin: 0; font-weight: 700; color: #0f172a;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
                         {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
-                        {% if med.time_of_day %}<p style="margin: 4px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.time_of_day }}</p>{% endif %}
+                        {% if med.doses %}
+                        <p style="margin: 4px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.doses | map(attribute='time') | join(', ') }}</p>
+                        {% elif med.time_of_day %}
+                        <p style="margin: 4px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.time_of_day }}</p>
+                        {% endif %}
+                        {% if med.start_date or med.end_date %}
+                        <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.8rem;">
+                            {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
+                            {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
+                        </p>
+                        {% endif %}
                         {% if med.notes %}<p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.8rem;">{{ med.notes }}</p>{% endif %}
                     </div>
-                    <a href="{{ url_for('delete_medicine', med_id=med.id) }}" onclick="return confirm('Remove this medicine reminder?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Remove</a>
+                    <div style="display: flex; gap: 12px; flex-shrink: 0;">
+                        <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
+                        <a href="{{ url_for('delete_medicine', med_id=med.id) }}" onclick="return confirm('Remove this medicine reminder?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Remove</a>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -78,4 +132,38 @@
         </div>
     </main>
 </div>
+
+<script>
+(function() {
+    var schedule = [
+        {% for item in todays_schedule %}
+        {% if not item.taken %}
+        { name: {{ item.medicine.name | tojson }}, time: {{ item.dose.time | tojson }} },
+        {% endif %}
+        {% endfor %}
+    ];
+    var alerted = {};
+
+    function checkReminders() {
+        var now = new Date();
+        var hh = String(now.getHours()).padStart(2, '0');
+        var mm = String(now.getMinutes()).padStart(2, '0');
+        var current = hh + ':' + mm;
+
+        schedule.forEach(function(item) {
+            if (item.time === current && !alerted[item.time + item.name]) {
+                alerted[item.time + item.name] = true;
+                var banner = document.getElementById('reminder-banner');
+                banner.textContent = '⏰ Time to take ' + item.name + ' (' + item.time + ')';
+                banner.style.display = 'block';
+            }
+        });
+    }
+
+    if (schedule.length > 0) {
+        checkReminders();
+        setInterval(checkReminders, 30000);
+    }
+})();
+</script>
 {% endblock %}

@@ -10,6 +10,30 @@
         <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
     </div>
 
+    <!-- Medicines -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💊 Current Medicines</h2>
+        {% if medicine_history %}
+        <div style="display: grid; gap: 10px;">
+            {% for med in medicine_history %}
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+                {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                {% if med.doses %}<p style="margin: 4px 0 0 0; color: var(--primary); font-size: 0.8rem; font-weight: 600;">⏰ {{ med.doses | map(attribute='time') | join(', ') }}</p>{% endif %}
+                {% if med.start_date or med.end_date %}
+                <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.8rem;">
+                    {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
+                    {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No medicines logged by this patient.</p>
+        {% endif %}
+    </div>
+
     <!-- Vitals History -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💓 Vitals History</h2>
