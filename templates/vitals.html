@@ -55,6 +55,24 @@
         </div>
     </div>
 
+    <!-- Trend Charts -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px;">
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Blood Pressure Trend</p>
+                <div style="display: flex; gap: 12px; font-size: 0.75rem;">
+                    <span style="color: #2563eb; font-weight: 600;">● Systolic</span>
+                    <span style="color: #f59e0b; font-weight: 600;">● Diastolic</span>
+                </div>
+            </div>
+            <div id="bp-chart"></div>
+        </div>
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <p style="margin: 0 0 12px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Heart Rate Trend</p>
+            <div id="hr-chart"></div>
+        </div>
+    </div>
+
     <!-- Log New Reading -->
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">💓 Log New Reading</h2>
@@ -128,4 +146,53 @@
     </div>
 </main>
 </div>
+
+<script>
+function drawLineChart(containerId, data, keys, colors) {
+    const container = document.getElementById(containerId);
+    if (!data || data.length < 2) {
+        container.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding: 20px 0;">Log at least 2 readings to see a trend here.</p>';
+        return;
+    }
+    const width = 500;
+    const height = 160;
+    const padding = 32;
+    const allValues = data.flatMap(d => keys.map(k => d[k]));
+    const minV = Math.min(...allValues) - 5;
+    const maxV = Math.max(...allValues) + 5;
+    const xStep = (width - padding * 2) / (data.length - 1);
+
+    function xy(i, val) {
+        const x = padding + i * xStep;
+        const y = height - padding - ((val - minV) / (maxV - minV)) * (height - padding * 2);
+        return [x, y];
+    }
+
+    let svg = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">`;
+    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="#e2e8f0" stroke-width="1"/>`;
+
+    keys.forEach((key, ki) => {
+        const points = data.map((d, i) => xy(i, d[key]).join(',')).join(' ');
+        svg += `<polyline points="${points}" fill="none" stroke="${colors[ki]}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+        data.forEach((d, i) => {
+            const [x, y] = xy(i, d[key]);
+            svg += `<circle cx="${x}" cy="${y}" r="3" fill="${colors[ki]}"/>`;
+        });
+    });
+
+    const labelIndices = data.length <= 5 ? data.map((_, i) => i) : [0, Math.floor((data.length - 1) / 2), data.length - 1];
+    labelIndices.forEach(i => {
+        const [x] = xy(i, data[i][keys[0]]);
+        svg += `<text x="${x}" y="${height - 8}" font-size="10" fill="#94a3b8" text-anchor="middle">${data[i].date}</text>`;
+    });
+
+    svg += `</svg>`;
+    container.innerHTML = svg;
+}
+
+const bpData = {{ bp_chart_data | tojson }};
+const hrData = {{ hr_chart_data | tojson }};
+drawLineChart('bp-chart', bpData, ['systolic', 'diastolic'], ['#2563eb', '#f59e0b']);
+drawLineChart('hr-chart', hrData, ['heart_rate'], ['#dc2626']);
+</script>
 {% endblock %}

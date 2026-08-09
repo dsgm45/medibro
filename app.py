@@ -915,7 +915,20 @@ def vitals():
 
     history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     latest = history[0] if history else None
-    return render_template('vitals.html', history=history, latest=latest)
+
+    bp_chart_data = [
+        {'date': v.recorded_at.strftime('%m/%d'), 'systolic': v.systolic, 'diastolic': v.diastolic}
+        for v in reversed(history) if v.systolic and v.diastolic
+    ]
+    hr_chart_data = [
+        {'date': v.recorded_at.strftime('%m/%d'), 'heart_rate': v.heart_rate}
+        for v in reversed(history) if v.heart_rate
+    ]
+
+    return render_template(
+        'vitals.html', history=history, latest=latest,
+        bp_chart_data=bp_chart_data, hr_chart_data=hr_chart_data
+    )
 
 SYMPTOM_OPTIONS = [
     'Fever', 'Cough', 'Chest pain', 'Shortness of breath', 'Headache',
