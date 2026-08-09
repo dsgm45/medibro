@@ -55,14 +55,57 @@
                     <input type="text" name="notes" value="{{ med.notes or '' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
                 </div>
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Add Another Reminder Time (optional)</label>
-                    <input type="time" name="new_dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 10px;">Add Reminder Time(s)</label>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <label id="chip-morning" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
+                            <input type="checkbox" name="new_dose_time" value="08:00" style="display:none;" onchange="updateChip('chip-morning', this.checked)">
+                            ☀️ Morning
+                        </label>
+                        <label id="chip-afternoon" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
+                            <input type="checkbox" name="new_dose_time" value="14:00" style="display:none;" onchange="updateChip('chip-afternoon', this.checked)">
+                            🌤️ Afternoon
+                        </label>
+                        <label id="chip-evening" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
+                            <input type="checkbox" name="new_dose_time" value="20:00" style="display:none;" onchange="updateChip('chip-evening', this.checked)">
+                            🌙 Evening
+                        </label>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                        <button type="button" onclick="quickSelect(['chip-morning','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">⚡ Twice Daily</button>
+                        <button type="button" onclick="quickSelect(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">⚡ Thrice Daily</button>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 6px;">Custom time:</label>
+                        <input type="time" name="new_dose_time" style="padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
                 </div>
                 <div style="text-align: right;">
                     <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Changes</button>
                 </div>
             </form>
         </div>
+
+        <script>
+        function updateChip(id, checked) {
+            var el = document.getElementById(id);
+            if (checked) {
+                el.style.background = '#2563eb';
+                el.style.borderColor = '#2563eb';
+                el.style.color = '#ffffff';
+            } else {
+                el.style.background = '#ffffff';
+                el.style.borderColor = '#cbd5e1';
+                el.style.color = '#334155';
+            }
+        }
+        function quickSelect(ids) {
+            ids.forEach(function(id) {
+                var cb = document.querySelector('#' + id + ' input');
+                cb.checked = true;
+                updateChip(id, true);
+            });
+        }
+        </script>
 
         <!-- Manage times -->
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">

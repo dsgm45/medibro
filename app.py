@@ -918,6 +918,18 @@ def sos():
 
     return render_template('sos.html', contact=contact)
 
+def classify_time_period(time_str):
+    try:
+        hour = int(time_str.split(':')[0])
+    except (ValueError, IndexError, AttributeError):
+        return ('Other', '⏰')
+    if hour < 12:
+        return ('Morning', '☀️')
+    elif hour < 17:
+        return ('Afternoon', '🌤️')
+    else:
+        return ('Evening', '🌙')
+
 def get_todays_schedule(patient_id):
     today = datetime.utcnow().date()
     active_meds = Medicine.query.filter(
@@ -930,10 +942,13 @@ def get_todays_schedule(patient_id):
     for med in active_meds:
         for dose in med.doses:
             log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
+            period, icon = classify_time_period(dose.time)
             schedule.append({
                 'medicine': med,
                 'dose': dose,
-                'taken': bool(log and log.taken_at)
+                'taken': bool(log and log.taken_at),
+                'period': period,
+                'icon': icon
             })
     schedule.sort(key=lambda s: s['dose'].time)
     return schedule
@@ -951,7 +966,7 @@ def medicines():
         notes = request.form.get('notes', '').strip()
         start_date_str = request.form.get('start_date', '').strip()
         end_date_str = request.form.get('end_date', '').strip()
-        dose_times = [t.strip() for t in request.form.getlist('dose_time') if t.strip()]
+        dose_times = list(dict.fromkeys(t.strip() for t in request.form.getlist('dose_time') if t.strip()))
 
         if not name:
             flash('Please enter the medicine name.', 'error')
@@ -1009,7 +1024,7 @@ def edit_medicine(med_id):
         notes = request.form.get('notes', '').strip()
         start_date_str = request.form.get('start_date', '').strip()
         end_date_str = request.form.get('end_date', '').strip()
-        new_dose_time = request.form.get('new_dose_time', '').strip()
+        new_dose_times = [t.strip() for t in request.form.getlist('new_dose_time') if t.strip()]
 
         if not name:
             flash('Please enter the medicine name.', 'error')
@@ -1034,8 +1049,11 @@ def edit_medicine(med_id):
             med.start_date = start_date
             med.end_date = end_date
 
-            if new_dose_time:
-                db.session.add(MedicineDose(medicine_id=med.id, time=new_dose_time))
+            existing_times = {d.time for d in med.doses}
+            for t in new_dose_times:
+                if t not in existing_times:
+                    db.session.add(MedicineDose(medicine_id=med.id, time=t))
+                    existing_times.add(t)
 
             db.session.commit()
             flash('Medicine reminder updated.', 'success')
