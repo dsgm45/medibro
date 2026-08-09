@@ -32,6 +32,14 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 300
 }
 
+# Session cookie hardening. SESSION_COOKIE_SECURE is left off automatically
+# for local development (where requests are plain HTTP), but forced on when
+# running in production - controlled via the FLASK_ENV/RENDER env var Render
+# sets automatically, so no manual toggle is needed on deploy.
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = bool(os.environ.get('RENDER'))
+
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 migrate = Migrate(app, db)
@@ -263,6 +271,29 @@ def dashboard_endpoint_for_role(role):
         return 'doctor_dashboard'
     else:
         return 'patient_dashboard'
+
+# --- SECURITY HEADERS ---
+# The CSP below allows 'unsafe-inline' for scripts and styles because this
+# app relies heavily on inline style="..." attributes and a few inline
+# <script> blocks throughout its templates. A stricter policy (nonces, an
+# external stylesheet) would close that gap further but requires a larger
+# template refactor - tracked as a known follow-up, not done here. It also
+# explicitly allowlists the two external resources index.html actually
+# loads (Tailwind's CDN script, Google Fonts) rather than blocking them.
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "frame-ancestors 'none';"
+    )
+    return response
 
 # --- BASE / PUBLIC ROUTES ---
 @app.route('/')
@@ -1173,4 +1204,4 @@ def internal_error(e):
     return render_template('error.html', code=500, message="Something went wrong on our end."), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
