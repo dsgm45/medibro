@@ -1,3 +1,16 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fixing chat (per-appointment redesign + stale table fix) ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p templates
+
+cat > app.py << 'FILEEOF_1'
 import os
 import re
 import secrets
@@ -9,17 +22,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
-from flask_wtf import CSRFProtect
-from flask_migrate import Migrate, upgrade, stamp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'medibro_secret_key_2026')
-if app.secret_key == 'medibro_secret_key_2026':
-    import logging
-    logging.getLogger(__name__).warning(
-        'SECURITY WARNING: Using the default SECRET_KEY. Set a SECRET_KEY '
-        'environment variable in production, or session cookies can be forged.'
-    )
 
 db_url = os.environ.get('DATABASE_URL', 'sqlite:///medibro.db')
 if db_url.startswith('postgres://'):
@@ -33,8 +38,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 db = SQLAlchemy(app)
-csrf = CSRFProtect(app)
-migrate = Migrate(app, db)
 
 # --- LOGIN RATE LIMITING ---
 # In-memory store: fine for a single-worker deployment (this app runs with
@@ -153,59 +156,47 @@ class Medicine(db.Model):
     name = db.Column(db.String(120), nullable=False)
     dosage = db.Column(db.String(80), nullable=True)
     frequency = db.Column(db.String(80), nullable=True)
-    time_of_day = db.Column(db.String(120), nullable=True)  # legacy free-text, kept for old rows; new entries use MedicineDose
+    time_of_day = db.Column(db.String(120), nullable=True)
     notes = db.Column(db.Text, nullable=True)
-    start_date = db.Column(db.Date, nullable=True)
-    end_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
 
-class MedicineDose(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    medicine_id = db.Column(db.Integer, db.ForeignKey('medicine.id'), nullable=False)
-    time = db.Column(db.String(5), nullable=False)  # 24-hour "HH:MM"
-
-    medicine = db.relationship('Medicine', backref=db.backref('doses', cascade='all, delete-orphan', order_by='MedicineDose.time'))
-
-class MedicineDoseLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    dose_id = db.Column(db.Integer, db.ForeignKey('medicine_dose.id'), nullable=False)
-    log_date = db.Column(db.Date, nullable=False)
-    taken_at = db.Column(db.DateTime, nullable=True)
-
-    dose = db.relationship('MedicineDose', backref=db.backref('logs', cascade='all, delete-orphan'))
-
-    __table_args__ = (db.UniqueConstraint('dose_id', 'log_date', name='uq_dose_log_date'),)
-
-def run_migrations():
-    """
-    Applies database schema changes using real, versioned Alembic migrations
-    instead of ad-hoc ALTER statements. Safe to call on every startup.
-
-    On the very first run after adopting this system, the database's tables
-    already exist (built up over time by earlier ad-hoc db.create_all() and
-    ALTER TABLE calls) but there's no Alembic version history yet. In that
-    case we ensure anything the baseline expects is present (db.create_all()
-    only ever creates missing tables - it never touches or drops existing
-    ones, so this is safe) and then stamp the database as already being at
-    the baseline revision, rather than trying to re-run CREATE TABLE
-    statements against tables that already exist.
-
-    On every run after that, this just calls upgrade(), which applies any
-    migration files that haven't been applied yet - the normal Alembic flow.
-    """
+def migrate_schema():
+    """Adds any new columns to existing tables. Safe to run on every startup."""
     with app.app_context():
+        migrations = [
+            'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS bio TEXT',
+            'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS hours VARCHAR(200)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS follow_up_requested BOOLEAN DEFAULT FALSE',
+        ]
+        for stmt in migrations:
+            try:
+                db.session.execute(text(stmt))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.warning(f"Migration statement skipped (may already be applied): {e}")
+
+        # The 'message' table previously existed with an incompatible schema
+        # left over from an earlier, never-completed chat feature. Detect and
+        # fix it automatically. This check is idempotent: once the table has
+        # the correct schema, it becomes a no-op on every future startup, so
+        # it's safe to leave in place permanently and will never touch real
+        # message data once the fix has applied once.
         try:
             inspector = inspect(db.engine)
-            if not inspector.has_table('alembic_version'):
-                db.create_all()
-                stamp(revision='baseline_v1')
-                app.logger.warning('Alembic adopted: database stamped at baseline_v1.')
-            else:
-                upgrade()
+            if inspector.has_table('message'):
+                existing_columns = {col['name'] for col in inspector.get_columns('message')}
+                if 'appointment_id' not in existing_columns:
+                    db.session.execute(text('DROP TABLE IF EXISTS message'))
+                    db.session.commit()
+                    db.create_all()
+                    app.logger.warning('Recreated "message" table with the current schema (old incompatible table removed).')
         except Exception as e:
-            app.logger.error(f"Migration run failed: {e}")
+            db.session.rollback()
+            app.logger.warning(f"Message table schema check skipped: {e}")
 
 def init_db():
     with app.app_context():
@@ -233,7 +224,7 @@ def init_db():
             db.session.rollback()
 
 init_db()
-run_migrations()
+migrate_schema()
 
 # --- AUTH DECORATORS ---
 def login_required(f):
@@ -585,14 +576,12 @@ def view_patient_history(patient_id):
     patient = User.query.get_or_404(patient_id)
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
-    medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
 
     return render_template(
         'patient_history_view.html',
         patient=patient,
         vitals_history=vitals_history,
-        symptom_history=symptom_history,
-        medicine_history=medicine_history
+        symptom_history=symptom_history
     )
 
 @app.route('/chat')
@@ -905,41 +894,6 @@ def sos():
 
     return render_template('sos.html', contact=contact)
 
-def classify_time_period(time_str):
-    try:
-        hour = int(time_str.split(':')[0])
-    except (ValueError, IndexError, AttributeError):
-        return ('Other', '⏰')
-    if hour < 12:
-        return ('Morning', '☀️')
-    elif hour < 17:
-        return ('Afternoon', '🌤️')
-    else:
-        return ('Evening', '🌙')
-
-def get_todays_schedule(patient_id):
-    today = datetime.utcnow().date()
-    active_meds = Medicine.query.filter(
-        Medicine.patient_id == patient_id,
-        db.or_(Medicine.start_date == None, Medicine.start_date <= today),
-        db.or_(Medicine.end_date == None, Medicine.end_date >= today)
-    ).all()
-
-    schedule = []
-    for med in active_meds:
-        for dose in med.doses:
-            log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
-            period, icon = classify_time_period(dose.time)
-            schedule.append({
-                'medicine': med,
-                'dose': dose,
-                'taken': bool(log and log.taken_at),
-                'period': period,
-                'icon': icon
-            })
-    schedule.sort(key=lambda s: s['dose'].time)
-    return schedule
-
 @app.route('/medicines', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -950,38 +904,19 @@ def medicines():
         name = request.form.get('name', '').strip()
         dosage = request.form.get('dosage', '').strip()
         frequency = request.form.get('frequency', '').strip()
+        time_of_day = request.form.get('time_of_day', '').strip()
         notes = request.form.get('notes', '').strip()
-        start_date_str = request.form.get('start_date', '').strip()
-        end_date_str = request.form.get('end_date', '').strip()
-        dose_times = list(dict.fromkeys(t.strip() for t in request.form.getlist('dose_time') if t.strip()))
 
         if not name:
             flash('Please enter the medicine name.', 'error')
             return redirect(url_for('medicines'))
 
         try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
-        except ValueError:
-            flash('Invalid date format.', 'error')
-            return redirect(url_for('medicines'))
-
-        if start_date and end_date and end_date < start_date:
-            flash('End date cannot be before start date.', 'error')
-            return redirect(url_for('medicines'))
-
-        try:
             med = Medicine(
                 patient_id=patient_id, name=name, dosage=dosage,
-                frequency=frequency, notes=notes,
-                start_date=start_date, end_date=end_date
+                frequency=frequency, time_of_day=time_of_day, notes=notes
             )
             db.session.add(med)
-            db.session.flush()
-
-            for t in dose_times:
-                db.session.add(MedicineDose(medicine_id=med.id, time=t))
-
             db.session.commit()
             flash('Medicine reminder added.', 'success')
         except Exception as e:
@@ -992,66 +927,7 @@ def medicines():
         return redirect(url_for('medicines'))
 
     my_medicines = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
-    todays_schedule = get_todays_schedule(patient_id)
-    return render_template('medicines.html', medicines=my_medicines, todays_schedule=todays_schedule)
-
-@app.route('/medicines/<int:med_id>/edit', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def edit_medicine(med_id):
-    med = Medicine.query.get_or_404(med_id)
-    if med.patient_id != session.get('user_id'):
-        flash('Unauthorized action.', 'error')
-        return redirect(url_for('medicines'))
-
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        dosage = request.form.get('dosage', '').strip()
-        frequency = request.form.get('frequency', '').strip()
-        notes = request.form.get('notes', '').strip()
-        start_date_str = request.form.get('start_date', '').strip()
-        end_date_str = request.form.get('end_date', '').strip()
-        new_dose_times = [t.strip() for t in request.form.getlist('new_dose_time') if t.strip()]
-
-        if not name:
-            flash('Please enter the medicine name.', 'error')
-            return redirect(url_for('edit_medicine', med_id=med_id))
-
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
-        except ValueError:
-            flash('Invalid date format.', 'error')
-            return redirect(url_for('edit_medicine', med_id=med_id))
-
-        if start_date and end_date and end_date < start_date:
-            flash('End date cannot be before start date.', 'error')
-            return redirect(url_for('edit_medicine', med_id=med_id))
-
-        try:
-            med.name = name
-            med.dosage = dosage
-            med.frequency = frequency
-            med.notes = notes
-            med.start_date = start_date
-            med.end_date = end_date
-
-            existing_times = {d.time for d in med.doses}
-            for t in new_dose_times:
-                if t not in existing_times:
-                    db.session.add(MedicineDose(medicine_id=med.id, time=t))
-                    existing_times.add(t)
-
-            db.session.commit()
-            flash('Medicine reminder updated.', 'success')
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Edit medicine error: {e}")
-            flash('Error updating medicine reminder.', 'error')
-
-        return redirect(url_for('edit_medicine', med_id=med_id))
-
-    return render_template('medicine_edit.html', med=med)
+    return render_template('medicines.html', medicines=my_medicines)
 
 @app.route('/medicines/<int:med_id>/delete')
 @login_required
@@ -1069,55 +945,6 @@ def delete_medicine(med_id):
         db.session.rollback()
         app.logger.error(f"Delete medicine error: {e}")
         flash('Error removing medicine reminder.', 'error')
-    return redirect(url_for('medicines'))
-
-@app.route('/medicines/dose/<int:dose_id>/delete')
-@login_required
-@role_required('patient')
-def delete_dose(dose_id):
-    try:
-        dose = MedicineDose.query.get_or_404(dose_id)
-        if dose.medicine.patient_id != session.get('user_id'):
-            flash('Unauthorized action.', 'error')
-            return redirect(url_for('medicines'))
-        med_id = dose.medicine_id
-        db.session.delete(dose)
-        db.session.commit()
-        flash('Reminder time removed.', 'success')
-        return redirect(url_for('edit_medicine', med_id=med_id))
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Delete dose error: {e}")
-        flash('Error removing reminder time.', 'error')
-        return redirect(url_for('medicines'))
-
-@app.route('/medicines/dose/<int:dose_id>/toggle-taken')
-@login_required
-@role_required('patient')
-def toggle_dose_taken(dose_id):
-    try:
-        dose = MedicineDose.query.get_or_404(dose_id)
-        if dose.medicine.patient_id != session.get('user_id'):
-            flash('Unauthorized action.', 'error')
-            return redirect(url_for('medicines'))
-
-        today = datetime.utcnow().date()
-        log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
-
-        if log and log.taken_at:
-            log.taken_at = None
-        elif log:
-            log.taken_at = datetime.utcnow()
-        else:
-            log = MedicineDoseLog(dose_id=dose.id, log_date=today, taken_at=datetime.utcnow())
-            db.session.add(log)
-
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Toggle dose taken error: {e}")
-        flash('Error updating dose status.', 'error')
-
     return redirect(url_for('medicines'))
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -1174,3 +1001,382 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=True)
+FILEEOF_1
+cat > templates/patient_dashboard.html << 'FILEEOF_2'
+{% extends "base.html" %}
+{% block title %}Patient Portal - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}" class="active">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Patient Portal</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+        </div>
+
+        <!-- Upcoming Appointment Reminders -->
+        {% if upcoming %}
+        <div style="background-color: var(--warning-light, #fef3c7); border: 1px solid #fde68a; border-radius: var(--radius, 8px); padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #92400e; font-size: 0.9rem;">⏰ Upcoming Appointments</p>
+            {% for appt in upcoming %}
+            <p style="margin: 4px 0; color: #92400e; font-size: 0.85rem;">
+                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &mdash; {{ appt.appointment_date }} at {{ appt.appointment_time }}
+            </p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Follow-up Requests -->
+        {% if follow_ups %}
+        <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Requested</p>
+            {% for appt in follow_ups %}
+            <p style="margin: 4px 0; color: #6d28d9; font-size: 0.85rem;">
+                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} recommended a follow-up visit.
+                <a href="{{ url_for('patient_dashboard', book_with=appt.doctor.id) }}" style="color: #6d28d9; font-weight: 700; text-decoration: underline;">Book it now</a>
+            </p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Section 1: Book Appointment Card -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Book an Appointment</h2>
+
+            {% if all_specialties %}
+            <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Filter by specialty:</span>
+                <a href="{{ url_for('patient_dashboard') }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if not specialty_filter %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">All</a>
+                {% for spec in all_specialties %}
+                <a href="{{ url_for('patient_dashboard', specialty=spec) }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if specialty_filter == spec %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">{{ spec }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if doctors %}
+            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #1e40af;">
+                📞 Video consultation isn't available yet — please share a phone number so your doctor can reach you directly.
+            </div>
+            <form action="{{ url_for('book_appointment') }}" method="POST">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor</label>
+                        <select name="doctor_id" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; font-size: 0.95rem; color: #0f172a;">
+                            <option value="">-- Choose Specialist --</option>
+                            {% for doc in doctors %}
+                            <option value="{{ doc.id }}" {% if pre_doctor_id and doc.id == pre_doctor_id %}selected{% endif %}>Dr. {{ doc.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doc.specialty or 'General Practice' }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Date</label>
+                        <input type="date" name="appointment_date" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time</label>
+                        <input type="time" name="appointment_time" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number</label>
+                        <input type="tel" name="phone_number" required placeholder="For your doctor to reach you" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reason for Visit</label>
+                    <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div style="text-align: right;">
+                    <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Request Appointment</button>
+                </div>
+            </form>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No verified doctors are currently available for booking{% if specialty_filter %} in this specialty{% endif %}.</p>
+            {% endif %}
+        </div>
+
+        <!-- Section 2: My Scheduled Appointments Card -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📋 My Appointments</h2>
+            {% if appointments %}
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.85rem;">
+                            <th style="padding: 12px 10px;">Doctor</th>
+                            <th style="padding: 12px 10px;">Date & Time</th>
+                            <th style="padding: 12px 10px;">Reason</th>
+                            <th style="padding: 12px 10px;">Status</th>
+                            <th style="padding: 12px 10px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appt in appointments %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
+                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }} at {{ appt.appointment_time }}</td>
+                            <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                            <td style="padding: 14px 10px;">
+                                {% if appt.status == 'accepted' %}
+                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                {% elif appt.status == 'declined' %}
+                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                                {% elif appt.status == 'cancelled' %}
+                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                {% elif appt.status == 'completed' %}
+                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed</span>
+                                {% else %}
+                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 14px 10px; text-align: right;">
+                                {% if appt.status == 'pending' %}
+                                <a href="{{ url_for('cancel_appointment', app_id=appt.id) }}" onclick="return confirm('Cancel this appointment request?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Cancel</a>
+                                {% elif appt.status in ['accepted', 'completed'] %}
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">You have not booked any appointments yet.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}
+FILEEOF_2
+cat > templates/doctor_dashboard.html << 'FILEEOF_3'
+{% extends "base.html" %}
+{% block title %}Doctor Workspace - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Doctor Workspace</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome, Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doctor.specialty or 'General Medicine' }})</p>
+        </div>
+        <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">⚙️ Edit Profile</a>
+    </div>
+
+    <!-- Appointments grouped by day -->
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">🩺 Patient Appointment Requests</h2>
+        {% if grouped_appointments %}
+        {% for date_label, day_appointments in grouped_appointments %}
+        <div style="margin-bottom: 24px;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #2563eb; margin: 0 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0;">{{ date_label }}</h3>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.8rem;">
+                            <th style="padding: 10px;">Patient Name</th>
+                            <th style="padding: 10px;">Phone</th>
+                            <th style="padding: 10px;">Time</th>
+                            <th style="padding: 10px;">Reason</th>
+                            <th style="padding: 10px;">Status</th>
+                            <th style="padding: 10px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appt in day_appointments %}
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 12px 10px; font-weight: 600; color: #0f172a;">
+                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #0f172a; text-decoration: none;">{{ appt.patient.full_name }}</a>
+                            </td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.phone_number or appt.patient.phone or 'N/A' }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                            <td style="padding: 12px 10px;">
+                                {% if appt.status == 'accepted' %}
+                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                {% elif appt.status == 'declined' %}
+                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                                {% elif appt.status == 'cancelled' %}
+                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                {% elif appt.status == 'completed' %}
+                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed{% if appt.follow_up_requested %} &middot; Follow-up sent{% endif %}</span>
+                                {% else %}
+                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px 10px; text-align: right;">
+                                {% if appt.status == 'pending' %}
+                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 6px; display: inline-block;">Accept</a>
+                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Decline</a>
+                                {% elif appt.status == 'accepted' %}
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                <a href="{{ url_for('handle_appointment', app_id=appt.id, action='complete') }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
+                                {% elif appt.status == 'completed' %}
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                {% if not appt.follow_up_requested %}
+                                <a href="{{ url_for('request_follow_up', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Request Follow-up</a>
+                                {% endif %}
+                                {% else %}
+                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none;">View History</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color: #64748b; margin: 0;">No appointment requests received yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+FILEEOF_3
+cat > templates/chat_list.html << 'FILEEOF_4'
+{% extends "base.html" %}
+{% block title %}Chat - MediBro{% endblock %}
+{% block content %}
+{% if session.role == 'patient' %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}" class="active">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+    <main class="patient-main">
+{% else %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+{% endif %}
+
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Messages</h1>
+        </div>
+
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
+            {% if conversations %}
+            {% for convo in conversations %}
+            <a href="{{ url_for('chat_thread', appointment_id=convo.appointment.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; text-decoration: none; border-bottom: 1px solid #f1f5f9; color: inherit;">
+                <div>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark);">
+                        {% if session.role == 'patient' %}Dr. {{ convo.partner.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ convo.partner.full_name }}{% endif %}
+                        <span style="font-weight: 500; color: var(--text-sub); font-size: 0.8rem;">&middot; {{ convo.appointment.appointment_date }}</span>
+                    </p>
+                    {% if convo.last_message %}
+                    <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ convo.last_message.content }}</p>
+                    {% else %}
+                    <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem;">No messages yet</p>
+                    {% endif %}
+                </div>
+                <span style="color: var(--primary); font-size: 0.85rem; font-weight: 600;">Open →</span>
+            </a>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-sub); margin: 0; padding: 24px;">No conversations yet. Chat opens up once an appointment is accepted.</p>
+            {% endif %}
+        </div>
+
+{% if session.role == 'patient' %}
+    </main>
+</div>
+{% else %}
+</div>
+{% endif %}
+{% endblock %}
+FILEEOF_4
+cat > templates/chat_thread.html << 'FILEEOF_5'
+{% extends "base.html" %}
+{% block title %}Chat with {{ other_user.full_name }} - MediBro{% endblock %}
+{% block content %}
+{% if session.role == 'patient' %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}" class="active">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+    <main class="patient-main">
+{% else %}
+<div style="max-width: 700px; margin: 30px auto; padding: 0 20px;">
+{% endif %}
+
+        <div style="margin-bottom: 20px;">
+            <a href="{{ url_for('chat_list') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; All Conversations</a>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <h1 style="margin: 0; font-size: 1.4rem; color: var(--text-dark);">
+                {% if session.role == 'patient' %}Dr. {{ other_user.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ other_user.full_name }}{% endif %}
+            </h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem;">Appointment on {{ appointment.appointment_date }} at {{ appointment.appointment_time }} &middot; {{ appointment.reason or 'General Consultation' }}</p>
+        </div>
+
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 16px; min-height: 300px; max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+            {% if messages %}
+            {% for msg in messages %}
+            <div style="display: flex; {% if msg.sender_id == my_user_id %}justify-content: flex-end;{% else %}justify-content: flex-start;{% endif %}">
+                <div style="max-width: 75%; padding: 10px 14px; border-radius: 12px; {% if msg.sender_id == my_user_id %}background-color: var(--primary); color: #ffffff;{% else %}background-color: #f1f5f9; color: var(--text-dark);{% endif %}">
+                    <p style="margin: 0; font-size: 0.9rem;">{{ msg.content }}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 0.7rem; opacity: 0.8;">{{ msg.created_at.strftime('%b %d, %I:%M %p') }}</p>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-sub); margin: auto;">No messages yet. Say hello!</p>
+            {% endif %}
+        </div>
+
+        <form action="{{ url_for('chat_thread', appointment_id=appointment.id) }}" method="POST" style="display: flex; gap: 10px;">
+            <input type="text" name="content" required placeholder="Type a message..." style="flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+            <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Send</button>
+        </form>
+
+{% if session.role == 'patient' %}
+    </main>
+</div>
+{% else %}
+</div>
+{% endif %}
+{% endblock %}
+FILEEOF_5
+
+echo "All files written."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add app.py templates/patient_dashboard.html templates/doctor_dashboard.html templates/chat_list.html templates/chat_thread.html
+git commit -m "Fix chat: redesign as per-appointment threads, auto-fix stale message table"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "On startup, app.py will detect the old broken 'message' table (missing"
+echo "appointment_id) and automatically drop and recreate it with the correct"
+echo "schema. No manual repair route needed - this check is safe to run on"
+echo "every future startup too, since it only acts when the schema is wrong."

@@ -63,6 +63,7 @@
                 📞 Video consultation isn't available yet — please share a phone number so your doctor can reach you directly.
             </div>
             <form action="{{ url_for('book_appointment') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
                     <div>
                         <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor</label>

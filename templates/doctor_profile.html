@@ -12,6 +12,7 @@
 
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <form method="POST" style="display: grid; gap: 16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Specialty</label>
                 <input type="text" name="specialty" value="{{ doctor.specialty or '' }}" placeholder="e.g. Cardiology" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">

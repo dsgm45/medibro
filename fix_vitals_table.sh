@@ -1,0 +1,435 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fixing Vitals table schema mismatch ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+cat > app.py << 'APP_PY_EOF'
+import os
+import secrets
+from datetime import datetime
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'medibro_secret_key_2026')
+
+db_url = os.environ.get('DATABASE_URL', 'sqlite:///medibro.db')
+if db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300
+}
+
+db = SQLAlchemy(app)
+
+# --- MODELS ---
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='patient')
+    full_name = db.Column(db.String(120), nullable=False)
+    specialty = db.Column(db.String(120), nullable=True)
+    phone = db.Column(db.String(20), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='approved')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Appointment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    appointment_date = db.Column(db.String(50), nullable=False)
+    appointment_time = db.Column(db.String(50), nullable=False)
+    reason = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
+    doctor = db.relationship('User', foreign_keys=[doctor_id], backref='doctor_appointments')
+
+class Vital(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    systolic = db.Column(db.Integer, nullable=True)
+    diastolic = db.Column(db.Integer, nullable=True)
+    heart_rate = db.Column(db.Integer, nullable=True)
+    spo2 = db.Column(db.Integer, nullable=True)
+    temperature = db.Column(db.Float, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='vitals')
+
+def init_db():
+    with app.app_context():
+        try:
+            db.create_all()
+            admin = User.query.filter_by(email='admin@medibro.com').first()
+            if not admin:
+                admin = User(
+                    email='admin@medibro.com',
+                    password_hash=generate_password_hash('admin123'),
+                    role='hospital',
+                    full_name='System Admin',
+                    status='approved'
+                )
+                db.session.add(admin)
+                db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+
+init_db()
+
+# --- AUTH DECORATORS ---
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please log in to access this page.', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def role_required(*roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if session.get('role') not in roles:
+                flash('Access denied.', 'error')
+                return redirect(url_for('index'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+# --- BASE / PUBLIC ROUTES ---
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        try:
+            user = User.query.filter_by(email=email).first()
+            if user and check_password_hash(user.password_hash, password):
+                if user.status == 'pending':
+                    flash('Your doctor account is pending verification by hospital admin.', 'error')
+                    return redirect(url_for('login'))
+                if user.status in ['rejected', 'suspended']:
+                    flash('Your account is suspended or rejected.', 'error')
+                    return redirect(url_for('login'))
+                
+                session['user_id'] = user.id
+                session['email'] = user.email
+                session['role'] = user.role
+                session['full_name'] = user.full_name
+                flash(f'Welcome back, {user.full_name}!', 'success')
+
+                if user.role in ['hospital', 'admin']:
+                    return redirect(url_for('admin_dashboard'))
+                elif user.role == 'doctor':
+                    return redirect(url_for('doctor_dashboard'))
+                else:
+                    return redirect(url_for('patient_dashboard'))
+            else:
+                flash('Invalid email or password.', 'error')
+        except Exception as e:
+            app.logger.error(f"Login error: {e}")
+            flash(f'Database error: {str(e)}', 'error')
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        full_name = request.form.get('full_name', '').strip()
+        role = request.form.get('role', 'patient')
+        specialty = request.form.get('specialty', '').strip()
+        phone = request.form.get('phone', '').strip()
+
+        try:
+            if User.query.filter_by(email=email).first():
+                flash('Email address already registered.', 'error')
+                return redirect(url_for('register'))
+
+            status = 'pending' if role == 'doctor' else 'approved'
+
+            new_user = User(
+                email=email,
+                password_hash=generate_password_hash(password),
+                role=role,
+                full_name=full_name,
+                specialty=specialty if role == 'doctor' else None,
+                phone=phone,
+                status=status
+            )
+            db.session.add(new_user)
+            db.session.commit()
+
+            if status == 'pending':
+                flash('Registration successful! Account pending hospital verification.', 'success')
+            else:
+                flash('Registration successful! You can now log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Registration error: {str(e)}', 'error')
+
+    return render_template('register.html')
+
+# --- DASHBOARD ROUTES ---
+@app.route('/patient')
+@login_required
+@role_required('patient')
+def patient_dashboard():
+    patient_id = session.get('user_id')
+    doctors = User.query.filter_by(role='doctor', status='approved').all()
+    my_appointments = Appointment.query.filter_by(patient_id=patient_id).order_by(Appointment.created_at.desc()).all()
+    return render_template('patient_dashboard.html', doctors=doctors, appointments=my_appointments)
+
+@app.route('/book-appointment', methods=['POST'])
+@login_required
+@role_required('patient')
+def book_appointment():
+    doctor_id = request.form.get('doctor_id')
+    appointment_date = request.form.get('appointment_date')
+    appointment_time = request.form.get('appointment_time')
+    reason = request.form.get('reason', '').strip()
+
+    if not doctor_id or not appointment_date or not appointment_time:
+        flash('Please fill in all required appointment fields.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    try:
+        new_app = Appointment(
+            patient_id=session['user_id'],
+            doctor_id=int(doctor_id),
+            appointment_date=appointment_date,
+            appointment_time=appointment_time,
+            reason=reason,
+            status='pending'
+        )
+        db.session.add(new_app)
+        db.session.commit()
+        flash('Appointment requested successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error booking appointment: {str(e)}', 'error')
+
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/doctor')
+@login_required
+@role_required('doctor')
+def doctor_dashboard():
+    doctor_id = session.get('user_id')
+    doctor = User.query.get_or_404(doctor_id)
+    appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(Appointment.created_at.desc()).all()
+    return render_template('doctor_dashboard.html', doctor=doctor, appointments=appointments)
+
+@app.route('/appointment/<int:app_id>/<action>')
+@login_required
+@role_required('doctor')
+def handle_appointment(app_id, action):
+    try:
+        appt = Appointment.query.get_or_404(app_id)
+        if appt.doctor_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('doctor_dashboard'))
+
+        if action == 'accept':
+            appt.status = 'accepted'
+            flash('Appointment accepted!', 'success')
+        elif action == 'decline':
+            appt.status = 'declined'
+            flash('Appointment declined.', 'error')
+
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Appointment handle error: {e}")
+        flash('Database error updating appointment.', 'error')
+
+    return redirect(url_for('doctor_dashboard'))
+
+@app.route('/admin')
+@login_required
+@role_required('hospital', 'admin')
+def admin_dashboard():
+    pending_doctors = User.query.filter_by(role='doctor', status='pending').all()
+    approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
+    patients = User.query.filter_by(role='patient').all()
+
+    stats = {
+        'total_patients': len(patients),
+        'active_doctors': len(approved_doctors),
+        'pending_approvals': len(pending_doctors)
+    }
+
+    return render_template(
+        'admin.html',
+        pending_doctors=pending_doctors,
+        approved_doctors=approved_doctors,
+        patients=patients,
+        stats=stats
+    )
+
+@app.route('/admin/verify/<int:doctor_id>/<action>')
+@login_required
+@role_required('hospital', 'admin')
+def verify_doctor(doctor_id, action):
+    try:
+        doctor = User.query.get_or_404(doctor_id)
+        if action == 'approve':
+            doctor.status = 'approved'
+            flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
+        elif action == 'reject':
+            doctor.status = 'rejected'
+            flash(f'Doctor {doctor.full_name} rejected.', 'error')
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash('Error updating doctor verification.', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/toggle-user/<int:user_id>')
+@login_required
+@role_required('hospital', 'admin')
+def toggle_user_status(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+        if user.role not in ['hospital', 'admin']:
+            if user.status == 'approved':
+                user.status = 'suspended'
+                flash(f'Account for {user.full_name} has been suspended.', 'error')
+            else:
+                user.status = 'approved'
+                flash(f'Account for {user.full_name} has been reactivated.', 'success')
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash('Error toggling user status.', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/fix-vitals-table')
+@login_required
+@role_required('hospital', 'admin')
+def fix_vitals_table():
+    try:
+        db.session.execute(text('DROP TABLE IF EXISTS vital CASCADE'))
+        db.session.commit()
+        db.create_all()
+        flash('Vitals table has been reset and recreated with the correct schema.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Fix vitals table error: {e}")
+        flash(f'Error fixing vitals table: {str(e)}', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+# --- VITALS ---
+@app.route('/vitals', methods=['GET', 'POST'])
+@login_required
+@role_required('patient')
+def vitals():
+    patient_id = session.get('user_id')
+
+    if request.method == 'POST':
+        def parse_int(field):
+            val = request.form.get(field, '').strip()
+            return int(val) if val else None
+
+        def parse_float(field):
+            val = request.form.get(field, '').strip()
+            return float(val) if val else None
+
+        systolic = parse_int('systolic')
+        diastolic = parse_int('diastolic')
+        heart_rate = parse_int('heart_rate')
+        spo2 = parse_int('spo2')
+        temperature = parse_float('temperature')
+        notes = request.form.get('notes', '').strip()
+
+        if not any([systolic, diastolic, heart_rate, spo2, temperature]):
+            flash('Please enter at least one vital reading.', 'error')
+            return redirect(url_for('vitals'))
+
+        try:
+            entry = Vital(
+                patient_id=patient_id,
+                systolic=systolic,
+                diastolic=diastolic,
+                heart_rate=heart_rate,
+                spo2=spo2,
+                temperature=temperature,
+                notes=notes
+            )
+            db.session.add(entry)
+            db.session.commit()
+            flash('Vitals logged successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Vitals log error: {e}")
+            flash('Error saving vitals. Please check your entries and try again.', 'error')
+
+        return redirect(url_for('vitals'))
+
+    history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
+    latest = history[0] if history else None
+    return render_template('vitals.html', history=history, latest=latest)
+
+@app.route('/symptoms', methods=['GET', 'POST'])
+@login_required
+def symptoms():
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/sos', methods=['GET', 'POST'])
+@login_required
+def sos():
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/profile')
+@login_required
+def profile():
+    return redirect(url_for('patient_dashboard'))
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Logged out successfully.', 'success')
+    return redirect(url_for('login'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
+APP_PY_EOF
+
+echo "app.py updated with the one-time repair route."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push this fix now (or Ctrl+C to stop first): "
+
+git add app.py
+git commit -m "Add one-time route to repair vitals table schema"
+git push origin main
+
+echo ""
+echo "=== Done. Wait for Render to redeploy, then visit: ==="
+echo "https://medibro.onrender.com/admin/fix-vitals-table"
+echo "(while logged in as admin@medibro.com) to repair the table."

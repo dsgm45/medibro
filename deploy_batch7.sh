@@ -1,3 +1,16 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Deploying medicine reminder upgrades ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p templates
+
+cat > app.py << 'FILEEOF_1'
 import os
 import re
 import secrets
@@ -9,17 +22,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
-from flask_wtf import CSRFProtect
-from flask_migrate import Migrate, upgrade, stamp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'medibro_secret_key_2026')
-if app.secret_key == 'medibro_secret_key_2026':
-    import logging
-    logging.getLogger(__name__).warning(
-        'SECURITY WARNING: Using the default SECRET_KEY. Set a SECRET_KEY '
-        'environment variable in production, or session cookies can be forged.'
-    )
 
 db_url = os.environ.get('DATABASE_URL', 'sqlite:///medibro.db')
 if db_url.startswith('postgres://'):
@@ -33,8 +38,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 db = SQLAlchemy(app)
-csrf = CSRFProtect(app)
-migrate = Migrate(app, db)
 
 # --- LOGIN RATE LIMITING ---
 # In-memory store: fine for a single-worker deployment (this app runs with
@@ -178,34 +181,57 @@ class MedicineDoseLog(db.Model):
 
     __table_args__ = (db.UniqueConstraint('dose_id', 'log_date', name='uq_dose_log_date'),)
 
-def run_migrations():
-    """
-    Applies database schema changes using real, versioned Alembic migrations
-    instead of ad-hoc ALTER statements. Safe to call on every startup.
-
-    On the very first run after adopting this system, the database's tables
-    already exist (built up over time by earlier ad-hoc db.create_all() and
-    ALTER TABLE calls) but there's no Alembic version history yet. In that
-    case we ensure anything the baseline expects is present (db.create_all()
-    only ever creates missing tables - it never touches or drops existing
-    ones, so this is safe) and then stamp the database as already being at
-    the baseline revision, rather than trying to re-run CREATE TABLE
-    statements against tables that already exist.
-
-    On every run after that, this just calls upgrade(), which applies any
-    migration files that haven't been applied yet - the normal Alembic flow.
-    """
+def migrate_schema():
+    """Adds any new columns to existing tables. Safe to run on every startup."""
     with app.app_context():
-        try:
-            inspector = inspect(db.engine)
-            if not inspector.has_table('alembic_version'):
-                db.create_all()
-                stamp(revision='baseline_v1')
-                app.logger.warning('Alembic adopted: database stamped at baseline_v1.')
-            else:
-                upgrade()
-        except Exception as e:
-            app.logger.error(f"Migration run failed: {e}")
+        migrations = [
+            'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS bio TEXT',
+            'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS hours VARCHAR(200)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS follow_up_requested BOOLEAN DEFAULT FALSE',
+            'ALTER TABLE medicine ADD COLUMN IF NOT EXISTS start_date DATE',
+            'ALTER TABLE medicine ADD COLUMN IF NOT EXISTS end_date DATE',
+        ]
+        for stmt in migrations:
+            try:
+                db.session.execute(text(stmt))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.warning(f"Migration statement skipped (may already be applied): {e}")
+
+        # Some tables (like 'message') can end up with a schema that doesn't
+        # match the current model - either from an old abandoned feature that
+        # happened to reuse the table name, or because the check itself was
+        # too loose before. This compares the FULL column set (not just one
+        # column) and rebuilds the table if there's any mismatch. It's
+        # idempotent - once a table matches its model exactly, this becomes
+        # a no-op on every future startup. Only used for tables that are new
+        # enough or risky enough that we're confident this won't discard
+        # real data; tables with a longer production history (like 'user' or
+        # 'appointment') are handled with additive ALTER statements above
+        # instead, which never drop data.
+        def ensure_table_schema(model):
+            try:
+                inspector = inspect(db.engine)
+                table_name = model.__table__.name
+                if inspector.has_table(table_name):
+                    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+                    expected_columns = {c.name for c in model.__table__.columns}
+                    if existing_columns != expected_columns:
+                        db.session.execute(text(f'DROP TABLE IF EXISTS {table_name}'))
+                        db.session.commit()
+                        db.create_all()
+                        app.logger.warning(
+                            f'Recreated "{table_name}" table with the current schema (had: {existing_columns}, expected: {expected_columns}).'
+                        )
+            except Exception as e:
+                db.session.rollback()
+                app.logger.warning(f"{model.__name__} table schema check skipped: {e}")
+
+        ensure_table_schema(Message)
+        ensure_table_schema(MedicineDose)
+        ensure_table_schema(MedicineDoseLog)
 
 def init_db():
     with app.app_context():
@@ -233,7 +259,7 @@ def init_db():
             db.session.rollback()
 
 init_db()
-run_migrations()
+migrate_schema()
 
 # --- AUTH DECORATORS ---
 def login_required(f):
@@ -905,18 +931,6 @@ def sos():
 
     return render_template('sos.html', contact=contact)
 
-def classify_time_period(time_str):
-    try:
-        hour = int(time_str.split(':')[0])
-    except (ValueError, IndexError, AttributeError):
-        return ('Other', '⏰')
-    if hour < 12:
-        return ('Morning', '☀️')
-    elif hour < 17:
-        return ('Afternoon', '🌤️')
-    else:
-        return ('Evening', '🌙')
-
 def get_todays_schedule(patient_id):
     today = datetime.utcnow().date()
     active_meds = Medicine.query.filter(
@@ -929,13 +943,10 @@ def get_todays_schedule(patient_id):
     for med in active_meds:
         for dose in med.doses:
             log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
-            period, icon = classify_time_period(dose.time)
             schedule.append({
                 'medicine': med,
                 'dose': dose,
-                'taken': bool(log and log.taken_at),
-                'period': period,
-                'icon': icon
+                'taken': bool(log and log.taken_at)
             })
     schedule.sort(key=lambda s: s['dose'].time)
     return schedule
@@ -953,7 +964,7 @@ def medicines():
         notes = request.form.get('notes', '').strip()
         start_date_str = request.form.get('start_date', '').strip()
         end_date_str = request.form.get('end_date', '').strip()
-        dose_times = list(dict.fromkeys(t.strip() for t in request.form.getlist('dose_time') if t.strip()))
+        dose_times = [t.strip() for t in request.form.getlist('dose_time') if t.strip()]
 
         if not name:
             flash('Please enter the medicine name.', 'error')
@@ -1011,7 +1022,7 @@ def edit_medicine(med_id):
         notes = request.form.get('notes', '').strip()
         start_date_str = request.form.get('start_date', '').strip()
         end_date_str = request.form.get('end_date', '').strip()
-        new_dose_times = [t.strip() for t in request.form.getlist('new_dose_time') if t.strip()]
+        new_dose_time = request.form.get('new_dose_time', '').strip()
 
         if not name:
             flash('Please enter the medicine name.', 'error')
@@ -1036,11 +1047,8 @@ def edit_medicine(med_id):
             med.start_date = start_date
             med.end_date = end_date
 
-            existing_times = {d.time for d in med.doses}
-            for t in new_dose_times:
-                if t not in existing_times:
-                    db.session.add(MedicineDose(medicine_id=med.id, time=t))
-                    existing_times.add(t)
+            if new_dose_time:
+                db.session.add(MedicineDose(medicine_id=med.id, time=new_dose_time))
 
             db.session.commit()
             flash('Medicine reminder updated.', 'success')
@@ -1174,3 +1182,384 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=True)
+FILEEOF_1
+cat > templates/medicines.html << 'FILEEOF_2'
+{% extends "base.html" %}
+{% block title %}Medicines - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}" class="active">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Medicine Reminders</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Keep track of what you're taking and when</p>
+        </div>
+
+        <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 24px; font-size: 0.8rem; color: #1e40af;">
+            ℹ️ This tracker shows an on-page alert while this tab is open near a scheduled time. It cannot send notifications when the app is closed — true push reminders would need additional infrastructure.
+        </div>
+
+        <div id="reminder-banner" style="display: none; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; font-weight: 700; color: #92400e;"></div>
+
+        <!-- Today's Schedule -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Today's Schedule</h2>
+            {% if todays_schedule %}
+            <div style="display: grid; gap: 10px;">
+                {% for item in todays_schedule %}
+                <div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; {% if item.taken %}background-color: #f0fdf4;{% endif %}">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <a href="{{ url_for('toggle_dose_taken', dose_id=item.dose.id) }}" style="width: 24px; height: 24px; border-radius: 6px; border: 2px solid {% if item.taken %}#16a34a{% else %}#cbd5e1{% endif %}; background-color: {% if item.taken %}#16a34a{% else %}#ffffff{% endif %}; display: flex; align-items: center; justify-content: center; text-decoration: none; flex-shrink: 0;">
+                            {% if item.taken %}<span style="color: white; font-size: 0.9rem;">✓</span>{% endif %}
+                        </a>
+                        <div>
+                            <p style="margin: 0; font-weight: 700; color: #0f172a; {% if item.taken %}text-decoration: line-through; opacity: 0.6;{% endif %}">{{ item.medicine.name }}{% if item.medicine.dosage %} &middot; {{ item.medicine.dosage }}{% endif %}</p>
+                            <p style="margin: 2px 0 0 0; color: #2563eb; font-size: 0.8rem; font-weight: 600;">{{ item.dose.time }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No scheduled doses for today. Add a medicine with reminder times below.</p>
+            {% endif %}
+        </div>
+
+        <!-- Add Medicine -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">➕ Add Medicine</h2>
+            <form action="{{ url_for('medicines') }}" method="POST">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name</label>
+                        <input type="text" name="name" required placeholder="e.g. Metformin" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Dosage</label>
+                        <input type="text" name="dosage" placeholder="e.g. 500mg" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency</label>
+                        <input type="text" name="frequency" placeholder="e.g. Twice daily" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Start Date</label>
+                        <input type="date" name="start_date" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">End Date (leave blank if ongoing)</label>
+                        <input type="date" name="end_date" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reminder Times</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <input type="time" name="dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <input type="time" name="dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <input type="time" name="dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.75rem;">Leave any unused ones blank. You can add more later by editing the medicine.</p>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)</label>
+                    <input type="text" name="notes" placeholder="e.g. Take with food" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div style="text-align: right;">
+                    <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Add Medicine</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Medicine List -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">💊 Your Medicines</h2>
+            {% if medicines %}
+            <div style="display: grid; gap: 12px;">
+                {% for med in medicines %}
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <p style="margin: 0; font-weight: 700; color: #0f172a;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+                        {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                        {% if med.doses %}
+                        <p style="margin: 4px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.doses | map(attribute='time') | join(', ') }}</p>
+                        {% elif med.time_of_day %}
+                        <p style="margin: 4px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.time_of_day }}</p>
+                        {% endif %}
+                        {% if med.start_date or med.end_date %}
+                        <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.8rem;">
+                            {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
+                            {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
+                        </p>
+                        {% endif %}
+                        {% if med.notes %}<p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.8rem;">{{ med.notes }}</p>{% endif %}
+                    </div>
+                    <div style="display: flex; gap: 12px; flex-shrink: 0;">
+                        <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
+                        <a href="{{ url_for('delete_medicine', med_id=med.id) }}" onclick="return confirm('Remove this medicine reminder?');" style="color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Remove</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No medicines added yet.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+
+<script>
+(function() {
+    var schedule = [
+        {% for item in todays_schedule %}
+        {% if not item.taken %}
+        { name: {{ item.medicine.name | tojson }}, time: {{ item.dose.time | tojson }} },
+        {% endif %}
+        {% endfor %}
+    ];
+    var alerted = {};
+
+    function checkReminders() {
+        var now = new Date();
+        var hh = String(now.getHours()).padStart(2, '0');
+        var mm = String(now.getMinutes()).padStart(2, '0');
+        var current = hh + ':' + mm;
+
+        schedule.forEach(function(item) {
+            if (item.time === current && !alerted[item.time + item.name]) {
+                alerted[item.time + item.name] = true;
+                var banner = document.getElementById('reminder-banner');
+                banner.textContent = '⏰ Time to take ' + item.name + ' (' + item.time + ')';
+                banner.style.display = 'block';
+            }
+        });
+    }
+
+    if (schedule.length > 0) {
+        checkReminders();
+        setInterval(checkReminders, 30000);
+    }
+})();
+</script>
+{% endblock %}
+FILEEOF_2
+cat > templates/medicine_edit.html << 'FILEEOF_3'
+{% extends "base.html" %}
+{% block title %}Edit {{ med.name }} - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}" class="active">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Edit Medicine</h1>
+                <p style="margin: 4px 0 0 0; color: #64748b;">{{ med.name }}</p>
+            </div>
+            <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Medicines</a>
+        </div>
+
+        <!-- Edit basic details -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.1rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">Details</h2>
+            <form action="{{ url_for('edit_medicine', med_id=med.id) }}" method="POST">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name</label>
+                        <input type="text" name="name" required value="{{ med.name }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Dosage</label>
+                        <input type="text" name="dosage" value="{{ med.dosage or '' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency</label>
+                        <input type="text" name="frequency" value="{{ med.frequency or '' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Start Date</label>
+                        <input type="date" name="start_date" value="{{ med.start_date.strftime('%Y-%m-%d') if med.start_date else '' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">End Date (leave blank if ongoing)</label>
+                        <input type="date" name="end_date" value="{{ med.end_date.strftime('%Y-%m-%d') if med.end_date else '' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes</label>
+                    <input type="text" name="notes" value="{{ med.notes or '' }}" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Add Another Reminder Time (optional)</label>
+                    <input type="time" name="new_dose_time" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                </div>
+                <div style="text-align: right;">
+                    <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Changes</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Manage times -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <h2 style="font-size: 1.1rem; margin-top: 0; margin-bottom: 16px; color: #0f172a;">Reminder Times</h2>
+            {% if med.doses %}
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                {% for dose in med.doses %}
+                <div style="display: flex; align-items: center; gap: 8px; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px 6px 14px;">
+                    <span style="color: #1e40af; font-weight: 600; font-size: 0.9rem;">{{ dose.time }}</span>
+                    <a href="{{ url_for('delete_dose', dose_id=dose.id) }}" style="color: #dc2626; text-decoration: none; font-weight: 700; font-size: 0.9rem;">&times;</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">No reminder times set. Add one above.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}
+FILEEOF_3
+cat > templates/patient_history_view.html << 'FILEEOF_4'
+{% extends "base.html" %}
+{% block title %}{{ patient.full_name }} - Patient History{% endblock %}
+{% block content %}
+<div style="max-width: 1000px; margin: 30px auto; padding: 0 20px;">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">{{ patient.full_name }}</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ patient.phone or 'No phone on file' }} &middot; {{ patient.email }}</p>
+        </div>
+        <a href="{{ url_for('doctor_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Workspace</a>
+    </div>
+
+    <!-- Medicines -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💊 Current Medicines</h2>
+        {% if medicine_history %}
+        <div style="display: grid; gap: 10px;">
+            {% for med in medicine_history %}
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+                {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                {% if med.doses %}<p style="margin: 4px 0 0 0; color: var(--primary); font-size: 0.8rem; font-weight: 600;">⏰ {{ med.doses | map(attribute='time') | join(', ') }}</p>{% endif %}
+                {% if med.start_date or med.end_date %}
+                <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.8rem;">
+                    {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
+                    {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No medicines logged by this patient.</p>
+        {% endif %}
+    </div>
+
+    <!-- Vitals History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💓 Vitals History</h2>
+        {% if vitals_history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">BP</th>
+                        <th style="padding: 10px;">HR</th>
+                        <th style="padding: 10px;">SpO2</th>
+                        <th style="padding: 10px;">Temp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vitals_history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}&mdash;{% endif %}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.heart_rate or '—' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.spo2 or '—' }}</td>
+                        <td style="padding: 10px; color: #334155;">{{ v.temperature or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No vitals logged by this patient.</p>
+        {% endif %}
+    </div>
+
+    <!-- Symptom History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">🩺 Symptom History</h2>
+        {% if symptom_history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 10px;">Date</th>
+                        <th style="padding: 10px;">Symptoms</th>
+                        <th style="padding: 10px;">Severity</th>
+                        <th style="padding: 10px;">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in symptom_history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{{ log.symptoms }}</td>
+                        <td style="padding: 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
+                        <td style="padding: 10px; color: var(--text-sub);">{{ log.description or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No symptoms logged by this patient.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+FILEEOF_4
+
+echo "All files written."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add app.py templates/medicines.html templates/medicine_edit.html templates/patient_history_view.html
+git commit -m "Medicine reminders: edit, structured times, taken tracking, start/end dates, doctor visibility, on-page alert"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "This adds two new columns to the existing 'medicine' table"
+echo "(start_date, end_date) via additive ALTER statements - existing"
+echo "medicines are preserved, nothing is dropped. Two new tables"
+echo "(medicine_dose, medicine_dose_log) are also created automatically."

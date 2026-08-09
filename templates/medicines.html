@@ -72,6 +72,7 @@
             </summary>
             <div style="padding: 4px 24px 24px 24px; border-top: 1px solid #f1f5f9;">
                 <form action="{{ url_for('medicines') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0 16px 0;">
                         <div>
                             <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name</label>

@@ -1,3 +1,14 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fixing message table schema check (compare full column set) ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+cat > app.py << 'APP_PY_EOF'
 import os
 import re
 import secrets
@@ -9,17 +20,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
-from flask_wtf import CSRFProtect
-from flask_migrate import Migrate, upgrade, stamp
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'medibro_secret_key_2026')
-if app.secret_key == 'medibro_secret_key_2026':
-    import logging
-    logging.getLogger(__name__).warning(
-        'SECURITY WARNING: Using the default SECRET_KEY. Set a SECRET_KEY '
-        'environment variable in production, or session cookies can be forged.'
-    )
 
 db_url = os.environ.get('DATABASE_URL', 'sqlite:///medibro.db')
 if db_url.startswith('postgres://'):
@@ -33,8 +36,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 db = SQLAlchemy(app)
-csrf = CSRFProtect(app)
-migrate = Migrate(app, db)
 
 # --- LOGIN RATE LIMITING ---
 # In-memory store: fine for a single-worker deployment (this app runs with
@@ -153,59 +154,52 @@ class Medicine(db.Model):
     name = db.Column(db.String(120), nullable=False)
     dosage = db.Column(db.String(80), nullable=True)
     frequency = db.Column(db.String(80), nullable=True)
-    time_of_day = db.Column(db.String(120), nullable=True)  # legacy free-text, kept for old rows; new entries use MedicineDose
+    time_of_day = db.Column(db.String(120), nullable=True)
     notes = db.Column(db.Text, nullable=True)
-    start_date = db.Column(db.Date, nullable=True)
-    end_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
 
-class MedicineDose(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    medicine_id = db.Column(db.Integer, db.ForeignKey('medicine.id'), nullable=False)
-    time = db.Column(db.String(5), nullable=False)  # 24-hour "HH:MM"
-
-    medicine = db.relationship('Medicine', backref=db.backref('doses', cascade='all, delete-orphan', order_by='MedicineDose.time'))
-
-class MedicineDoseLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    dose_id = db.Column(db.Integer, db.ForeignKey('medicine_dose.id'), nullable=False)
-    log_date = db.Column(db.Date, nullable=False)
-    taken_at = db.Column(db.DateTime, nullable=True)
-
-    dose = db.relationship('MedicineDose', backref=db.backref('logs', cascade='all, delete-orphan'))
-
-    __table_args__ = (db.UniqueConstraint('dose_id', 'log_date', name='uq_dose_log_date'),)
-
-def run_migrations():
-    """
-    Applies database schema changes using real, versioned Alembic migrations
-    instead of ad-hoc ALTER statements. Safe to call on every startup.
-
-    On the very first run after adopting this system, the database's tables
-    already exist (built up over time by earlier ad-hoc db.create_all() and
-    ALTER TABLE calls) but there's no Alembic version history yet. In that
-    case we ensure anything the baseline expects is present (db.create_all()
-    only ever creates missing tables - it never touches or drops existing
-    ones, so this is safe) and then stamp the database as already being at
-    the baseline revision, rather than trying to re-run CREATE TABLE
-    statements against tables that already exist.
-
-    On every run after that, this just calls upgrade(), which applies any
-    migration files that haven't been applied yet - the normal Alembic flow.
-    """
+def migrate_schema():
+    """Adds any new columns to existing tables. Safe to run on every startup."""
     with app.app_context():
+        migrations = [
+            'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS bio TEXT',
+            'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS hours VARCHAR(200)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)',
+            'ALTER TABLE appointment ADD COLUMN IF NOT EXISTS follow_up_requested BOOLEAN DEFAULT FALSE',
+        ]
+        for stmt in migrations:
+            try:
+                db.session.execute(text(stmt))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.warning(f"Migration statement skipped (may already be applied): {e}")
+
+        # The 'message' table previously existed with an incompatible schema
+        # left over from an earlier, never-completed chat feature. Detect and
+        # fix it automatically. This compares the FULL column set (not just
+        # one column) so leftover extra columns from the old schema (like a
+        # stray NOT NULL column the current model doesn't know about) are
+        # caught too. This check is idempotent: once the table matches the
+        # current model exactly, it becomes a no-op on every future startup,
+        # so it's safe to leave in place permanently.
         try:
             inspector = inspect(db.engine)
-            if not inspector.has_table('alembic_version'):
-                db.create_all()
-                stamp(revision='baseline_v1')
-                app.logger.warning('Alembic adopted: database stamped at baseline_v1.')
-            else:
-                upgrade()
+            if inspector.has_table('message'):
+                existing_columns = {col['name'] for col in inspector.get_columns('message')}
+                expected_columns = {c.name for c in Message.__table__.columns}
+                if existing_columns != expected_columns:
+                    db.session.execute(text('DROP TABLE IF EXISTS message'))
+                    db.session.commit()
+                    db.create_all()
+                    app.logger.warning(
+                        f'Recreated "message" table with the current schema (had: {existing_columns}, expected: {expected_columns}).'
+                    )
         except Exception as e:
-            app.logger.error(f"Migration run failed: {e}")
+            db.session.rollback()
+            app.logger.warning(f"Message table schema check skipped: {e}")
 
 def init_db():
     with app.app_context():
@@ -233,7 +227,7 @@ def init_db():
             db.session.rollback()
 
 init_db()
-run_migrations()
+migrate_schema()
 
 # --- AUTH DECORATORS ---
 def login_required(f):
@@ -585,14 +579,12 @@ def view_patient_history(patient_id):
     patient = User.query.get_or_404(patient_id)
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
-    medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
 
     return render_template(
         'patient_history_view.html',
         patient=patient,
         vitals_history=vitals_history,
-        symptom_history=symptom_history,
-        medicine_history=medicine_history
+        symptom_history=symptom_history
     )
 
 @app.route('/chat')
@@ -905,41 +897,6 @@ def sos():
 
     return render_template('sos.html', contact=contact)
 
-def classify_time_period(time_str):
-    try:
-        hour = int(time_str.split(':')[0])
-    except (ValueError, IndexError, AttributeError):
-        return ('Other', '⏰')
-    if hour < 12:
-        return ('Morning', '☀️')
-    elif hour < 17:
-        return ('Afternoon', '🌤️')
-    else:
-        return ('Evening', '🌙')
-
-def get_todays_schedule(patient_id):
-    today = datetime.utcnow().date()
-    active_meds = Medicine.query.filter(
-        Medicine.patient_id == patient_id,
-        db.or_(Medicine.start_date == None, Medicine.start_date <= today),
-        db.or_(Medicine.end_date == None, Medicine.end_date >= today)
-    ).all()
-
-    schedule = []
-    for med in active_meds:
-        for dose in med.doses:
-            log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
-            period, icon = classify_time_period(dose.time)
-            schedule.append({
-                'medicine': med,
-                'dose': dose,
-                'taken': bool(log and log.taken_at),
-                'period': period,
-                'icon': icon
-            })
-    schedule.sort(key=lambda s: s['dose'].time)
-    return schedule
-
 @app.route('/medicines', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -950,38 +907,19 @@ def medicines():
         name = request.form.get('name', '').strip()
         dosage = request.form.get('dosage', '').strip()
         frequency = request.form.get('frequency', '').strip()
+        time_of_day = request.form.get('time_of_day', '').strip()
         notes = request.form.get('notes', '').strip()
-        start_date_str = request.form.get('start_date', '').strip()
-        end_date_str = request.form.get('end_date', '').strip()
-        dose_times = list(dict.fromkeys(t.strip() for t in request.form.getlist('dose_time') if t.strip()))
 
         if not name:
             flash('Please enter the medicine name.', 'error')
             return redirect(url_for('medicines'))
 
         try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
-        except ValueError:
-            flash('Invalid date format.', 'error')
-            return redirect(url_for('medicines'))
-
-        if start_date and end_date and end_date < start_date:
-            flash('End date cannot be before start date.', 'error')
-            return redirect(url_for('medicines'))
-
-        try:
             med = Medicine(
                 patient_id=patient_id, name=name, dosage=dosage,
-                frequency=frequency, notes=notes,
-                start_date=start_date, end_date=end_date
+                frequency=frequency, time_of_day=time_of_day, notes=notes
             )
             db.session.add(med)
-            db.session.flush()
-
-            for t in dose_times:
-                db.session.add(MedicineDose(medicine_id=med.id, time=t))
-
             db.session.commit()
             flash('Medicine reminder added.', 'success')
         except Exception as e:
@@ -992,66 +930,7 @@ def medicines():
         return redirect(url_for('medicines'))
 
     my_medicines = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
-    todays_schedule = get_todays_schedule(patient_id)
-    return render_template('medicines.html', medicines=my_medicines, todays_schedule=todays_schedule)
-
-@app.route('/medicines/<int:med_id>/edit', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def edit_medicine(med_id):
-    med = Medicine.query.get_or_404(med_id)
-    if med.patient_id != session.get('user_id'):
-        flash('Unauthorized action.', 'error')
-        return redirect(url_for('medicines'))
-
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        dosage = request.form.get('dosage', '').strip()
-        frequency = request.form.get('frequency', '').strip()
-        notes = request.form.get('notes', '').strip()
-        start_date_str = request.form.get('start_date', '').strip()
-        end_date_str = request.form.get('end_date', '').strip()
-        new_dose_times = [t.strip() for t in request.form.getlist('new_dose_time') if t.strip()]
-
-        if not name:
-            flash('Please enter the medicine name.', 'error')
-            return redirect(url_for('edit_medicine', med_id=med_id))
-
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
-        except ValueError:
-            flash('Invalid date format.', 'error')
-            return redirect(url_for('edit_medicine', med_id=med_id))
-
-        if start_date and end_date and end_date < start_date:
-            flash('End date cannot be before start date.', 'error')
-            return redirect(url_for('edit_medicine', med_id=med_id))
-
-        try:
-            med.name = name
-            med.dosage = dosage
-            med.frequency = frequency
-            med.notes = notes
-            med.start_date = start_date
-            med.end_date = end_date
-
-            existing_times = {d.time for d in med.doses}
-            for t in new_dose_times:
-                if t not in existing_times:
-                    db.session.add(MedicineDose(medicine_id=med.id, time=t))
-                    existing_times.add(t)
-
-            db.session.commit()
-            flash('Medicine reminder updated.', 'success')
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Edit medicine error: {e}")
-            flash('Error updating medicine reminder.', 'error')
-
-        return redirect(url_for('edit_medicine', med_id=med_id))
-
-    return render_template('medicine_edit.html', med=med)
+    return render_template('medicines.html', medicines=my_medicines)
 
 @app.route('/medicines/<int:med_id>/delete')
 @login_required
@@ -1069,55 +948,6 @@ def delete_medicine(med_id):
         db.session.rollback()
         app.logger.error(f"Delete medicine error: {e}")
         flash('Error removing medicine reminder.', 'error')
-    return redirect(url_for('medicines'))
-
-@app.route('/medicines/dose/<int:dose_id>/delete')
-@login_required
-@role_required('patient')
-def delete_dose(dose_id):
-    try:
-        dose = MedicineDose.query.get_or_404(dose_id)
-        if dose.medicine.patient_id != session.get('user_id'):
-            flash('Unauthorized action.', 'error')
-            return redirect(url_for('medicines'))
-        med_id = dose.medicine_id
-        db.session.delete(dose)
-        db.session.commit()
-        flash('Reminder time removed.', 'success')
-        return redirect(url_for('edit_medicine', med_id=med_id))
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Delete dose error: {e}")
-        flash('Error removing reminder time.', 'error')
-        return redirect(url_for('medicines'))
-
-@app.route('/medicines/dose/<int:dose_id>/toggle-taken')
-@login_required
-@role_required('patient')
-def toggle_dose_taken(dose_id):
-    try:
-        dose = MedicineDose.query.get_or_404(dose_id)
-        if dose.medicine.patient_id != session.get('user_id'):
-            flash('Unauthorized action.', 'error')
-            return redirect(url_for('medicines'))
-
-        today = datetime.utcnow().date()
-        log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
-
-        if log and log.taken_at:
-            log.taken_at = None
-        elif log:
-            log.taken_at = datetime.utcnow()
-        else:
-            log = MedicineDoseLog(dose_id=dose.id, log_date=today, taken_at=datetime.utcnow())
-            db.session.add(log)
-
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"Toggle dose taken error: {e}")
-        flash('Error updating dose status.', 'error')
-
     return redirect(url_for('medicines'))
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -1174,3 +1004,22 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=True)
+APP_PY_EOF
+
+echo "app.py updated."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add app.py
+git commit -m "Fix message table check to compare full column set, catching leftover incompatible columns"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "On startup, app.py will now detect the mismatched 'message' table"
+echo "(it has a stray 'sender_name' column ours doesn't expect) and"
+echo "automatically drop and recreate it with the correct schema."

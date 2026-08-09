@@ -5,6 +5,7 @@
     <h2 style="margin-bottom: 4px;">Welcome back</h2>
     <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px;">Log in to MediBro</p>
     <form method="POST" style="display: grid; gap: 14px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
             <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Email</label>
             <input type="email" name="email" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
