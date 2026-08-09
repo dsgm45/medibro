@@ -1,7 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Symptom Checker - MediBro{% endblock %}
 {% block content %}
-<div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}" class="active">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
     <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <div>
             <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Symptom Checker</h1>
@@ -80,5 +93,6 @@
         <p style="color: var(--text-sub); margin: 0;">No symptoms logged yet.</p>
         {% endif %}
     </div>
+</main>
 </div>
 {% endblock %}

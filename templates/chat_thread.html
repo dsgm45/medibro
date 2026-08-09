@@ -4,7 +4,8 @@
 {% if session.role == 'patient' %}
 <div class="patient-layout">
     <aside class="patient-sidebar">
-        <a href="{{ url_for('patient_dashboard') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
         <a href="{{ url_for('vitals') }}">💓 Vitals</a>
         <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
         <a href="{{ url_for('medicines') }}">💊 Medicines</a>

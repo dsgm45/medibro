@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}My Health - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}" class="active">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <a href="{{ url_for('logout') }}">🚪 Log Out</a>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px;">
+            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">My Health</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+        </div>
+
+        <!-- Follow-up banner -->
+        {% if follow_ups %}
+        <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Requested</p>
+            {% for appt in follow_ups %}
+            <p style="margin: 4px 0; color: #6d28d9; font-size: 0.85rem;">
+                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} recommended a follow-up visit.
+                <a href="{{ url_for('patient_dashboard', book_with=appt.doctor.id) }}" style="color: #6d28d9; font-weight: 700; text-decoration: underline;">Book it now</a>
+            </p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Next appointment -->
+        {% if next_appointment %}
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; color: #ffffff;">
+            <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em;">Next Appointment</p>
+            <p style="margin: 0; font-size: 1.15rem; font-weight: 700;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+            <p style="margin: 4px 0 0 0; font-size: 0.9rem; opacity: 0.9;">{{ next_appointment.appointment_date }} at {{ next_appointment.appointment_time }}{% if next_appointment.reason %} &middot; {{ next_appointment.reason }}{% endif %}</p>
+        </div>
+        {% endif %}
+
+        <!-- Overview cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px;">
+
+            <!-- Vitals card -->
+            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">💓 Latest Vitals</p>
+                    <a href="{{ url_for('vitals') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
+                </div>
+                {% if latest_vital %}
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                    <div>
+                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">BLOOD PRESSURE</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{% if latest_vital.systolic and latest_vital.diastolic %}{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}{% else %}&mdash;{% endif %}</p>
+                    </div>
+                    <div>
+                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">HEART RATE</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: #94a3b8;">bpm</span></p>
+                    </div>
+                    <div>
+                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">SPO2</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: #94a3b8;">%</span></p>
+                    </div>
+                    <div>
+                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">TEMP</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: #94a3b8;">&deg;F</span></p>
+                    </div>
+                </div>
+                <p style="margin: 12px 0 0 0; color: #94a3b8; font-size: 0.75rem;">Recorded {{ latest_vital.recorded_at.strftime('%b %d, %Y') }}</p>
+                {% else %}
+                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No vitals logged yet.</p>
+                <a href="{{ url_for('vitals') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Log your first reading</a>
+                {% endif %}
+            </div>
+
+            <!-- Symptoms card -->
+            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">🩺 Recent Symptoms</p>
+                    <a href="{{ url_for('symptoms') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
+                </div>
+                {% if latest_symptom %}
+                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ latest_symptom.symptoms }}</p>
+                <p style="margin: 6px 0 0 0; color: #334155; font-size: 0.8rem; text-transform: capitalize;">Severity: {{ latest_symptom.severity }}</p>
+                <p style="margin: 10px 0 0 0; color: #94a3b8; font-size: 0.75rem;">Logged {{ latest_symptom.created_at.strftime('%b %d, %Y') }}</p>
+                {% else %}
+                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No symptoms logged yet.</p>
+                <a href="{{ url_for('symptoms') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Check a symptom</a>
+                {% endif %}
+            </div>
+
+            <!-- Medicines card -->
+            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">💊 Active Medicines</p>
+                    <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
+                </div>
+                {% if active_medicines %}
+                <div style="display: grid; gap: 8px;">
+                    {% for med in active_medicines[:4] %}
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <p style="margin: 0; font-weight: 600; color: #0f172a; font-size: 0.85rem;">{{ med.name }}{% if med.dosage %} <span style="color: #94a3b8; font-weight: 500;">&middot; {{ med.dosage }}</span>{% endif %}</p>
+                        {% if med.doses %}<span style="background-color: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600;">{{ med.doses[0].time }}{% if med.doses|length > 1 %}+{{ med.doses|length - 1 }}{% endif %}</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                    {% if active_medicines|length > 4 %}
+                    <p style="margin: 0; color: #94a3b8; font-size: 0.75rem;">+{{ active_medicines|length - 4 }} more</p>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No active medicines.</p>
+                <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Add a medicine</a>
+                {% endif %}
+            </div>
+
+            <!-- Appointments card -->
+            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">📅 Appointments</p>
+                    <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Manage →</a>
+                </div>
+                {% if next_appointment %}
+                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+                <p style="margin: 6px 0 0 0; color: #334155; font-size: 0.8rem;">{{ next_appointment.appointment_date }} at {{ next_appointment.appointment_time }}</p>
+                {% else %}
+                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No upcoming appointments.</p>
+                <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Book an appointment</a>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

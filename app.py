@@ -270,7 +270,7 @@ def dashboard_endpoint_for_role(role):
     elif role == 'doctor':
         return 'doctor_dashboard'
     else:
-        return 'patient_dashboard'
+        return 'my_health'
 
 # --- SECURITY HEADERS ---
 # The CSP below allows 'unsafe-inline' for scripts and styles because this
@@ -332,7 +332,7 @@ def login():
                 elif user.role == 'doctor':
                     return redirect(url_for('doctor_dashboard'))
                 else:
-                    return redirect(url_for('patient_dashboard'))
+                    return redirect(url_for('my_health'))
             else:
                 record_failed_login(email)
                 flash('Invalid email or password.', 'error')
@@ -397,6 +397,49 @@ def register():
     return render_template('register.html')
 
 # --- DASHBOARD ROUTES ---
+@app.route('/my-health')
+@login_required
+@role_required('patient')
+def my_health():
+    patient_id = session.get('user_id')
+    today = datetime.utcnow().date()
+
+    latest_vital = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).first()
+    latest_symptom = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).first()
+
+    active_medicines = Medicine.query.filter(
+        Medicine.patient_id == patient_id,
+        db.or_(Medicine.start_date == None, Medicine.start_date <= today),
+        db.or_(Medicine.end_date == None, Medicine.end_date >= today)
+    ).order_by(Medicine.created_at.desc()).all()
+
+    now = datetime.utcnow()
+    upcoming_appointments = Appointment.query.filter_by(patient_id=patient_id, status='accepted').all()
+    next_appointment = None
+    soonest_diff = None
+    for appt in upcoming_appointments:
+        try:
+            appt_dt = datetime.strptime(f"{appt.appointment_date} {appt.appointment_time}", '%Y-%m-%d %H:%M')
+            diff = (appt_dt - now).total_seconds()
+            if diff >= 0 and (soonest_diff is None or diff < soonest_diff):
+                soonest_diff = diff
+                next_appointment = appt
+        except (ValueError, TypeError):
+            continue
+
+    follow_ups = Appointment.query.filter_by(
+        patient_id=patient_id, status='completed', follow_up_requested=True
+    ).all()
+
+    return render_template(
+        'my_health.html',
+        latest_vital=latest_vital,
+        latest_symptom=latest_symptom,
+        active_medicines=active_medicines,
+        next_appointment=next_appointment,
+        follow_ups=follow_ups
+    )
+
 @app.route('/patient')
 @login_required
 @role_required('patient')
