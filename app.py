@@ -1194,7 +1194,9 @@ SYMPTOM_AI_SYSTEM_PROMPT = (
     "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
     "seek medical care promptly or contact emergency services - do not downplay it.\n"
     "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
-    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words."
+    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words.\n"
+    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
+    "Just complete, ordinary sentences."
 )
 
 def get_ai_symptom_guidance(selected_symptoms, severity, description):
@@ -1216,12 +1218,47 @@ def get_ai_symptom_guidance(selected_symptoms, severity, description):
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=SYMPTOM_AI_SYSTEM_PROMPT,
-                max_output_tokens=200,
+                # On Gemini's newer "thinking" models, max_output_tokens is a
+                # COMBINED budget covering invisible reasoning tokens AND the
+                # visible answer together - not just the visible text. Without
+                # disabling thinking, the visible answer can get cut off mid-
+                # sentence because reasoning silently ate most of the budget.
+                # This task needs no multi-step reasoning, so thinking is
+                # disabled entirely and the full budget goes to the answer.
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                max_output_tokens=400,
                 temperature=0.4,
             )
         )
+
+        # Check finish_reason before trusting the text - a non-clean stop
+        # (e.g. still hit the token limit despite the above) means the
+        # response may be incomplete, and incomplete health guidance should
+        # never reach a patient - fall back to the safe rule-based message.
+        candidates = getattr(response, 'candidates', None)
+        if candidates:
+            finish_reason = getattr(candidates[0], 'finish_reason', None)
+            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
+            if finish_reason_str and finish_reason_str != 'STOP':
+                app.logger.warning(f"Gemini response did not finish cleanly (finish_reason={finish_reason_str}), falling back to rule-based guidance")
+                return None
+
         text = (response.text or '').strip()
-        return text if text else None
+        if not text:
+            return None
+
+        # Belt-and-suspenders sanity check: a complete guidance message should
+        # end with normal punctuation and contain no stray markdown/formatting
+        # artifacts. Catches truncation or formatting issues that slip through
+        # the checks above.
+        if text[-1] not in '.!?':
+            app.logger.warning("Gemini response appears truncated (no ending punctuation), falling back to rule-based guidance")
+            return None
+        if '**' in text or '##' in text or text.lstrip().startswith('*'):
+            app.logger.warning("Gemini response contains formatting artifacts, falling back to rule-based guidance")
+            return None
+
+        return text
     except Exception as e:
         app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
         return None
