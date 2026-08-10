@@ -501,7 +501,7 @@ def _pdf_safe_text(value):
 @login_required
 @role_required('patient')
 def export_health_pdf():
-    patient = User.query.get_or_404(session.get('user_id'))
+    patient = db.get_or_404(User, session.get('user_id'))
     patient_id = patient.id
 
     vitals = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(10).all()
@@ -688,7 +688,7 @@ def book_appointment():
 @role_required('patient')
 def cancel_appointment(app_id):
     try:
-        appt = Appointment.query.get_or_404(app_id)
+        appt = db.get_or_404(Appointment, app_id)
         if appt.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('patient_dashboard'))
@@ -711,7 +711,7 @@ def cancel_appointment(app_id):
 @role_required('doctor')
 def doctor_dashboard():
     doctor_id = session.get('user_id')
-    doctor = User.query.get_or_404(doctor_id)
+    doctor = db.get_or_404(User, doctor_id)
     appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(
         Appointment.appointment_date.desc(), Appointment.appointment_time.asc()
     ).all()
@@ -728,7 +728,7 @@ def doctor_dashboard():
 @role_required('doctor')
 def handle_appointment(app_id, action):
     try:
-        appt = Appointment.query.get_or_404(app_id)
+        appt = db.get_or_404(Appointment, app_id)
         if appt.doctor_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('doctor_dashboard'))
@@ -752,7 +752,7 @@ def handle_appointment(app_id, action):
 @login_required
 @role_required('doctor')
 def complete_appointment(app_id):
-    appt = Appointment.query.get_or_404(app_id)
+    appt = db.get_or_404(Appointment, app_id)
     if appt.doctor_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('doctor_dashboard'))
@@ -785,7 +785,7 @@ def complete_appointment(app_id):
 @login_required
 @role_required('patient')
 def appointment_summary(app_id):
-    appt = Appointment.query.get_or_404(app_id)
+    appt = db.get_or_404(Appointment, app_id)
     if appt.patient_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('patient_dashboard'))
@@ -800,7 +800,7 @@ def appointment_summary(app_id):
 @role_required('doctor')
 def request_follow_up(app_id):
     try:
-        appt = Appointment.query.get_or_404(app_id)
+        appt = db.get_or_404(Appointment, app_id)
         if appt.doctor_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('doctor_dashboard'))
@@ -822,7 +822,7 @@ def request_follow_up(app_id):
 @login_required
 @role_required('doctor')
 def doctor_profile():
-    doctor = User.query.get_or_404(session.get('user_id'))
+    doctor = db.get_or_404(User, session.get('user_id'))
 
     if request.method == 'POST':
         specialty = request.form.get('specialty', '').strip()
@@ -857,7 +857,7 @@ def view_patient_history(patient_id):
         flash('You can only view history for patients who have booked with you.', 'error')
         return redirect(url_for('doctor_dashboard'))
 
-    patient = User.query.get_or_404(patient_id)
+    patient = db.get_or_404(User, patient_id)
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
@@ -907,7 +907,7 @@ def chat_thread(appointment_id):
     user_id = session.get('user_id')
     role = session.get('role')
 
-    appt = Appointment.query.get_or_404(appointment_id)
+    appt = db.get_or_404(Appointment, appointment_id)
 
     if role == 'patient' and appt.patient_id != user_id:
         flash('Unauthorized action.', 'error')
@@ -1040,7 +1040,7 @@ def export_audit_log_csv():
 @role_required('hospital', 'admin')
 def verify_doctor(doctor_id, action):
     try:
-        doctor = User.query.get_or_404(doctor_id)
+        doctor = db.get_or_404(User, doctor_id)
         if action == 'approve':
             doctor.status = 'approved'
             flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
@@ -1067,7 +1067,7 @@ def verify_doctor(doctor_id, action):
 @role_required('hospital', 'admin')
 def toggle_user_status(user_id):
     try:
-        user = User.query.get_or_404(user_id)
+        user = db.get_or_404(User, user_id)
         if user.role not in ['hospital', 'admin']:
             if user.status == 'approved':
                 user.status = 'suspended'
@@ -1275,7 +1275,7 @@ def sos():
 @role_required('patient')
 def delete_emergency_contact(contact_id):
     try:
-        contact = EmergencyContact.query.get_or_404(contact_id)
+        contact = db.get_or_404(EmergencyContact, contact_id)
         if contact.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('sos'))
@@ -1382,7 +1382,7 @@ def medicines():
 @login_required
 @role_required('patient')
 def edit_medicine(med_id):
-    med = Medicine.query.get_or_404(med_id)
+    med = db.get_or_404(Medicine, med_id)
     if med.patient_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('medicines'))
@@ -1441,7 +1441,7 @@ def edit_medicine(med_id):
 @role_required('patient')
 def delete_medicine(med_id):
     try:
-        med = Medicine.query.get_or_404(med_id)
+        med = db.get_or_404(Medicine, med_id)
         if med.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1459,7 +1459,7 @@ def delete_medicine(med_id):
 @role_required('patient')
 def delete_dose(dose_id):
     try:
-        dose = MedicineDose.query.get_or_404(dose_id)
+        dose = db.get_or_404(MedicineDose, dose_id)
         if dose.medicine.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1479,7 +1479,7 @@ def delete_dose(dose_id):
 @role_required('patient')
 def toggle_dose_taken(dose_id):
     try:
-        dose = MedicineDose.query.get_or_404(dose_id)
+        dose = db.get_or_404(MedicineDose, dose_id)
         if dose.medicine.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
