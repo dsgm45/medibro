@@ -963,7 +963,7 @@ def admin_dashboard():
     doctor_counts = Counter(row.doctor_id for row in appointment_rows)
     top_doctors = []
     for doc_id, count in doctor_counts.most_common(5):
-        doc = User.query.get(doc_id)
+        doc = db.session.get(User, doc_id)
         if doc:
             top_doctors.append({'name': doc.full_name, 'count': count})
 
@@ -1511,7 +1511,7 @@ def profile():
         new_password = request.form.get('new_password', '')
         confirm_password = request.form.get('confirm_password', '')
 
-        user = User.query.get(session.get('user_id'))
+        user = db.session.get(User, session.get('user_id'))
 
         if not user or not check_password_hash(user.password_hash, current_password):
             flash('Current password is incorrect.', 'error')
