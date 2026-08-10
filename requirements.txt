@@ -10,3 +10,4 @@ Flask-WTF==1.2.1
 fpdf2==2.7.9
 click>=8.3.3
 pillow>=12.2.0
+google-genai>=1.0.0

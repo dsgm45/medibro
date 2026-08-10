@@ -47,6 +47,22 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 300
 }
 
+# --- AI SYMPTOM GUIDANCE (Gemini) ---
+# Entirely optional: if GEMINI_API_KEY isn't set, the app runs exactly as
+# before with rule-based guidance only. The AI layer only ever supplements
+# the non-emergency guidance messages - the emergency-symptom detection
+# below is deterministic and never depends on this being available.
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.6-flash')
+gemini_client = None
+if GEMINI_API_KEY:
+    try:
+        from google import genai
+        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Gemini client setup failed, AI guidance disabled: {e}")
+
 # Session cookie hardening. SESSION_COOKIE_SECURE is left off automatically
 # for local development (where requests are plain HTTP), but forced on when
 # running in production - controlled via the FLASK_ENV/RENDER env var Render
@@ -154,6 +170,7 @@ class SymptomLog(db.Model):
     severity = db.Column(db.String(20), nullable=False, default='mild')
     description = db.Column(db.Text, nullable=True)
     guidance = db.Column(db.Text, nullable=True)
+    ai_generated = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='symptom_logs')
@@ -1167,6 +1184,48 @@ SYMPTOM_OPTIONS = [
 ]
 EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
 
+SYMPTOM_AI_SYSTEM_PROMPT = (
+    "You are a cautious health-guidance assistant inside a patient portal called MediBro. "
+    "A patient has logged symptoms below. Give brief, general guidance in 2-4 short sentences "
+    "on sensible next steps.\n\n"
+    "Strict rules:\n"
+    "- Never name or suggest a specific medical diagnosis or condition.\n"
+    "- Never recommend a specific medication, dosage, or drug.\n"
+    "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
+    "seek medical care promptly or contact emergency services - do not downplay it.\n"
+    "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
+    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words."
+)
+
+def get_ai_symptom_guidance(selected_symptoms, severity, description):
+    """Returns AI-generated guidance text, or None if the AI is unavailable
+    or the call fails for any reason - callers must fall back to the
+    rule-based guidance in that case. Never called for emergency-level
+    cases; those are handled deterministically before this is reached."""
+    if not gemini_client:
+        return None
+    try:
+        from google.genai import types
+        symptoms_text = ', '.join(selected_symptoms) if selected_symptoms else 'none selected'
+        user_prompt = (
+            f"Symptoms: {symptoms_text}. Severity: {severity}. "
+            f"Additional details from patient: {description or 'none provided'}."
+        )
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=SYMPTOM_AI_SYSTEM_PROMPT,
+                max_output_tokens=200,
+                temperature=0.4,
+            )
+        )
+        text = (response.text or '').strip()
+        return text if text else None
+    except Exception as e:
+        app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
+        return None
+
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -1183,18 +1242,26 @@ def symptoms():
             return redirect(url_for('symptoms'))
 
         has_emergency_symptom = any(s in EMERGENCY_SYMPTOMS for s in selected)
+        ai_generated = False
+
         if has_emergency_symptom or severity == 'severe':
             guidance = ('This could be serious. Please seek emergency care immediately '
                         'or call your local emergency number. Do not wait.')
             flash_category = 'error'
-        elif severity == 'moderate' or len(selected) >= 3:
-            guidance = ('Your symptoms may need medical attention. Please book an '
-                        'appointment with a doctor soon.')
-            flash_category = 'error'
         else:
-            guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
-                        'appointment if things worsen or persist beyond a few days.')
-            flash_category = 'success'
+            ai_guidance = get_ai_symptom_guidance(selected, severity, description)
+            if ai_guidance:
+                guidance = ai_guidance
+                ai_generated = True
+                flash_category = 'error' if (severity == 'moderate' or len(selected) >= 3) else 'success'
+            elif severity == 'moderate' or len(selected) >= 3:
+                guidance = ('Your symptoms may need medical attention. Please book an '
+                            'appointment with a doctor soon.')
+                flash_category = 'error'
+            else:
+                guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
+                            'appointment if things worsen or persist beyond a few days.')
+                flash_category = 'success'
 
         try:
             entry = SymptomLog(
@@ -1202,7 +1269,8 @@ def symptoms():
                 symptoms=', '.join(selected) if selected else 'Not specified',
                 severity=severity,
                 description=description,
-                guidance=guidance
+                guidance=guidance,
+                ai_generated=ai_generated
             )
             db.session.add(entry)
             db.session.commit()

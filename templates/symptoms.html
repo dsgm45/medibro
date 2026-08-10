@@ -86,7 +86,10 @@
                         <td style="padding: 14px 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
                         <td style="padding: 14px 10px; color: var(--text-dark); font-weight: 600;">{{ log.symptoms }}</td>
                         <td style="padding: 14px 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
-                        <td style="padding: 14px 10px; color: var(--text-sub);">{{ log.guidance }}</td>
+                        <td style="padding: 14px 10px; color: var(--text-sub);">
+                            {{ log.guidance }}
+                            {% if log.ai_generated %}<span style="display: inline-block; margin-left: 6px; background-color: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; vertical-align: middle;">🤖 AI-assisted</span>{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
