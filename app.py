@@ -1384,6 +1384,10 @@ AI_CHAT_SYSTEM_PROMPT = (
     "You are a general health guidance assistant inside a patient portal called MediBro. "
     "You can discuss general health questions and help patients think through non-urgent "
     "concerns they describe.\n\n"
+    "The message you receive may begin with 'Here is the conversation so far:' followed by "
+    "prior turns labeled Patient/Assistant, then end with 'New message from patient:' - only "
+    "respond to that new message, using the prior turns as context. Do not repeat the "
+    "conversation history back or comment on this formatting.\n\n"
     "Strict rules:\n"
     "- Never name or suggest a specific medical diagnosis or condition.\n"
     "- Never recommend a specific medication, dosage, or drug.\n"
@@ -1416,21 +1420,36 @@ def get_ai_chat_response(prior_messages, new_message_text):
     the new message. Returns AI response text, or None if unavailable/failed
     - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
     detect_crisis() has already matched; that's handled deterministically
-    before this is reached."""
+    before this is reached.
+
+    Conversation history is folded into a single text prompt rather than
+    built as structured multi-turn Content/Part objects. The latter caused
+    a real 400 INVALID_ARGUMENT error from the live API that couldn't be
+    fully diagnosed without the real SDK available to test against - this
+    uses the exact same simple contents=<string> request shape already
+    proven working in production by the symptom checker."""
     if not gemini_client:
         return None
     try:
         from google.genai import types
 
-        history_contents = []
+        history_lines = []
         for msg in prior_messages:
-            role = 'user' if msg.sender == 'patient' else 'model'
-            history_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
-        history_contents.append(types.Content(role='user', parts=[types.Part.from_text(text=new_message_text)]))
+            speaker = 'Patient' if msg.sender == 'patient' else 'Assistant'
+            history_lines.append(f'{speaker}: {msg.content}')
+
+        if history_lines:
+            prompt = (
+                'Here is the conversation so far:\n'
+                + '\n'.join(history_lines)
+                + f'\n\nNew message from patient: {new_message_text}'
+            )
+        else:
+            prompt = new_message_text
 
         response = gemini_client.models.generate_content(
             model=GEMINI_MODEL,
-            contents=history_contents,
+            contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=AI_CHAT_SYSTEM_PROMPT,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),

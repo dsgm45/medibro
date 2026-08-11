@@ -179,15 +179,29 @@ class TestConversationHistory:
         _send_chat_message(client, 'What about exercise?')
 
         assert fake_client.models.call_count == 2
-        second_call_contents = fake_client.models.last_kwargs['contents']
-        # 2 prior turns (patient + ai from first exchange) + 1 new patient turn = 3
-        assert len(second_call_contents) == 3
-        # The new message should appear exactly once, not duplicated
-        new_message_occurrences = sum(
-            1 for c in second_call_contents
-            if any(p.get('text') == 'What about exercise?' for p in c.parts)
-        )
-        assert new_message_occurrences == 1
+        second_call_prompt = fake_client.models.last_kwargs['contents']
+        # contents is now a single string (matching the request shape
+        # already proven working in production), not structured multi-turn
+        # objects - it should contain both the prior exchange and the new
+        # message, with the new message appearing exactly once.
+        assert isinstance(second_call_prompt, str)
+        assert 'What foods are good for heart health?' in second_call_prompt
+        assert 'First reply here.' in second_call_prompt
+        assert second_call_prompt.count('What about exercise?') == 1
 
         messages = _all_chat_messages(patient_id)
         assert len(messages) == 4  # 2 patient + 2 ai across both exchanges
+
+    def test_first_message_has_no_history_prefix(self, client, make_user, monkeypatch):
+        make_user('patient@example.com', 'password123', role='patient')
+        login(client, 'patient@example.com', 'password123')
+
+        fake_client = _FakeGeminiClient(response=_FakeGeminiResponse('First reply here.', 'STOP'))
+        monkeypatch.setattr(app_module, 'gemini_client', fake_client)
+
+        _send_chat_message(client, 'What foods are good for heart health?')
+
+        first_call_prompt = fake_client.models.last_kwargs['contents']
+        # With no prior messages, contents should just be the raw message -
+        # exactly matching the symptom checker's proven request shape.
+        assert first_call_prompt == 'What foods are good for heart health?'
