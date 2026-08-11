@@ -1,3 +1,14 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Finish Query.get() cleanup - convert get_or_404() too ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+cat > app.py << 'APP_PY_EOF'
 import os
 import re
 import csv
@@ -46,22 +57,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300
 }
-
-# --- AI SYMPTOM GUIDANCE (Gemini) ---
-# Entirely optional: if GEMINI_API_KEY isn't set, the app runs exactly as
-# before with rule-based guidance only. The AI layer only ever supplements
-# the non-emergency guidance messages - the emergency-symptom detection
-# below is deterministic and never depends on this being available.
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.6-flash')
-gemini_client = None
-if GEMINI_API_KEY:
-    try:
-        from google import genai
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Gemini client setup failed, AI guidance disabled: {e}")
 
 # Session cookie hardening. SESSION_COOKIE_SECURE is left off automatically
 # for local development (where requests are plain HTTP), but forced on when
@@ -170,7 +165,6 @@ class SymptomLog(db.Model):
     severity = db.Column(db.String(20), nullable=False, default='mild')
     description = db.Column(db.Text, nullable=True)
     guidance = db.Column(db.Text, nullable=True)
-    ai_generated = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='symptom_logs')
@@ -225,16 +219,6 @@ class Medicine(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
-
-class AIChatMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    sender = db.Column(db.String(10), nullable=False)  # 'patient' or 'ai'
-    content = db.Column(db.Text, nullable=False)
-    is_crisis_response = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    patient = db.relationship('User', foreign_keys=[patient_id], backref='ai_chat_messages')
 
 class MedicineDose(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1194,85 +1178,6 @@ SYMPTOM_OPTIONS = [
 ]
 EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
 
-SYMPTOM_AI_SYSTEM_PROMPT = (
-    "You are a cautious health-guidance assistant inside a patient portal called MediBro. "
-    "A patient has logged symptoms below. Give brief, general guidance in 2-4 short sentences "
-    "on sensible next steps.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
-    "seek medical care promptly or contact emergency services - do not downplay it.\n"
-    "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
-    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences."
-)
-
-def get_ai_symptom_guidance(selected_symptoms, severity, description):
-    """Returns AI-generated guidance text, or None if the AI is unavailable
-    or the call fails for any reason - callers must fall back to the
-    rule-based guidance in that case. Never called for emergency-level
-    cases; those are handled deterministically before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-        symptoms_text = ', '.join(selected_symptoms) if selected_symptoms else 'none selected'
-        user_prompt = (
-            f"Symptoms: {symptoms_text}. Severity: {severity}. "
-            f"Additional details from patient: {description or 'none provided'}."
-        )
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYMPTOM_AI_SYSTEM_PROMPT,
-                # On Gemini's newer "thinking" models, max_output_tokens is a
-                # COMBINED budget covering invisible reasoning tokens AND the
-                # visible answer together - not just the visible text. Without
-                # disabling thinking, the visible answer can get cut off mid-
-                # sentence because reasoning silently ate most of the budget.
-                # This task needs no multi-step reasoning, so thinking is
-                # disabled entirely and the full budget goes to the answer.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=400,
-                temperature=0.4,
-            )
-        )
-
-        # Check finish_reason before trusting the text - a non-clean stop
-        # (e.g. still hit the token limit despite the above) means the
-        # response may be incomplete, and incomplete health guidance should
-        # never reach a patient - fall back to the safe rule-based message.
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini response did not finish cleanly (finish_reason={finish_reason_str}), falling back to rule-based guidance")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-
-        # Belt-and-suspenders sanity check: a complete guidance message should
-        # end with normal punctuation and contain no stray markdown/formatting
-        # artifacts. Catches truncation or formatting issues that slip through
-        # the checks above.
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini response appears truncated (no ending punctuation), falling back to rule-based guidance")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini response contains formatting artifacts, falling back to rule-based guidance")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
-        return None
-
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -1289,26 +1194,18 @@ def symptoms():
             return redirect(url_for('symptoms'))
 
         has_emergency_symptom = any(s in EMERGENCY_SYMPTOMS for s in selected)
-        ai_generated = False
-
         if has_emergency_symptom or severity == 'severe':
             guidance = ('This could be serious. Please seek emergency care immediately '
                         'or call your local emergency number. Do not wait.')
             flash_category = 'error'
+        elif severity == 'moderate' or len(selected) >= 3:
+            guidance = ('Your symptoms may need medical attention. Please book an '
+                        'appointment with a doctor soon.')
+            flash_category = 'error'
         else:
-            ai_guidance = get_ai_symptom_guidance(selected, severity, description)
-            if ai_guidance:
-                guidance = ai_guidance
-                ai_generated = True
-                flash_category = 'error' if (severity == 'moderate' or len(selected) >= 3) else 'success'
-            elif severity == 'moderate' or len(selected) >= 3:
-                guidance = ('Your symptoms may need medical attention. Please book an '
-                            'appointment with a doctor soon.')
-                flash_category = 'error'
-            else:
-                guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
-                            'appointment if things worsen or persist beyond a few days.')
-                flash_category = 'success'
+            guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
+                        'appointment if things worsen or persist beyond a few days.')
+            flash_category = 'success'
 
         try:
             entry = SymptomLog(
@@ -1316,8 +1213,7 @@ def symptoms():
                 symptoms=', '.join(selected) if selected else 'Not specified',
                 severity=severity,
                 description=description,
-                guidance=guidance,
-                ai_generated=ai_generated
+                guidance=guidance
             )
             db.session.add(entry)
             db.session.commit()
@@ -1331,164 +1227,6 @@ def symptoms():
 
     history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     return render_template('symptoms.html', symptom_options=SYMPTOM_OPTIONS, history=history)
-
-# --- AI HEALTH CHAT ---
-# An open-ended conversation is a larger safety surface than the structured
-# symptom checker, since a patient can type anything. The crisis check below
-# runs on every message BEFORE the AI is ever consulted, exactly like the
-# emergency-symptom check in the symptom checker - deterministic, never
-# dependent on the AI getting it right.
-CRISIS_KEYWORDS = [
-    # possible physical emergencies
-    'chest pain', "can't breathe", 'cant breathe', 'cannot breathe', 'difficulty breathing',
-    'severe bleeding', 'heavy bleeding', 'unconscious', 'unresponsive',
-    'overdose', 'heart attack', 'stroke', 'seizure', 'choking', 'anaphylaxis',
-    # possible mental health crisis
-    'kill myself', 'want to die', 'end my life', 'ending my life', 'suicidal', 'suicide',
-    'ending it all', "don't want to be alive", 'dont want to be alive',
-    'hurt myself', 'harm myself', 'self harm', 'self-harm',
-]
-
-CRISIS_RESPONSE_MESSAGE = (
-    "This sounds serious, and I want to make sure you get real help right now, not just "
-    "a chat response. If this is a medical emergency, please call your local emergency "
-    "number immediately. If you're thinking about suicide or self-harm, please reach out "
-    "to a crisis line right away - in the US you can call or text 988 (Suicide & Crisis "
-    "Lifeline). You can also use the SOS page in this app to alert your emergency contact. "
-    "Please don't wait to reach out."
-)
-
-AI_CHAT_SYSTEM_PROMPT = (
-    "You are a general health guidance assistant inside a patient portal called MediBro. "
-    "You can discuss general health questions and help patients think through non-urgent "
-    "concerns they describe.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If a message describes anything that could be a medical emergency or a mental "
-    "health crisis, tell the patient clearly to seek emergency care or a crisis line "
-    "immediately - do not attempt to handle it yourself.\n"
-    "- If asked something unrelated to health, politely redirect to health topics - this "
-    "chat is for health guidance only.\n"
-    "- Encourage booking an appointment with a doctor for anything that needs real "
-    "follow-up or hasn't improved.\n"
-    "- Keep the tone calm, warm, and clear. No medical jargon.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences.\n"
-    "- Keep responses concise - usually 2-5 sentences, appropriate for a chat "
-    "conversation, not a long essay."
-)
-
-AI_CHAT_HISTORY_LIMIT = 10
-AI_CHAT_FALLBACK_MESSAGE = (
-    "I'm having trouble responding right now. Please try again in a moment, or reach out "
-    "to your doctor if this is something you'd like to discuss soon."
-)
-
-def detect_crisis(text):
-    lowered = text.lower()
-    return any(kw in lowered for kw in CRISIS_KEYWORDS)
-
-def get_ai_chat_response(prior_messages, new_message_text):
-    """prior_messages: list of AIChatMessage, oldest to newest, NOT including
-    the new message. Returns AI response text, or None if unavailable/failed
-    - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
-    detect_crisis() has already matched; that's handled deterministically
-    before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-
-        history_contents = []
-        for msg in prior_messages:
-            role = 'user' if msg.sender == 'patient' else 'model'
-            history_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
-        history_contents.append(types.Content(role='user', parts=[types.Part.from_text(text=new_message_text)]))
-
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=history_contents,
-            config=types.GenerateContentConfig(
-                system_instruction=AI_CHAT_SYSTEM_PROMPT,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=500,
-                temperature=0.5,
-            )
-        )
-
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini chat response did not finish cleanly (finish_reason={finish_reason_str}), using fallback")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini chat response appears truncated, using fallback")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini chat response contains formatting artifacts, using fallback")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini chat response failed, using fallback: {e}")
-        return None
-
-@app.route('/ai-chat', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def ai_chat():
-    patient_id = session.get('user_id')
-
-    if request.method == 'POST':
-        user_message = request.form.get('message', '').strip()
-        if not user_message:
-            flash('Please enter a message.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        # Fetch history BEFORE saving the new message, so it isn't duplicated
-        # when passed to get_ai_chat_response() alongside the new message.
-        prior_messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(
-            AIChatMessage.created_at.desc()
-        ).limit(AI_CHAT_HISTORY_LIMIT).all()
-        prior_messages = list(reversed(prior_messages))
-
-        try:
-            patient_msg = AIChatMessage(patient_id=patient_id, sender='patient', content=user_message)
-            db.session.add(patient_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save patient message error: {e}")
-            flash('Error sending message. Please try again.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        if detect_crisis(user_message):
-            reply_text = CRISIS_RESPONSE_MESSAGE
-            is_crisis = True
-        else:
-            ai_reply = get_ai_chat_response(prior_messages, user_message)
-            reply_text = ai_reply if ai_reply else AI_CHAT_FALLBACK_MESSAGE
-            is_crisis = False
-
-        try:
-            ai_msg = AIChatMessage(patient_id=patient_id, sender='ai', content=reply_text, is_crisis_response=is_crisis)
-            db.session.add(ai_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save reply error: {e}")
-
-        return redirect(url_for('ai_chat'))
-
-    messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(AIChatMessage.created_at.asc()).all()
-    return render_template('ai_chat.html', messages=messages)
 
 @app.route('/sos', methods=['GET', 'POST'])
 @login_required
@@ -1830,3 +1568,23 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+APP_PY_EOF
+
+echo "app.py updated."
+echo ""
+echo "=== Re-running the test suite ==="
+python3 -m pytest -v
+
+echo ""
+echo "=== Test run complete - the LegacyAPIWarning should be fully gone now ==="
+echo ""
+read -p "Press Enter to commit and push, or Ctrl+C to stop here: "
+
+git add app.py
+git commit -m "Convert Model.query.get_or_404() (legacy) to db.get_or_404(Model, id) (current API) - 17 occurrences"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "Same behavior as before (404 if not found), just using Flask-SQLAlchemy's"
+echo "current, non-legacy API instead of the old Model.query interface."

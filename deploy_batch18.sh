@@ -1,18 +1,26 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Admin dashboard operational stats (appointment volume + doctor utilization) ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+cat > app.py << 'FILEEOF_1'
 import os
 import re
-import csv
-import io
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 from collections import defaultdict, Counter
-from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
 from flask_wtf import CSRFProtect
-from fpdf import FPDF
 from flask_migrate import Migrate, upgrade, stamp
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -47,22 +55,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 300
 }
 
-# --- AI SYMPTOM GUIDANCE (Gemini) ---
-# Entirely optional: if GEMINI_API_KEY isn't set, the app runs exactly as
-# before with rule-based guidance only. The AI layer only ever supplements
-# the non-emergency guidance messages - the emergency-symptom detection
-# below is deterministic and never depends on this being available.
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.6-flash')
-gemini_client = None
-if GEMINI_API_KEY:
-    try:
-        from google import genai
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Gemini client setup failed, AI guidance disabled: {e}")
-
 # Session cookie hardening. SESSION_COOKIE_SECURE is left off automatically
 # for local development (where requests are plain HTTP), but forced on when
 # running in production - controlled via the FLASK_ENV/RENDER env var Render
@@ -70,11 +62,6 @@ if GEMINI_API_KEY:
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = bool(os.environ.get('RENDER'))
-
-# How long a "Remember Me" session stays valid. Sessions where the person
-# didn't check that box remain regular session cookies that expire when
-# the browser closes, controlled per-login in the login route below.
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
@@ -170,7 +157,6 @@ class SymptomLog(db.Model):
     severity = db.Column(db.String(20), nullable=False, default='mild')
     description = db.Column(db.Text, nullable=True)
     guidance = db.Column(db.Text, nullable=True)
-    ai_generated = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='symptom_logs')
@@ -225,16 +211,6 @@ class Medicine(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
-
-class AIChatMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    sender = db.Column(db.String(10), nullable=False)  # 'patient' or 'ai'
-    content = db.Column(db.Text, nullable=False)
-    is_crisis_response = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    patient = db.relationship('User', foreign_keys=[patient_id], backref='ai_chat_messages')
 
 class MedicineDose(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -297,7 +273,7 @@ def init_db():
                     )
                 admin = User(
                     email='admin@medibro.com',
-                    password_hash=generate_password_hash(admin_password, method='pbkdf2:sha256'),
+                    password_hash=generate_password_hash(admin_password),
                     role='hospital',
                     full_name='System Admin',
                     status='approved'
@@ -388,7 +364,6 @@ def login():
                     return redirect(url_for('login'))
 
                 clear_login_attempts(email)
-                session.permanent = bool(request.form.get('remember_me'))
                 session['user_id'] = user.id
                 session['email'] = user.email
                 session['role'] = user.role
@@ -450,7 +425,7 @@ def register():
 
             new_user = User(
                 email=email,
-                password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
+                password_hash=generate_password_hash(password),
                 role=role,
                 full_name=full_name,
                 specialty=specialty if role == 'doctor' else None,
@@ -515,101 +490,6 @@ def my_health():
         next_appointment=next_appointment,
         follow_ups=follow_ups
     )
-
-def _pdf_safe_text(value):
-    """PDF core fonts only support Latin-1. Replace anything outside that
-    range instead of letting it crash the export - degraded output is far
-    better than a broken download."""
-    if value is None:
-        return ''
-    return str(value).encode('latin-1', errors='replace').decode('latin-1')
-
-@app.route('/my-health/export-pdf')
-@login_required
-@role_required('patient')
-def export_health_pdf():
-    patient = db.get_or_404(User, session.get('user_id'))
-    patient_id = patient.id
-
-    vitals = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(10).all()
-    symptoms = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(10).all()
-    medicines = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
-    visits = Appointment.query.filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(10).all()
-
-    t = _pdf_safe_text
-
-    pdf = FPDF()
-    pdf.add_page()
-
-    pdf.set_font('Helvetica', 'B', 18)
-    pdf.cell(0, 12, t('MediBro Health Summary'))
-    pdf.ln(12)
-
-    pdf.set_font('Helvetica', '', 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, t(f'{patient.full_name} - Generated {datetime.utcnow().strftime("%B %d, %Y")}'))
-    pdf.ln(10)
-    pdf.set_text_color(0, 0, 0)
-
-    def section_title(title):
-        pdf.set_font('Helvetica', 'B', 13)
-        pdf.cell(0, 8, t(title))
-        pdf.ln(9)
-        pdf.set_font('Helvetica', '', 10)
-
-    section_title('Recent Vitals')
-    if vitals:
-        for v in vitals:
-            date_str = v.recorded_at.strftime('%b %d, %Y') if v.recorded_at else ''
-            bp = f'{v.systolic}/{v.diastolic}' if v.systolic and v.diastolic else '-'
-            line = f'{date_str}  |  BP: {bp}  |  HR: {v.heart_rate or "-"} bpm  |  SpO2: {v.spo2 or "-"}%  |  Temp: {v.temperature or "-"} F'
-            pdf.cell(0, 6, t(line))
-            pdf.ln(6)
-    else:
-        pdf.cell(0, 6, t('No vitals logged.'))
-        pdf.ln(6)
-    pdf.ln(4)
-
-    section_title('Recent Symptoms')
-    if symptoms:
-        for s in symptoms:
-            date_str = s.created_at.strftime('%b %d, %Y') if s.created_at else ''
-            line = f'{date_str}  |  {s.symptoms}  |  Severity: {s.severity}'
-            pdf.multi_cell(0, 6, t(line))
-    else:
-        pdf.cell(0, 6, t('No symptoms logged.'))
-        pdf.ln(6)
-    pdf.ln(4)
-
-    section_title('Medicines')
-    if medicines:
-        for m in medicines:
-            times = ', '.join(d.time for d in m.doses) if m.doses else (m.time_of_day or '-')
-            line = f'{m.name}  |  {m.dosage or "-"}  |  {m.frequency or "-"}  |  Times: {times}'
-            pdf.multi_cell(0, 6, t(line))
-    else:
-        pdf.cell(0, 6, t('No medicines on record.'))
-        pdf.ln(6)
-    pdf.ln(4)
-
-    section_title('Visit History')
-    if visits:
-        for v in visits:
-            doc_name = v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') if v.doctor else 'Unknown'
-            line = f'{v.appointment_date}  |  Dr. {doc_name}  |  Diagnosis: {v.diagnosis or "Not recorded"}'
-            pdf.multi_cell(0, 6, t(line))
-            if v.visit_notes:
-                pdf.set_font('Helvetica', 'I', 9)
-                pdf.multi_cell(0, 5, t(f'  Notes: {v.visit_notes}'))
-                pdf.set_font('Helvetica', '', 10)
-    else:
-        pdf.cell(0, 6, t('No completed visits on record.'))
-        pdf.ln(6)
-
-    pdf_bytes = bytes(pdf.output())
-    response = Response(pdf_bytes, mimetype='application/pdf')
-    response.headers['Content-Disposition'] = 'attachment; filename=medibro_health_summary.pdf'
-    return response
 
 @app.route('/patient')
 @login_required
@@ -715,7 +595,7 @@ def book_appointment():
 @role_required('patient')
 def cancel_appointment(app_id):
     try:
-        appt = db.get_or_404(Appointment, app_id)
+        appt = Appointment.query.get_or_404(app_id)
         if appt.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('patient_dashboard'))
@@ -738,7 +618,7 @@ def cancel_appointment(app_id):
 @role_required('doctor')
 def doctor_dashboard():
     doctor_id = session.get('user_id')
-    doctor = db.get_or_404(User, doctor_id)
+    doctor = User.query.get_or_404(doctor_id)
     appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(
         Appointment.appointment_date.desc(), Appointment.appointment_time.asc()
     ).all()
@@ -755,7 +635,7 @@ def doctor_dashboard():
 @role_required('doctor')
 def handle_appointment(app_id, action):
     try:
-        appt = db.get_or_404(Appointment, app_id)
+        appt = Appointment.query.get_or_404(app_id)
         if appt.doctor_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('doctor_dashboard'))
@@ -779,7 +659,7 @@ def handle_appointment(app_id, action):
 @login_required
 @role_required('doctor')
 def complete_appointment(app_id):
-    appt = db.get_or_404(Appointment, app_id)
+    appt = Appointment.query.get_or_404(app_id)
     if appt.doctor_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('doctor_dashboard'))
@@ -812,7 +692,7 @@ def complete_appointment(app_id):
 @login_required
 @role_required('patient')
 def appointment_summary(app_id):
-    appt = db.get_or_404(Appointment, app_id)
+    appt = Appointment.query.get_or_404(app_id)
     if appt.patient_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('patient_dashboard'))
@@ -827,7 +707,7 @@ def appointment_summary(app_id):
 @role_required('doctor')
 def request_follow_up(app_id):
     try:
-        appt = db.get_or_404(Appointment, app_id)
+        appt = Appointment.query.get_or_404(app_id)
         if appt.doctor_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('doctor_dashboard'))
@@ -849,7 +729,7 @@ def request_follow_up(app_id):
 @login_required
 @role_required('doctor')
 def doctor_profile():
-    doctor = db.get_or_404(User, session.get('user_id'))
+    doctor = User.query.get_or_404(session.get('user_id'))
 
     if request.method == 'POST':
         specialty = request.form.get('specialty', '').strip()
@@ -884,7 +764,7 @@ def view_patient_history(patient_id):
         flash('You can only view history for patients who have booked with you.', 'error')
         return redirect(url_for('doctor_dashboard'))
 
-    patient = db.get_or_404(User, patient_id)
+    patient = User.query.get_or_404(patient_id)
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
@@ -934,7 +814,7 @@ def chat_thread(appointment_id):
     user_id = session.get('user_id')
     role = session.get('role')
 
-    appt = db.get_or_404(Appointment, appointment_id)
+    appt = Appointment.query.get_or_404(appointment_id)
 
     if role == 'patient' and appt.patient_id != user_id:
         flash('Unauthorized action.', 'error')
@@ -990,7 +870,7 @@ def admin_dashboard():
     doctor_counts = Counter(row.doctor_id for row in appointment_rows)
     top_doctors = []
     for doc_id, count in doctor_counts.most_common(5):
-        doc = db.session.get(User, doc_id)
+        doc = User.query.get(doc_id)
         if doc:
             top_doctors.append({'name': doc.full_name, 'count': count})
 
@@ -1012,62 +892,12 @@ def admin_dashboard():
         top_doctors=top_doctors
     )
 
-def csv_response(filename, header, rows):
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(header)
-    writer.writerows(rows)
-    return Response(
-        output.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': f'attachment; filename={filename}'}
-    )
-
-@app.route('/admin/export/patients')
-@login_required
-@role_required('hospital', 'admin')
-def export_patients_csv():
-    patients = User.query.filter_by(role='patient').order_by(User.created_at.desc()).all()
-    rows = [
-        [p.full_name, p.email, p.phone or '', p.status, p.created_at.strftime('%Y-%m-%d') if p.created_at else '']
-        for p in patients
-    ]
-    return csv_response('medibro_patients.csv', ['Name', 'Email', 'Phone', 'Status', 'Registered'], rows)
-
-@app.route('/admin/export/doctors')
-@login_required
-@role_required('hospital', 'admin')
-def export_doctors_csv():
-    doctors = User.query.filter_by(role='doctor').order_by(User.created_at.desc()).all()
-    rows = [
-        [d.full_name, d.email, d.specialty or '', d.phone or '', d.status, d.created_at.strftime('%Y-%m-%d') if d.created_at else '']
-        for d in doctors
-    ]
-    return csv_response('medibro_doctors.csv', ['Name', 'Email', 'Specialty', 'Phone', 'Status', 'Registered'], rows)
-
-@app.route('/admin/export/audit-log')
-@login_required
-@role_required('hospital', 'admin')
-def export_audit_log_csv():
-    logs = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc()).all()
-    rows = [
-        [
-            log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '',
-            log.admin.full_name if log.admin else 'Unknown',
-            log.action,
-            log.target_name or '',
-            log.details or ''
-        ]
-        for log in logs
-    ]
-    return csv_response('medibro_audit_log.csv', ['Date', 'Admin', 'Action', 'Target', 'Details'], rows)
-
 @app.route('/admin/verify/<int:doctor_id>/<action>', methods=['POST'])
 @login_required
 @role_required('hospital', 'admin')
 def verify_doctor(doctor_id, action):
     try:
-        doctor = db.get_or_404(User, doctor_id)
+        doctor = User.query.get_or_404(doctor_id)
         if action == 'approve':
             doctor.status = 'approved'
             flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
@@ -1094,7 +924,7 @@ def verify_doctor(doctor_id, action):
 @role_required('hospital', 'admin')
 def toggle_user_status(user_id):
     try:
-        user = db.get_or_404(User, user_id)
+        user = User.query.get_or_404(user_id)
         if user.role not in ['hospital', 'admin']:
             if user.status == 'approved':
                 user.status = 'suspended'
@@ -1194,85 +1024,6 @@ SYMPTOM_OPTIONS = [
 ]
 EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
 
-SYMPTOM_AI_SYSTEM_PROMPT = (
-    "You are a cautious health-guidance assistant inside a patient portal called MediBro. "
-    "A patient has logged symptoms below. Give brief, general guidance in 2-4 short sentences "
-    "on sensible next steps.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
-    "seek medical care promptly or contact emergency services - do not downplay it.\n"
-    "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
-    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences."
-)
-
-def get_ai_symptom_guidance(selected_symptoms, severity, description):
-    """Returns AI-generated guidance text, or None if the AI is unavailable
-    or the call fails for any reason - callers must fall back to the
-    rule-based guidance in that case. Never called for emergency-level
-    cases; those are handled deterministically before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-        symptoms_text = ', '.join(selected_symptoms) if selected_symptoms else 'none selected'
-        user_prompt = (
-            f"Symptoms: {symptoms_text}. Severity: {severity}. "
-            f"Additional details from patient: {description or 'none provided'}."
-        )
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYMPTOM_AI_SYSTEM_PROMPT,
-                # On Gemini's newer "thinking" models, max_output_tokens is a
-                # COMBINED budget covering invisible reasoning tokens AND the
-                # visible answer together - not just the visible text. Without
-                # disabling thinking, the visible answer can get cut off mid-
-                # sentence because reasoning silently ate most of the budget.
-                # This task needs no multi-step reasoning, so thinking is
-                # disabled entirely and the full budget goes to the answer.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=400,
-                temperature=0.4,
-            )
-        )
-
-        # Check finish_reason before trusting the text - a non-clean stop
-        # (e.g. still hit the token limit despite the above) means the
-        # response may be incomplete, and incomplete health guidance should
-        # never reach a patient - fall back to the safe rule-based message.
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini response did not finish cleanly (finish_reason={finish_reason_str}), falling back to rule-based guidance")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-
-        # Belt-and-suspenders sanity check: a complete guidance message should
-        # end with normal punctuation and contain no stray markdown/formatting
-        # artifacts. Catches truncation or formatting issues that slip through
-        # the checks above.
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini response appears truncated (no ending punctuation), falling back to rule-based guidance")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini response contains formatting artifacts, falling back to rule-based guidance")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
-        return None
-
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -1289,26 +1040,18 @@ def symptoms():
             return redirect(url_for('symptoms'))
 
         has_emergency_symptom = any(s in EMERGENCY_SYMPTOMS for s in selected)
-        ai_generated = False
-
         if has_emergency_symptom or severity == 'severe':
             guidance = ('This could be serious. Please seek emergency care immediately '
                         'or call your local emergency number. Do not wait.')
             flash_category = 'error'
+        elif severity == 'moderate' or len(selected) >= 3:
+            guidance = ('Your symptoms may need medical attention. Please book an '
+                        'appointment with a doctor soon.')
+            flash_category = 'error'
         else:
-            ai_guidance = get_ai_symptom_guidance(selected, severity, description)
-            if ai_guidance:
-                guidance = ai_guidance
-                ai_generated = True
-                flash_category = 'error' if (severity == 'moderate' or len(selected) >= 3) else 'success'
-            elif severity == 'moderate' or len(selected) >= 3:
-                guidance = ('Your symptoms may need medical attention. Please book an '
-                            'appointment with a doctor soon.')
-                flash_category = 'error'
-            else:
-                guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
-                            'appointment if things worsen or persist beyond a few days.')
-                flash_category = 'success'
+            guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
+                        'appointment if things worsen or persist beyond a few days.')
+            flash_category = 'success'
 
         try:
             entry = SymptomLog(
@@ -1316,8 +1059,7 @@ def symptoms():
                 symptoms=', '.join(selected) if selected else 'Not specified',
                 severity=severity,
                 description=description,
-                guidance=guidance,
-                ai_generated=ai_generated
+                guidance=guidance
             )
             db.session.add(entry)
             db.session.commit()
@@ -1331,164 +1073,6 @@ def symptoms():
 
     history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     return render_template('symptoms.html', symptom_options=SYMPTOM_OPTIONS, history=history)
-
-# --- AI HEALTH CHAT ---
-# An open-ended conversation is a larger safety surface than the structured
-# symptom checker, since a patient can type anything. The crisis check below
-# runs on every message BEFORE the AI is ever consulted, exactly like the
-# emergency-symptom check in the symptom checker - deterministic, never
-# dependent on the AI getting it right.
-CRISIS_KEYWORDS = [
-    # possible physical emergencies
-    'chest pain', "can't breathe", 'cant breathe', 'cannot breathe', 'difficulty breathing',
-    'severe bleeding', 'heavy bleeding', 'unconscious', 'unresponsive',
-    'overdose', 'heart attack', 'stroke', 'seizure', 'choking', 'anaphylaxis',
-    # possible mental health crisis
-    'kill myself', 'want to die', 'end my life', 'ending my life', 'suicidal', 'suicide',
-    'ending it all', "don't want to be alive", 'dont want to be alive',
-    'hurt myself', 'harm myself', 'self harm', 'self-harm',
-]
-
-CRISIS_RESPONSE_MESSAGE = (
-    "This sounds serious, and I want to make sure you get real help right now, not just "
-    "a chat response. If this is a medical emergency, please call your local emergency "
-    "number immediately. If you're thinking about suicide or self-harm, please reach out "
-    "to a crisis line right away - in the US you can call or text 988 (Suicide & Crisis "
-    "Lifeline). You can also use the SOS page in this app to alert your emergency contact. "
-    "Please don't wait to reach out."
-)
-
-AI_CHAT_SYSTEM_PROMPT = (
-    "You are a general health guidance assistant inside a patient portal called MediBro. "
-    "You can discuss general health questions and help patients think through non-urgent "
-    "concerns they describe.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If a message describes anything that could be a medical emergency or a mental "
-    "health crisis, tell the patient clearly to seek emergency care or a crisis line "
-    "immediately - do not attempt to handle it yourself.\n"
-    "- If asked something unrelated to health, politely redirect to health topics - this "
-    "chat is for health guidance only.\n"
-    "- Encourage booking an appointment with a doctor for anything that needs real "
-    "follow-up or hasn't improved.\n"
-    "- Keep the tone calm, warm, and clear. No medical jargon.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences.\n"
-    "- Keep responses concise - usually 2-5 sentences, appropriate for a chat "
-    "conversation, not a long essay."
-)
-
-AI_CHAT_HISTORY_LIMIT = 10
-AI_CHAT_FALLBACK_MESSAGE = (
-    "I'm having trouble responding right now. Please try again in a moment, or reach out "
-    "to your doctor if this is something you'd like to discuss soon."
-)
-
-def detect_crisis(text):
-    lowered = text.lower()
-    return any(kw in lowered for kw in CRISIS_KEYWORDS)
-
-def get_ai_chat_response(prior_messages, new_message_text):
-    """prior_messages: list of AIChatMessage, oldest to newest, NOT including
-    the new message. Returns AI response text, or None if unavailable/failed
-    - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
-    detect_crisis() has already matched; that's handled deterministically
-    before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-
-        history_contents = []
-        for msg in prior_messages:
-            role = 'user' if msg.sender == 'patient' else 'model'
-            history_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
-        history_contents.append(types.Content(role='user', parts=[types.Part.from_text(text=new_message_text)]))
-
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=history_contents,
-            config=types.GenerateContentConfig(
-                system_instruction=AI_CHAT_SYSTEM_PROMPT,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=500,
-                temperature=0.5,
-            )
-        )
-
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini chat response did not finish cleanly (finish_reason={finish_reason_str}), using fallback")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini chat response appears truncated, using fallback")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini chat response contains formatting artifacts, using fallback")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini chat response failed, using fallback: {e}")
-        return None
-
-@app.route('/ai-chat', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def ai_chat():
-    patient_id = session.get('user_id')
-
-    if request.method == 'POST':
-        user_message = request.form.get('message', '').strip()
-        if not user_message:
-            flash('Please enter a message.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        # Fetch history BEFORE saving the new message, so it isn't duplicated
-        # when passed to get_ai_chat_response() alongside the new message.
-        prior_messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(
-            AIChatMessage.created_at.desc()
-        ).limit(AI_CHAT_HISTORY_LIMIT).all()
-        prior_messages = list(reversed(prior_messages))
-
-        try:
-            patient_msg = AIChatMessage(patient_id=patient_id, sender='patient', content=user_message)
-            db.session.add(patient_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save patient message error: {e}")
-            flash('Error sending message. Please try again.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        if detect_crisis(user_message):
-            reply_text = CRISIS_RESPONSE_MESSAGE
-            is_crisis = True
-        else:
-            ai_reply = get_ai_chat_response(prior_messages, user_message)
-            reply_text = ai_reply if ai_reply else AI_CHAT_FALLBACK_MESSAGE
-            is_crisis = False
-
-        try:
-            ai_msg = AIChatMessage(patient_id=patient_id, sender='ai', content=reply_text, is_crisis_response=is_crisis)
-            db.session.add(ai_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save reply error: {e}")
-
-        return redirect(url_for('ai_chat'))
-
-    messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(AIChatMessage.created_at.asc()).all()
-    return render_template('ai_chat.html', messages=messages)
 
 @app.route('/sos', methods=['GET', 'POST'])
 @login_required
@@ -1548,7 +1132,7 @@ def sos():
 @role_required('patient')
 def delete_emergency_contact(contact_id):
     try:
-        contact = db.get_or_404(EmergencyContact, contact_id)
+        contact = EmergencyContact.query.get_or_404(contact_id)
         if contact.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('sos'))
@@ -1655,7 +1239,7 @@ def medicines():
 @login_required
 @role_required('patient')
 def edit_medicine(med_id):
-    med = db.get_or_404(Medicine, med_id)
+    med = Medicine.query.get_or_404(med_id)
     if med.patient_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('medicines'))
@@ -1714,7 +1298,7 @@ def edit_medicine(med_id):
 @role_required('patient')
 def delete_medicine(med_id):
     try:
-        med = db.get_or_404(Medicine, med_id)
+        med = Medicine.query.get_or_404(med_id)
         if med.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1732,7 +1316,7 @@ def delete_medicine(med_id):
 @role_required('patient')
 def delete_dose(dose_id):
     try:
-        dose = db.get_or_404(MedicineDose, dose_id)
+        dose = MedicineDose.query.get_or_404(dose_id)
         if dose.medicine.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1752,7 +1336,7 @@ def delete_dose(dose_id):
 @role_required('patient')
 def toggle_dose_taken(dose_id):
     try:
-        dose = db.get_or_404(MedicineDose, dose_id)
+        dose = MedicineDose.query.get_or_404(dose_id)
         if dose.medicine.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1784,7 +1368,7 @@ def profile():
         new_password = request.form.get('new_password', '')
         confirm_password = request.form.get('confirm_password', '')
 
-        user = db.session.get(User, session.get('user_id'))
+        user = User.query.get(session.get('user_id'))
 
         if not user or not check_password_hash(user.password_hash, current_password):
             flash('Current password is incorrect.', 'error')
@@ -1799,7 +1383,7 @@ def profile():
             return redirect(url_for('profile'))
 
         try:
-            user.password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+            user.password_hash = generate_password_hash(new_password)
             db.session.commit()
             flash('Password updated successfully.', 'success')
         except Exception as e:
@@ -1830,3 +1414,266 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+FILEEOF_1
+cat > templates/admin.html << 'FILEEOF_2'
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
+
+    <div style="margin-bottom: 20px; text-align: right;">
+        <a href="{{ url_for('admin_audit_log') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">📜 View Audit Log</a>
+    </div>
+    
+    <!-- Emergency SOS High-Priority Banner -->
+    {% if emergency_alerts %}
+    <div style="background: var(--danger-light); border: 2px solid var(--danger); border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
+        <h2 style="color: var(--danger); margin-top: 0; display: flex; align-items: center; gap: 8px;">🚨 ACTIVE EMERGENCY SOS ALERTS ({{ emergency_alerts | length }})</h2>
+        <div style="display: grid; gap: 12px; margin-top: 12px;">
+            {% for sos in emergency_alerts %}
+            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong style="color: var(--danger); font-size: 1.1rem;">{{ sos.patient_name }}</strong>
+                    <div style="font-size: 0.9rem; color: var(--text-dark);">Contact Phone: <strong>{{ sos.phone }}</strong></div>
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">Alert Time: {{ sos.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                </div>
+                <a href="{{ url_for('resolve_sos', sos_id=sos.id) }}" style="padding: 8px 16px; background: var(--success); color: white; text-decoration: none; border-radius: 6px; font-weight: 700;">Mark Resolved</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Analytics Stats Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Total Patients</div>
+            <div style="font-size: 2rem; font-weight: 700; color: var(--primary); margin-top: 4px;">{{ stats.total_patients }}</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Active Doctors</div>
+            <div style="font-size: 2rem; font-weight: 700; color: var(--success); margin-top: 4px;">{{ stats.active_doctors }}</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Pending Approvals</div>
+            <div style="font-size: 2rem; font-weight: 700; color: var(--warning); margin-top: 4px;">{{ stats.pending_approvals }}</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Total Appointments</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #6d28d9; margin-top: 4px;">{{ stats.total_appointments }}</div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+            <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Completed Visits</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #0ea5e9; margin-top: 4px;">{{ stats.completed_visits }}</div>
+        </div>
+    </div>
+
+    <!-- Appointment Volume + Doctor Utilization -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Appointment Volume (Last 14 Days)</p>
+            <div id="volume-chart"></div>
+        </div>
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Busiest Doctors</p>
+            {% if top_doctors %}
+            <div style="display: grid; gap: 10px;">
+                {% for doc in top_doctors %}
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <p style="margin: 0; font-weight: 600; color: var(--text-dark); font-size: 0.9rem;">Dr. {{ doc.name }}</p>
+                    <span style="background-color: #eff6ff; color: #1e40af; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">{{ doc.count }} appt{{ 's' if doc.count != 1 else '' }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0;">No appointment data yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Doctor Verification Queue -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">⏳ Pending Doctor Approvals</h2>
+        {% if pending_doctors %}
+        <input type="text" id="doctorSearch" onkeyup="filterTable('doctorSearch', 'doctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <table id="doctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
+                    <th style="padding: 10px;">Name</th>
+                    <th style="padding: 10px;">Email</th>
+                    <th style="padding: 10px;">Specialty</th>
+                    <th style="padding: 10px; text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in pending_doctors %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.email }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
+                    <td style="padding: 12px 10px; text-align: right;">
+                        <form action="{{ url_for('verify_doctor', doctor_id=doc.id, action='approve') }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: var(--success); color: white; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
+                        </form>
+                        <form action="{{ url_for('verify_doctor', doctor_id=doc.id, action='reject') }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: var(--danger); color: white; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No pending doctor approvals.</p>
+        {% endif %}
+    </div>
+
+    <!-- Active Doctors Directory -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">👨‍⚕️ Active Doctors</h2>
+        {% if approved_doctors %}
+        <input type="text" id="activeDoctorSearch" onkeyup="filterTable('activeDoctorSearch', 'activeDoctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <table id="activeDoctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
+                    <th style="padding: 10px;">Name</th>
+                    <th style="padding: 10px;">Email</th>
+                    <th style="padding: 10px;">Specialty</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px; text-align: right;">Account Control</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in approved_doctors %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.email }}</td>
+                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
+                    <td style="padding: 12px 10px;">
+                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: var(--success-light); color: var(--success);">Approved</span>
+                    </td>
+                    <td style="padding: 12px 10px; text-align: right;">
+                        <form action="{{ url_for('toggle_user_status', user_id=doc.id) }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: var(--danger-light); color: var(--danger); border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Suspend</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No active doctors yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Patient Directory -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0;">👥 Patient Directory</h2>
+        {% if patients %}
+        <input type="text" id="patientSearch" onkeyup="filterTable('patientSearch', 'patientTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <table id="patientTable" style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
+                    <th style="padding: 10px;">Name</th>
+                    <th style="padding: 10px;">Email</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px; text-align: right;">Account Control</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in patients %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 12px 10px; font-weight: 600;">{{ p.full_name }}</td>
+                    <td style="padding: 12px 10px;">{{ p.email }}</td>
+                    <td style="padding: 12px 10px;">
+                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: {{ 'var(--success-light)' if p.status == 'approved' else 'var(--danger-light)' }}; color: {{ 'var(--success)' if p.status == 'approved' else 'var(--danger)' }};">
+                            {{ p.status | capitalize }}
+                        </span>
+                    </td>
+                    <td style="padding: 12px 10px; text-align: right;">
+                        <form action="{{ url_for('toggle_user_status', user_id=p.id) }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="padding: 6px 12px; background: {{ 'var(--danger-light)' if p.status == 'approved' else 'var(--success-light)' }}; color: {{ 'var(--danger)' if p.status == 'approved' else 'var(--success)' }}; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">
+                                {{ 'Suspend' if p.status == 'approved' else 'Activate' }}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No patients registered yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function filterTable(inputId, tableId) {
+    const query = document.getElementById(inputId).value.toLowerCase();
+    const rows = document.getElementById(tableId).getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    for (let i = 0; i < rows.length; i++) {
+        const text = rows[i].textContent.toLowerCase();
+        rows[i].style.display = text.includes(query) ? '' : 'none';
+    }
+}
+
+function drawBarChart(containerId, data) {
+    const container = document.getElementById(containerId);
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding: 20px 0;">No appointment activity yet.</p>';
+        return;
+    }
+    const width = 500;
+    const height = 160;
+    const padding = 28;
+    const maxCount = Math.max(...data.map(d => d.count), 1);
+    const barWidth = (width - padding * 2) / data.length * 0.7;
+    const gap = (width - padding * 2) / data.length;
+
+    let svg = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">`;
+    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="#e2e8f0" stroke-width="1"/>`;
+
+    data.forEach((d, i) => {
+        const barHeight = (d.count / maxCount) * (height - padding * 2 - 16);
+        const x = padding + i * gap + (gap - barWidth) / 2;
+        const y = height - padding - barHeight;
+        svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="#6d28d9" rx="2"/>`;
+        if (d.count > 0) {
+            svg += `<text x="${x + barWidth/2}" y="${y - 4}" font-size="9" fill="#6d28d9" text-anchor="middle" font-weight="700">${d.count}</text>`;
+        }
+    });
+
+    const labelIndices = data.length <= 7 ? data.map((_, i) => i) : [0, Math.floor((data.length-1)/2), data.length-1];
+    labelIndices.forEach(i => {
+        const x = padding + i * gap + gap / 2;
+        svg += `<text x="${x}" y="${height - 8}" font-size="9" fill="#94a3b8" text-anchor="middle">${data[i].date}</text>`;
+    });
+
+    svg += `</svg>`;
+    container.innerHTML = svg;
+}
+
+drawBarChart('volume-chart', {{ volume_by_day | tojson }});
+</script>
+{% endblock %}
+FILEEOF_2
+
+echo "All files written."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add app.py templates/admin.html
+git commit -m "Add admin operational stats: appointment volume chart, total/completed counts, busiest doctors"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "No database changes - pure route/template addition."

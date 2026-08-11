@@ -1,3 +1,16 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fix symptom checker tests to not need real google-genai installed ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p tests
+
+cat > tests/test_symptom_checker.py << 'TEST_EOF'
 """
 Tests for the AI-assisted symptom checker's safety properties.
 
@@ -7,17 +20,58 @@ client mimics just enough of the real google-genai response shape
 (.text, .candidates[0].finish_reason.name) for get_ai_symptom_guidance()
 to work with it exactly as it would with a real response.
 
-The fake_google_genai_types fixture that makes `from google.genai import
-types` work without the real package installed lives in conftest.py,
-shared across every test file that needs it.
+IMPORTANT: get_ai_symptom_guidance() does `from google.genai import types`
+internally to build the request config. Rather than requiring the real
+google-genai package (a heavy dependency that can be genuinely painful to
+install locally - it pulls in `cryptography`, which needs a Rust/OpenSSL
+toolchain to build from source on some systems), the fixture below injects
+a lightweight fake module into sys.modules that satisfies just that one
+import statement. This keeps the test suite fast and installable anywhere,
+since these tests never make a real API call regardless.
 
 The single most important property tested here: the AI is NEVER consulted
 for emergency-level cases, even when a working AI client is configured.
 That's what makes the emergency path safe to depend on regardless of the
 AI integration's availability or correctness.
 """
+import sys
+import types as _pytypes
+import pytest
 import app as app_module
 from conftest import login
+
+
+class _FakeGenerateContentConfig:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+class _FakeThinkingConfig:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+@pytest.fixture(autouse=True)
+def fake_google_genai_types(monkeypatch):
+    """Injects a fake google.genai.types module so `from google.genai
+    import types` succeeds inside get_ai_symptom_guidance(), without
+    needing the real google-genai package installed. Restored automatically
+    after each test via monkeypatch, regardless of whether the real package
+    is or isn't actually installed in this environment."""
+    fake_types_module = _pytypes.ModuleType('google.genai.types')
+    fake_types_module.GenerateContentConfig = _FakeGenerateContentConfig
+    fake_types_module.ThinkingConfig = _FakeThinkingConfig
+
+    fake_genai_module = _pytypes.ModuleType('google.genai')
+    fake_genai_module.types = fake_types_module
+
+    fake_google_module = _pytypes.ModuleType('google')
+    fake_google_module.genai = fake_genai_module
+
+    monkeypatch.setitem(sys.modules, 'google', fake_google_module)
+    monkeypatch.setitem(sys.modules, 'google.genai', fake_genai_module)
+    monkeypatch.setitem(sys.modules, 'google.genai.types', fake_types_module)
+    yield
 
 
 class _FakeFinishReason:
@@ -195,3 +249,22 @@ class TestTruncationAndMalformationSafety:
         log = _latest_symptom_log(patient_id)
         assert log.ai_generated is False
         assert log.guidance  # still got the rule-based fallback message
+TEST_EOF
+
+echo "Files written."
+echo ""
+echo "=== Running the full test suite ==="
+python3 -m pytest -v
+
+echo ""
+echo "=== Test run complete - should show 42 passed now, no google-genai needed ==="
+echo ""
+read -p "Press Enter to commit and push, or Ctrl+C to stop here: "
+
+git add tests/test_symptom_checker.py
+git commit -m "Fix symptom checker tests to fake google.genai.types module, avoiding the real (hard to build locally) package as a test dependency"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "Test-only fix - no change to the live app's behavior."

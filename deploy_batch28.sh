@@ -1,3 +1,16 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fix broken test helper in symptom checker tests ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p tests
+
+cat > tests/test_symptom_checker.py << 'TEST_EOF'
 """
 Tests for the AI-assisted symptom checker's safety properties.
 
@@ -6,10 +19,6 @@ no network access needed, and the tests are fully deterministic. The fake
 client mimics just enough of the real google-genai response shape
 (.text, .candidates[0].finish_reason.name) for get_ai_symptom_guidance()
 to work with it exactly as it would with a real response.
-
-The fake_google_genai_types fixture that makes `from google.genai import
-types` work without the real package installed lives in conftest.py,
-shared across every test file that needs it.
 
 The single most important property tested here: the AI is NEVER consulted
 for emergency-level cases, even when a working AI client is configured.
@@ -195,3 +204,22 @@ class TestTruncationAndMalformationSafety:
         log = _latest_symptom_log(patient_id)
         assert log.ai_generated is False
         assert log.guidance  # still got the rule-based fallback message
+TEST_EOF
+
+echo "Files written."
+echo ""
+echo "=== Running the full test suite ==="
+python3 -m pytest -v
+
+echo ""
+echo "=== Test run complete - should show 42 passed now ==="
+echo ""
+read -p "Press Enter to commit and push, or Ctrl+C to stop here: "
+
+git add tests/test_symptom_checker.py
+git commit -m "Fix test helper form-data format for symptom checker tests"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "This is a test-only fix - no change to the live app's actual behavior."

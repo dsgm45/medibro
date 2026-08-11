@@ -1,3 +1,31 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: AI-powered symptom guidance (Gemini) ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p templates migrations/versions
+
+cat > requirements.txt << 'FILEEOF_1'
+Flask==3.1.3
+Werkzeug==3.1.8
+Flask-SQLAlchemy==3.1.1
+psycopg2-binary==2.9.12
+gunicorn==26.0.0
+Flask-Bcrypt==1.0.1
+email-validator==2.3.0
+Flask-Migrate==4.0.7
+Flask-WTF==1.2.1
+fpdf2==2.7.9
+click>=8.3.3
+pillow>=12.2.0
+google-genai>=1.0.0
+FILEEOF_1
+cat > app.py << 'FILEEOF_2'
 import os
 import re
 import csv
@@ -225,16 +253,6 @@ class Medicine(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
-
-class AIChatMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    sender = db.Column(db.String(10), nullable=False)  # 'patient' or 'ai'
-    content = db.Column(db.Text, nullable=False)
-    is_crisis_response = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    patient = db.relationship('User', foreign_keys=[patient_id], backref='ai_chat_messages')
 
 class MedicineDose(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1204,9 +1222,7 @@ SYMPTOM_AI_SYSTEM_PROMPT = (
     "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
     "seek medical care promptly or contact emergency services - do not downplay it.\n"
     "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
-    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences."
+    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words."
 )
 
 def get_ai_symptom_guidance(selected_symptoms, severity, description):
@@ -1228,47 +1244,12 @@ def get_ai_symptom_guidance(selected_symptoms, severity, description):
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=SYMPTOM_AI_SYSTEM_PROMPT,
-                # On Gemini's newer "thinking" models, max_output_tokens is a
-                # COMBINED budget covering invisible reasoning tokens AND the
-                # visible answer together - not just the visible text. Without
-                # disabling thinking, the visible answer can get cut off mid-
-                # sentence because reasoning silently ate most of the budget.
-                # This task needs no multi-step reasoning, so thinking is
-                # disabled entirely and the full budget goes to the answer.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=400,
+                max_output_tokens=200,
                 temperature=0.4,
             )
         )
-
-        # Check finish_reason before trusting the text - a non-clean stop
-        # (e.g. still hit the token limit despite the above) means the
-        # response may be incomplete, and incomplete health guidance should
-        # never reach a patient - fall back to the safe rule-based message.
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini response did not finish cleanly (finish_reason={finish_reason_str}), falling back to rule-based guidance")
-                return None
-
         text = (response.text or '').strip()
-        if not text:
-            return None
-
-        # Belt-and-suspenders sanity check: a complete guidance message should
-        # end with normal punctuation and contain no stray markdown/formatting
-        # artifacts. Catches truncation or formatting issues that slip through
-        # the checks above.
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini response appears truncated (no ending punctuation), falling back to rule-based guidance")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini response contains formatting artifacts, falling back to rule-based guidance")
-            return None
-
-        return text
+        return text if text else None
     except Exception as e:
         app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
         return None
@@ -1331,164 +1312,6 @@ def symptoms():
 
     history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     return render_template('symptoms.html', symptom_options=SYMPTOM_OPTIONS, history=history)
-
-# --- AI HEALTH CHAT ---
-# An open-ended conversation is a larger safety surface than the structured
-# symptom checker, since a patient can type anything. The crisis check below
-# runs on every message BEFORE the AI is ever consulted, exactly like the
-# emergency-symptom check in the symptom checker - deterministic, never
-# dependent on the AI getting it right.
-CRISIS_KEYWORDS = [
-    # possible physical emergencies
-    'chest pain', "can't breathe", 'cant breathe', 'cannot breathe', 'difficulty breathing',
-    'severe bleeding', 'heavy bleeding', 'unconscious', 'unresponsive',
-    'overdose', 'heart attack', 'stroke', 'seizure', 'choking', 'anaphylaxis',
-    # possible mental health crisis
-    'kill myself', 'want to die', 'end my life', 'ending my life', 'suicidal', 'suicide',
-    'ending it all', "don't want to be alive", 'dont want to be alive',
-    'hurt myself', 'harm myself', 'self harm', 'self-harm',
-]
-
-CRISIS_RESPONSE_MESSAGE = (
-    "This sounds serious, and I want to make sure you get real help right now, not just "
-    "a chat response. If this is a medical emergency, please call your local emergency "
-    "number immediately. If you're thinking about suicide or self-harm, please reach out "
-    "to a crisis line right away - in the US you can call or text 988 (Suicide & Crisis "
-    "Lifeline). You can also use the SOS page in this app to alert your emergency contact. "
-    "Please don't wait to reach out."
-)
-
-AI_CHAT_SYSTEM_PROMPT = (
-    "You are a general health guidance assistant inside a patient portal called MediBro. "
-    "You can discuss general health questions and help patients think through non-urgent "
-    "concerns they describe.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If a message describes anything that could be a medical emergency or a mental "
-    "health crisis, tell the patient clearly to seek emergency care or a crisis line "
-    "immediately - do not attempt to handle it yourself.\n"
-    "- If asked something unrelated to health, politely redirect to health topics - this "
-    "chat is for health guidance only.\n"
-    "- Encourage booking an appointment with a doctor for anything that needs real "
-    "follow-up or hasn't improved.\n"
-    "- Keep the tone calm, warm, and clear. No medical jargon.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences.\n"
-    "- Keep responses concise - usually 2-5 sentences, appropriate for a chat "
-    "conversation, not a long essay."
-)
-
-AI_CHAT_HISTORY_LIMIT = 10
-AI_CHAT_FALLBACK_MESSAGE = (
-    "I'm having trouble responding right now. Please try again in a moment, or reach out "
-    "to your doctor if this is something you'd like to discuss soon."
-)
-
-def detect_crisis(text):
-    lowered = text.lower()
-    return any(kw in lowered for kw in CRISIS_KEYWORDS)
-
-def get_ai_chat_response(prior_messages, new_message_text):
-    """prior_messages: list of AIChatMessage, oldest to newest, NOT including
-    the new message. Returns AI response text, or None if unavailable/failed
-    - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
-    detect_crisis() has already matched; that's handled deterministically
-    before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-
-        history_contents = []
-        for msg in prior_messages:
-            role = 'user' if msg.sender == 'patient' else 'model'
-            history_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
-        history_contents.append(types.Content(role='user', parts=[types.Part.from_text(text=new_message_text)]))
-
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=history_contents,
-            config=types.GenerateContentConfig(
-                system_instruction=AI_CHAT_SYSTEM_PROMPT,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=500,
-                temperature=0.5,
-            )
-        )
-
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini chat response did not finish cleanly (finish_reason={finish_reason_str}), using fallback")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini chat response appears truncated, using fallback")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini chat response contains formatting artifacts, using fallback")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini chat response failed, using fallback: {e}")
-        return None
-
-@app.route('/ai-chat', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def ai_chat():
-    patient_id = session.get('user_id')
-
-    if request.method == 'POST':
-        user_message = request.form.get('message', '').strip()
-        if not user_message:
-            flash('Please enter a message.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        # Fetch history BEFORE saving the new message, so it isn't duplicated
-        # when passed to get_ai_chat_response() alongside the new message.
-        prior_messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(
-            AIChatMessage.created_at.desc()
-        ).limit(AI_CHAT_HISTORY_LIMIT).all()
-        prior_messages = list(reversed(prior_messages))
-
-        try:
-            patient_msg = AIChatMessage(patient_id=patient_id, sender='patient', content=user_message)
-            db.session.add(patient_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save patient message error: {e}")
-            flash('Error sending message. Please try again.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        if detect_crisis(user_message):
-            reply_text = CRISIS_RESPONSE_MESSAGE
-            is_crisis = True
-        else:
-            ai_reply = get_ai_chat_response(prior_messages, user_message)
-            reply_text = ai_reply if ai_reply else AI_CHAT_FALLBACK_MESSAGE
-            is_crisis = False
-
-        try:
-            ai_msg = AIChatMessage(patient_id=patient_id, sender='ai', content=reply_text, is_crisis_response=is_crisis)
-            db.session.add(ai_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save reply error: {e}")
-
-        return redirect(url_for('ai_chat'))
-
-    messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(AIChatMessage.created_at.asc()).all()
-    return render_template('ai_chat.html', messages=messages)
 
 @app.route('/sos', methods=['GET', 'POST'])
 @login_required
@@ -1830,3 +1653,161 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+FILEEOF_2
+cat > templates/symptoms.html << 'FILEEOF_3'
+{% extends "base.html" %}
+{% block title %}Symptom Checker - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}" class="active">🩺 Symptom Checker</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="sidebar-logout">🚪 Log Out</button>
+        </form>
+    </aside>
+
+    <main class="patient-main">
+    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Symptom Checker</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Log your symptoms and get basic guidance</p>
+        </div>
+        <a href="{{ url_for('patient_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Portal</a>
+    </div>
+
+    <div style="background-color: var(--warning-light, #fef3c7); border: 1px solid #fde68a; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 24px; color: #92400e; font-size: 0.85rem;">
+        &#9888; This tool gives general guidance only and is not a medical diagnosis. If you believe you are having a medical emergency, use the SOS page or call your local emergency number immediately.
+    </div>
+
+    <!-- Log Symptoms -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">🩺 What are you experiencing?</h2>
+        <form action="{{ url_for('symptoms') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 10px;">Select any symptoms that apply</label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    {% for symptom in symptom_options %}
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; color: var(--text-dark); cursor: pointer;">
+                        <input type="checkbox" name="symptoms" value="{{ symptom }}">
+                        {{ symptom }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Severity</label>
+                    <select name="severity" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface); font-size: 0.95rem; color: var(--text-dark);">
+                        <option value="mild">Mild</option>
+                        <option value="moderate">Moderate</option>
+                        <option value="severe">Severe</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Additional details (optional)</label>
+                    <input type="text" name="description" placeholder="e.g. Started 2 days ago, worse at night" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Check Symptoms</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- History -->
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">📋 Recent Logs</h2>
+        {% if history %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                        <th style="padding: 12px 10px;">Date</th>
+                        <th style="padding: 12px 10px;">Symptoms</th>
+                        <th style="padding: 12px 10px;">Severity</th>
+                        <th style="padding: 12px 10px;">Guidance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in history %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 14px 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 14px 10px; color: var(--text-dark); font-weight: 600;">{{ log.symptoms }}</td>
+                        <td style="padding: 14px 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
+                        <td style="padding: 14px 10px; color: var(--text-sub);">
+                            {{ log.guidance }}
+                            {% if log.ai_generated %}<span style="display: inline-block; margin-left: 6px; background-color: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; vertical-align: middle;">🤖 AI-assisted</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No symptoms logged yet.</p>
+        {% endif %}
+    </div>
+</main>
+</div>
+{% endblock %}
+FILEEOF_3
+cat > migrations/versions/0004_ai_symptom.py << 'FILEEOF_4'
+"""add ai_generated flag to symptom_log
+
+Revision ID: ai_symptom_v1
+Revises: multi_contact_v1
+Create Date: 2026-08-10
+
+Adds a flag tracking whether a symptom log's guidance came from the AI
+integration or the rule-based fallback, for transparency in the UI.
+"""
+from alembic import op
+import sqlalchemy as sa
+
+revision = 'ai_symptom_v1'
+down_revision = 'multi_contact_v1'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    op.add_column('symptom_log', sa.Column('ai_generated', sa.Boolean(), nullable=False, server_default=sa.false()))
+
+
+def downgrade():
+    op.drop_column('symptom_log', 'ai_generated')
+FILEEOF_4
+
+echo "All files written."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+echo "IMPORTANT: Before this AI feature will actually work, you need to add"
+echo "your Gemini API key to Render:"
+echo "  1. Go to your Render dashboard -> your service -> Environment"
+echo "  2. Add a new environment variable: GEMINI_API_KEY = <your key from aistudio.google.com>"
+echo "  3. Save - Render will automatically redeploy"
+echo ""
+echo "Until that's set, the symptom checker keeps working exactly as before"
+echo "(rule-based guidance) - this feature fails gracefully, not loudly."
+echo ""
+read -p "Press Enter to commit and push now (or Ctrl+C to stop and test first): "
+
+git add requirements.txt app.py templates/symptoms.html migrations/versions/0004_ai_symptom.py
+git commit -m "Add AI-powered symptom guidance via Gemini, with deterministic emergency detection and rule-based fallback"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "Don't forget to add GEMINI_API_KEY as described above if you haven't yet."

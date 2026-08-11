@@ -1,3 +1,14 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fix AI symptom guidance truncation bug ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+cat > app.py << 'APP_PY_EOF'
 import os
 import re
 import csv
@@ -225,16 +236,6 @@ class Medicine(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
-
-class AIChatMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    sender = db.Column(db.String(10), nullable=False)  # 'patient' or 'ai'
-    content = db.Column(db.Text, nullable=False)
-    is_crisis_response = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    patient = db.relationship('User', foreign_keys=[patient_id], backref='ai_chat_messages')
 
 class MedicineDose(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1332,164 +1333,6 @@ def symptoms():
     history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     return render_template('symptoms.html', symptom_options=SYMPTOM_OPTIONS, history=history)
 
-# --- AI HEALTH CHAT ---
-# An open-ended conversation is a larger safety surface than the structured
-# symptom checker, since a patient can type anything. The crisis check below
-# runs on every message BEFORE the AI is ever consulted, exactly like the
-# emergency-symptom check in the symptom checker - deterministic, never
-# dependent on the AI getting it right.
-CRISIS_KEYWORDS = [
-    # possible physical emergencies
-    'chest pain', "can't breathe", 'cant breathe', 'cannot breathe', 'difficulty breathing',
-    'severe bleeding', 'heavy bleeding', 'unconscious', 'unresponsive',
-    'overdose', 'heart attack', 'stroke', 'seizure', 'choking', 'anaphylaxis',
-    # possible mental health crisis
-    'kill myself', 'want to die', 'end my life', 'ending my life', 'suicidal', 'suicide',
-    'ending it all', "don't want to be alive", 'dont want to be alive',
-    'hurt myself', 'harm myself', 'self harm', 'self-harm',
-]
-
-CRISIS_RESPONSE_MESSAGE = (
-    "This sounds serious, and I want to make sure you get real help right now, not just "
-    "a chat response. If this is a medical emergency, please call your local emergency "
-    "number immediately. If you're thinking about suicide or self-harm, please reach out "
-    "to a crisis line right away - in the US you can call or text 988 (Suicide & Crisis "
-    "Lifeline). You can also use the SOS page in this app to alert your emergency contact. "
-    "Please don't wait to reach out."
-)
-
-AI_CHAT_SYSTEM_PROMPT = (
-    "You are a general health guidance assistant inside a patient portal called MediBro. "
-    "You can discuss general health questions and help patients think through non-urgent "
-    "concerns they describe.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If a message describes anything that could be a medical emergency or a mental "
-    "health crisis, tell the patient clearly to seek emergency care or a crisis line "
-    "immediately - do not attempt to handle it yourself.\n"
-    "- If asked something unrelated to health, politely redirect to health topics - this "
-    "chat is for health guidance only.\n"
-    "- Encourage booking an appointment with a doctor for anything that needs real "
-    "follow-up or hasn't improved.\n"
-    "- Keep the tone calm, warm, and clear. No medical jargon.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences.\n"
-    "- Keep responses concise - usually 2-5 sentences, appropriate for a chat "
-    "conversation, not a long essay."
-)
-
-AI_CHAT_HISTORY_LIMIT = 10
-AI_CHAT_FALLBACK_MESSAGE = (
-    "I'm having trouble responding right now. Please try again in a moment, or reach out "
-    "to your doctor if this is something you'd like to discuss soon."
-)
-
-def detect_crisis(text):
-    lowered = text.lower()
-    return any(kw in lowered for kw in CRISIS_KEYWORDS)
-
-def get_ai_chat_response(prior_messages, new_message_text):
-    """prior_messages: list of AIChatMessage, oldest to newest, NOT including
-    the new message. Returns AI response text, or None if unavailable/failed
-    - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
-    detect_crisis() has already matched; that's handled deterministically
-    before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-
-        history_contents = []
-        for msg in prior_messages:
-            role = 'user' if msg.sender == 'patient' else 'model'
-            history_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
-        history_contents.append(types.Content(role='user', parts=[types.Part.from_text(text=new_message_text)]))
-
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=history_contents,
-            config=types.GenerateContentConfig(
-                system_instruction=AI_CHAT_SYSTEM_PROMPT,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=500,
-                temperature=0.5,
-            )
-        )
-
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini chat response did not finish cleanly (finish_reason={finish_reason_str}), using fallback")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini chat response appears truncated, using fallback")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini chat response contains formatting artifacts, using fallback")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini chat response failed, using fallback: {e}")
-        return None
-
-@app.route('/ai-chat', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def ai_chat():
-    patient_id = session.get('user_id')
-
-    if request.method == 'POST':
-        user_message = request.form.get('message', '').strip()
-        if not user_message:
-            flash('Please enter a message.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        # Fetch history BEFORE saving the new message, so it isn't duplicated
-        # when passed to get_ai_chat_response() alongside the new message.
-        prior_messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(
-            AIChatMessage.created_at.desc()
-        ).limit(AI_CHAT_HISTORY_LIMIT).all()
-        prior_messages = list(reversed(prior_messages))
-
-        try:
-            patient_msg = AIChatMessage(patient_id=patient_id, sender='patient', content=user_message)
-            db.session.add(patient_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save patient message error: {e}")
-            flash('Error sending message. Please try again.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        if detect_crisis(user_message):
-            reply_text = CRISIS_RESPONSE_MESSAGE
-            is_crisis = True
-        else:
-            ai_reply = get_ai_chat_response(prior_messages, user_message)
-            reply_text = ai_reply if ai_reply else AI_CHAT_FALLBACK_MESSAGE
-            is_crisis = False
-
-        try:
-            ai_msg = AIChatMessage(patient_id=patient_id, sender='ai', content=reply_text, is_crisis_response=is_crisis)
-            db.session.add(ai_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save reply error: {e}")
-
-        return redirect(url_for('ai_chat'))
-
-    messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(AIChatMessage.created_at.asc()).all()
-    return render_template('ai_chat.html', messages=messages)
-
 @app.route('/sos', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -1830,3 +1673,21 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+APP_PY_EOF
+
+echo "app.py updated."
+echo ""
+echo "=== git status ==="
+git status
+
+echo ""
+read -p "Press Enter to commit and push, or Ctrl+C to stop here: "
+
+git add app.py
+git commit -m "Fix AI symptom guidance truncation: disable thinking tokens eating the output budget, add finish_reason check and sanity checks against malformed/truncated responses"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "Re-test the same way as before: Symptom Checker -> non-emergency symptom"
+echo "-> check for a complete, coherent AI-assisted response in Recent Logs."

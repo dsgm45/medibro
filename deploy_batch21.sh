@@ -1,3 +1,16 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Fix password hashing compatibility (scrypt -> pbkdf2:sha256) ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p tests
+
+cat > app.py << 'FILEEOF_1'
 import os
 import re
 import csv
@@ -46,22 +59,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300
 }
-
-# --- AI SYMPTOM GUIDANCE (Gemini) ---
-# Entirely optional: if GEMINI_API_KEY isn't set, the app runs exactly as
-# before with rule-based guidance only. The AI layer only ever supplements
-# the non-emergency guidance messages - the emergency-symptom detection
-# below is deterministic and never depends on this being available.
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.6-flash')
-gemini_client = None
-if GEMINI_API_KEY:
-    try:
-        from google import genai
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Gemini client setup failed, AI guidance disabled: {e}")
 
 # Session cookie hardening. SESSION_COOKIE_SECURE is left off automatically
 # for local development (where requests are plain HTTP), but forced on when
@@ -170,7 +167,6 @@ class SymptomLog(db.Model):
     severity = db.Column(db.String(20), nullable=False, default='mild')
     description = db.Column(db.Text, nullable=True)
     guidance = db.Column(db.Text, nullable=True)
-    ai_generated = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='symptom_logs')
@@ -225,16 +221,6 @@ class Medicine(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
-
-class AIChatMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    sender = db.Column(db.String(10), nullable=False)  # 'patient' or 'ai'
-    content = db.Column(db.Text, nullable=False)
-    is_crisis_response = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    patient = db.relationship('User', foreign_keys=[patient_id], backref='ai_chat_messages')
 
 class MedicineDose(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -528,7 +514,7 @@ def _pdf_safe_text(value):
 @login_required
 @role_required('patient')
 def export_health_pdf():
-    patient = db.get_or_404(User, session.get('user_id'))
+    patient = User.query.get_or_404(session.get('user_id'))
     patient_id = patient.id
 
     vitals = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(10).all()
@@ -715,7 +701,7 @@ def book_appointment():
 @role_required('patient')
 def cancel_appointment(app_id):
     try:
-        appt = db.get_or_404(Appointment, app_id)
+        appt = Appointment.query.get_or_404(app_id)
         if appt.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('patient_dashboard'))
@@ -738,7 +724,7 @@ def cancel_appointment(app_id):
 @role_required('doctor')
 def doctor_dashboard():
     doctor_id = session.get('user_id')
-    doctor = db.get_or_404(User, doctor_id)
+    doctor = User.query.get_or_404(doctor_id)
     appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(
         Appointment.appointment_date.desc(), Appointment.appointment_time.asc()
     ).all()
@@ -755,7 +741,7 @@ def doctor_dashboard():
 @role_required('doctor')
 def handle_appointment(app_id, action):
     try:
-        appt = db.get_or_404(Appointment, app_id)
+        appt = Appointment.query.get_or_404(app_id)
         if appt.doctor_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('doctor_dashboard'))
@@ -779,7 +765,7 @@ def handle_appointment(app_id, action):
 @login_required
 @role_required('doctor')
 def complete_appointment(app_id):
-    appt = db.get_or_404(Appointment, app_id)
+    appt = Appointment.query.get_or_404(app_id)
     if appt.doctor_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('doctor_dashboard'))
@@ -812,7 +798,7 @@ def complete_appointment(app_id):
 @login_required
 @role_required('patient')
 def appointment_summary(app_id):
-    appt = db.get_or_404(Appointment, app_id)
+    appt = Appointment.query.get_or_404(app_id)
     if appt.patient_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('patient_dashboard'))
@@ -827,7 +813,7 @@ def appointment_summary(app_id):
 @role_required('doctor')
 def request_follow_up(app_id):
     try:
-        appt = db.get_or_404(Appointment, app_id)
+        appt = Appointment.query.get_or_404(app_id)
         if appt.doctor_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('doctor_dashboard'))
@@ -849,7 +835,7 @@ def request_follow_up(app_id):
 @login_required
 @role_required('doctor')
 def doctor_profile():
-    doctor = db.get_or_404(User, session.get('user_id'))
+    doctor = User.query.get_or_404(session.get('user_id'))
 
     if request.method == 'POST':
         specialty = request.form.get('specialty', '').strip()
@@ -884,7 +870,7 @@ def view_patient_history(patient_id):
         flash('You can only view history for patients who have booked with you.', 'error')
         return redirect(url_for('doctor_dashboard'))
 
-    patient = db.get_or_404(User, patient_id)
+    patient = User.query.get_or_404(patient_id)
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
@@ -934,7 +920,7 @@ def chat_thread(appointment_id):
     user_id = session.get('user_id')
     role = session.get('role')
 
-    appt = db.get_or_404(Appointment, appointment_id)
+    appt = Appointment.query.get_or_404(appointment_id)
 
     if role == 'patient' and appt.patient_id != user_id:
         flash('Unauthorized action.', 'error')
@@ -990,7 +976,7 @@ def admin_dashboard():
     doctor_counts = Counter(row.doctor_id for row in appointment_rows)
     top_doctors = []
     for doc_id, count in doctor_counts.most_common(5):
-        doc = db.session.get(User, doc_id)
+        doc = User.query.get(doc_id)
         if doc:
             top_doctors.append({'name': doc.full_name, 'count': count})
 
@@ -1067,7 +1053,7 @@ def export_audit_log_csv():
 @role_required('hospital', 'admin')
 def verify_doctor(doctor_id, action):
     try:
-        doctor = db.get_or_404(User, doctor_id)
+        doctor = User.query.get_or_404(doctor_id)
         if action == 'approve':
             doctor.status = 'approved'
             flash(f'Doctor {doctor.full_name} approved successfully!', 'success')
@@ -1094,7 +1080,7 @@ def verify_doctor(doctor_id, action):
 @role_required('hospital', 'admin')
 def toggle_user_status(user_id):
     try:
-        user = db.get_or_404(User, user_id)
+        user = User.query.get_or_404(user_id)
         if user.role not in ['hospital', 'admin']:
             if user.status == 'approved':
                 user.status = 'suspended'
@@ -1194,85 +1180,6 @@ SYMPTOM_OPTIONS = [
 ]
 EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
 
-SYMPTOM_AI_SYSTEM_PROMPT = (
-    "You are a cautious health-guidance assistant inside a patient portal called MediBro. "
-    "A patient has logged symptoms below. Give brief, general guidance in 2-4 short sentences "
-    "on sensible next steps.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
-    "seek medical care promptly or contact emergency services - do not downplay it.\n"
-    "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
-    "- Keep the tone calm and clear. No medical jargon. Keep the whole response under 80 words.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences."
-)
-
-def get_ai_symptom_guidance(selected_symptoms, severity, description):
-    """Returns AI-generated guidance text, or None if the AI is unavailable
-    or the call fails for any reason - callers must fall back to the
-    rule-based guidance in that case. Never called for emergency-level
-    cases; those are handled deterministically before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-        symptoms_text = ', '.join(selected_symptoms) if selected_symptoms else 'none selected'
-        user_prompt = (
-            f"Symptoms: {symptoms_text}. Severity: {severity}. "
-            f"Additional details from patient: {description or 'none provided'}."
-        )
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYMPTOM_AI_SYSTEM_PROMPT,
-                # On Gemini's newer "thinking" models, max_output_tokens is a
-                # COMBINED budget covering invisible reasoning tokens AND the
-                # visible answer together - not just the visible text. Without
-                # disabling thinking, the visible answer can get cut off mid-
-                # sentence because reasoning silently ate most of the budget.
-                # This task needs no multi-step reasoning, so thinking is
-                # disabled entirely and the full budget goes to the answer.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=400,
-                temperature=0.4,
-            )
-        )
-
-        # Check finish_reason before trusting the text - a non-clean stop
-        # (e.g. still hit the token limit despite the above) means the
-        # response may be incomplete, and incomplete health guidance should
-        # never reach a patient - fall back to the safe rule-based message.
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini response did not finish cleanly (finish_reason={finish_reason_str}), falling back to rule-based guidance")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-
-        # Belt-and-suspenders sanity check: a complete guidance message should
-        # end with normal punctuation and contain no stray markdown/formatting
-        # artifacts. Catches truncation or formatting issues that slip through
-        # the checks above.
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini response appears truncated (no ending punctuation), falling back to rule-based guidance")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini response contains formatting artifacts, falling back to rule-based guidance")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
-        return None
-
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -1289,26 +1196,18 @@ def symptoms():
             return redirect(url_for('symptoms'))
 
         has_emergency_symptom = any(s in EMERGENCY_SYMPTOMS for s in selected)
-        ai_generated = False
-
         if has_emergency_symptom or severity == 'severe':
             guidance = ('This could be serious. Please seek emergency care immediately '
                         'or call your local emergency number. Do not wait.')
             flash_category = 'error'
+        elif severity == 'moderate' or len(selected) >= 3:
+            guidance = ('Your symptoms may need medical attention. Please book an '
+                        'appointment with a doctor soon.')
+            flash_category = 'error'
         else:
-            ai_guidance = get_ai_symptom_guidance(selected, severity, description)
-            if ai_guidance:
-                guidance = ai_guidance
-                ai_generated = True
-                flash_category = 'error' if (severity == 'moderate' or len(selected) >= 3) else 'success'
-            elif severity == 'moderate' or len(selected) >= 3:
-                guidance = ('Your symptoms may need medical attention. Please book an '
-                            'appointment with a doctor soon.')
-                flash_category = 'error'
-            else:
-                guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
-                            'appointment if things worsen or persist beyond a few days.')
-                flash_category = 'success'
+            guidance = ('Monitor your symptoms, rest, and stay hydrated. Book an '
+                        'appointment if things worsen or persist beyond a few days.')
+            flash_category = 'success'
 
         try:
             entry = SymptomLog(
@@ -1316,8 +1215,7 @@ def symptoms():
                 symptoms=', '.join(selected) if selected else 'Not specified',
                 severity=severity,
                 description=description,
-                guidance=guidance,
-                ai_generated=ai_generated
+                guidance=guidance
             )
             db.session.add(entry)
             db.session.commit()
@@ -1331,164 +1229,6 @@ def symptoms():
 
     history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     return render_template('symptoms.html', symptom_options=SYMPTOM_OPTIONS, history=history)
-
-# --- AI HEALTH CHAT ---
-# An open-ended conversation is a larger safety surface than the structured
-# symptom checker, since a patient can type anything. The crisis check below
-# runs on every message BEFORE the AI is ever consulted, exactly like the
-# emergency-symptom check in the symptom checker - deterministic, never
-# dependent on the AI getting it right.
-CRISIS_KEYWORDS = [
-    # possible physical emergencies
-    'chest pain', "can't breathe", 'cant breathe', 'cannot breathe', 'difficulty breathing',
-    'severe bleeding', 'heavy bleeding', 'unconscious', 'unresponsive',
-    'overdose', 'heart attack', 'stroke', 'seizure', 'choking', 'anaphylaxis',
-    # possible mental health crisis
-    'kill myself', 'want to die', 'end my life', 'ending my life', 'suicidal', 'suicide',
-    'ending it all', "don't want to be alive", 'dont want to be alive',
-    'hurt myself', 'harm myself', 'self harm', 'self-harm',
-]
-
-CRISIS_RESPONSE_MESSAGE = (
-    "This sounds serious, and I want to make sure you get real help right now, not just "
-    "a chat response. If this is a medical emergency, please call your local emergency "
-    "number immediately. If you're thinking about suicide or self-harm, please reach out "
-    "to a crisis line right away - in the US you can call or text 988 (Suicide & Crisis "
-    "Lifeline). You can also use the SOS page in this app to alert your emergency contact. "
-    "Please don't wait to reach out."
-)
-
-AI_CHAT_SYSTEM_PROMPT = (
-    "You are a general health guidance assistant inside a patient portal called MediBro. "
-    "You can discuss general health questions and help patients think through non-urgent "
-    "concerns they describe.\n\n"
-    "Strict rules:\n"
-    "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
-    "- If a message describes anything that could be a medical emergency or a mental "
-    "health crisis, tell the patient clearly to seek emergency care or a crisis line "
-    "immediately - do not attempt to handle it yourself.\n"
-    "- If asked something unrelated to health, politely redirect to health topics - this "
-    "chat is for health guidance only.\n"
-    "- Encourage booking an appointment with a doctor for anything that needs real "
-    "follow-up or hasn't improved.\n"
-    "- Keep the tone calm, warm, and clear. No medical jargon.\n"
-    "- Write in plain prose only: no markdown, no asterisks, no bullet points, no headers. "
-    "Just complete, ordinary sentences.\n"
-    "- Keep responses concise - usually 2-5 sentences, appropriate for a chat "
-    "conversation, not a long essay."
-)
-
-AI_CHAT_HISTORY_LIMIT = 10
-AI_CHAT_FALLBACK_MESSAGE = (
-    "I'm having trouble responding right now. Please try again in a moment, or reach out "
-    "to your doctor if this is something you'd like to discuss soon."
-)
-
-def detect_crisis(text):
-    lowered = text.lower()
-    return any(kw in lowered for kw in CRISIS_KEYWORDS)
-
-def get_ai_chat_response(prior_messages, new_message_text):
-    """prior_messages: list of AIChatMessage, oldest to newest, NOT including
-    the new message. Returns AI response text, or None if unavailable/failed
-    - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
-    detect_crisis() has already matched; that's handled deterministically
-    before this is reached."""
-    if not gemini_client:
-        return None
-    try:
-        from google.genai import types
-
-        history_contents = []
-        for msg in prior_messages:
-            role = 'user' if msg.sender == 'patient' else 'model'
-            history_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=msg.content)]))
-        history_contents.append(types.Content(role='user', parts=[types.Part.from_text(text=new_message_text)]))
-
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=history_contents,
-            config=types.GenerateContentConfig(
-                system_instruction=AI_CHAT_SYSTEM_PROMPT,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=500,
-                temperature=0.5,
-            )
-        )
-
-        candidates = getattr(response, 'candidates', None)
-        if candidates:
-            finish_reason = getattr(candidates[0], 'finish_reason', None)
-            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
-            if finish_reason_str and finish_reason_str != 'STOP':
-                app.logger.warning(f"Gemini chat response did not finish cleanly (finish_reason={finish_reason_str}), using fallback")
-                return None
-
-        text = (response.text or '').strip()
-        if not text:
-            return None
-        if text[-1] not in '.!?':
-            app.logger.warning("Gemini chat response appears truncated, using fallback")
-            return None
-        if '**' in text or '##' in text or text.lstrip().startswith('*'):
-            app.logger.warning("Gemini chat response contains formatting artifacts, using fallback")
-            return None
-
-        return text
-    except Exception as e:
-        app.logger.warning(f"Gemini chat response failed, using fallback: {e}")
-        return None
-
-@app.route('/ai-chat', methods=['GET', 'POST'])
-@login_required
-@role_required('patient')
-def ai_chat():
-    patient_id = session.get('user_id')
-
-    if request.method == 'POST':
-        user_message = request.form.get('message', '').strip()
-        if not user_message:
-            flash('Please enter a message.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        # Fetch history BEFORE saving the new message, so it isn't duplicated
-        # when passed to get_ai_chat_response() alongside the new message.
-        prior_messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(
-            AIChatMessage.created_at.desc()
-        ).limit(AI_CHAT_HISTORY_LIMIT).all()
-        prior_messages = list(reversed(prior_messages))
-
-        try:
-            patient_msg = AIChatMessage(patient_id=patient_id, sender='patient', content=user_message)
-            db.session.add(patient_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save patient message error: {e}")
-            flash('Error sending message. Please try again.', 'error')
-            return redirect(url_for('ai_chat'))
-
-        if detect_crisis(user_message):
-            reply_text = CRISIS_RESPONSE_MESSAGE
-            is_crisis = True
-        else:
-            ai_reply = get_ai_chat_response(prior_messages, user_message)
-            reply_text = ai_reply if ai_reply else AI_CHAT_FALLBACK_MESSAGE
-            is_crisis = False
-
-        try:
-            ai_msg = AIChatMessage(patient_id=patient_id, sender='ai', content=reply_text, is_crisis_response=is_crisis)
-            db.session.add(ai_msg)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"AI chat save reply error: {e}")
-
-        return redirect(url_for('ai_chat'))
-
-    messages = AIChatMessage.query.filter_by(patient_id=patient_id).order_by(AIChatMessage.created_at.asc()).all()
-    return render_template('ai_chat.html', messages=messages)
 
 @app.route('/sos', methods=['GET', 'POST'])
 @login_required
@@ -1548,7 +1288,7 @@ def sos():
 @role_required('patient')
 def delete_emergency_contact(contact_id):
     try:
-        contact = db.get_or_404(EmergencyContact, contact_id)
+        contact = EmergencyContact.query.get_or_404(contact_id)
         if contact.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('sos'))
@@ -1655,7 +1395,7 @@ def medicines():
 @login_required
 @role_required('patient')
 def edit_medicine(med_id):
-    med = db.get_or_404(Medicine, med_id)
+    med = Medicine.query.get_or_404(med_id)
     if med.patient_id != session.get('user_id'):
         flash('Unauthorized action.', 'error')
         return redirect(url_for('medicines'))
@@ -1714,7 +1454,7 @@ def edit_medicine(med_id):
 @role_required('patient')
 def delete_medicine(med_id):
     try:
-        med = db.get_or_404(Medicine, med_id)
+        med = Medicine.query.get_or_404(med_id)
         if med.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1732,7 +1472,7 @@ def delete_medicine(med_id):
 @role_required('patient')
 def delete_dose(dose_id):
     try:
-        dose = db.get_or_404(MedicineDose, dose_id)
+        dose = MedicineDose.query.get_or_404(dose_id)
         if dose.medicine.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1752,7 +1492,7 @@ def delete_dose(dose_id):
 @role_required('patient')
 def toggle_dose_taken(dose_id):
     try:
-        dose = db.get_or_404(MedicineDose, dose_id)
+        dose = MedicineDose.query.get_or_404(dose_id)
         if dose.medicine.patient_id != session.get('user_id'):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
@@ -1784,7 +1524,7 @@ def profile():
         new_password = request.form.get('new_password', '')
         confirm_password = request.form.get('confirm_password', '')
 
-        user = db.session.get(User, session.get('user_id'))
+        user = User.query.get(session.get('user_id'))
 
         if not user or not check_password_hash(user.password_hash, current_password):
             flash('Current password is incorrect.', 'error')
@@ -1830,3 +1570,132 @@ def internal_error(e):
 
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true')
+FILEEOF_1
+cat > tests/conftest.py << 'FILEEOF_2'
+"""
+Shared pytest fixtures for the MediBro test suite.
+
+IMPORTANT ARCHITECTURAL NOTE: app.py does not use an application factory
+pattern - it creates the Flask app, database connection, and runs
+init_db()/run_migrations() as side effects at import time, reading
+DATABASE_URL from the environment as it does. That means environment
+variables must be set BEFORE app.py is imported, which is why this file
+sets them at module level before the `import app` statement below, rather
+than inside a fixture (fixtures run too late - after collection/import).
+
+Each test gets a clean database via the autouse `reset_database` fixture,
+which drops and recreates all tables before every test function. This
+bypasses Alembic entirely (drop_all/create_all, not migrations) which is
+fine for a throwaway test database - we only care about matching the
+current models, not migration history.
+"""
+import os
+import sys
+import tempfile
+from pathlib import Path
+import pytest
+
+# tests/ is a subdirectory of the project root, where app.py lives. Depending
+# on pytest's import mode, the project root isn't guaranteed to be on
+# sys.path automatically just because conftest.py is here - so this is made
+# explicit rather than relying on pytest's internal behavior.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# --- Set environment BEFORE importing app ---
+_db_fd, _db_path = tempfile.mkstemp(suffix='.db')
+os.environ['DATABASE_URL'] = f'sqlite:///{_db_path}'
+os.environ['SECRET_KEY'] = 'test-secret-key-not-for-production-use'
+os.environ['ADMIN_INITIAL_PASSWORD'] = 'TestAdminPass1'
+
+import app as app_module  # noqa: E402
+from werkzeug.security import generate_password_hash  # noqa: E402
+
+
+@pytest.fixture(scope='session', autouse=True)
+def _configure_app():
+    app_module.app.config['TESTING'] = True
+    app_module.app.config['WTF_CSRF_ENABLED'] = False
+    yield
+    try:
+        os.close(_db_fd)
+        os.unlink(_db_path)
+    except OSError:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def reset_database():
+    """Fresh schema before every test. Order matters for FK constraints,
+    which is why drop_all/create_all (which handles dependency order
+    internally) is used rather than manually deleting rows table by table."""
+    with app_module.app.app_context():
+        app_module.db.drop_all()
+        app_module.db.create_all()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limits():
+    """LOGIN_ATTEMPTS and REGISTER_ATTEMPTS are module-level in-memory
+    dicts that persist for the life of the process - they are NOT reset by
+    reset_database, since that only touches the database. Without this,
+    tests that make several requests from the same fake test-client
+    IP/email (which is most of them) would start failing for the wrong
+    reason once enough tests have run to trip the rate limiter."""
+    app_module.LOGIN_ATTEMPTS.clear()
+    app_module.REGISTER_ATTEMPTS.clear()
+    yield
+
+
+@pytest.fixture
+def client():
+    with app_module.app.test_client() as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def make_user():
+    """Factory fixture: create a user directly via the ORM, bypassing the
+    registration route/validation, for tests that need a user to already
+    exist rather than testing registration itself."""
+    def _make_user(email, password, role='patient', status='approved', full_name='Test User', **kwargs):
+        with app_module.app.app_context():
+            user = app_module.User(
+                email=email,
+                password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
+                role=role,
+                full_name=full_name,
+                status=status,
+                **kwargs
+            )
+            app_module.db.session.add(user)
+            app_module.db.session.commit()
+            return user.id
+    return _make_user
+
+
+def login(client, email, password):
+    return client.post('/login', data={'email': email, 'password': password}, follow_redirects=False)
+FILEEOF_2
+
+echo "Files written."
+echo ""
+echo "=== Re-running the test suite ==="
+echo ""
+
+python3 -m pytest -v
+
+echo ""
+echo "=== Test run complete - see results above ==="
+echo "If everything passes now, press Enter to commit and push to your live"
+echo "site (this also fixes password hashing there, though Render's Python"
+echo "never had the scrypt problem - it's a real improvement either way)."
+echo ""
+read -p "Press Enter to commit and push, or Ctrl+C to stop here: "
+
+git add app.py tests/conftest.py
+git commit -m "Fix password hashing to use pbkdf2:sha256 explicitly for broader Python build compatibility"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="

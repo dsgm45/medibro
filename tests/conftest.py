@@ -18,6 +18,7 @@ current models, not migration history.
 import os
 import sys
 import tempfile
+import types as _pytypes
 from pathlib import Path
 import pytest
 
@@ -102,3 +103,52 @@ def make_user():
 
 def login(client, email, password):
     return client.post('/login', data={'email': email, 'password': password}, follow_redirects=False)
+
+
+class _FakeGenerateContentConfig:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+class _FakeThinkingConfig:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
+class _FakePart:
+    @staticmethod
+    def from_text(text=''):
+        return {'text': text}
+
+
+class _FakeContent:
+    def __init__(self, role=None, parts=None):
+        self.role = role
+        self.parts = parts
+
+
+@pytest.fixture(autouse=True)
+def fake_google_genai_types(monkeypatch):
+    """Injects a fake google.genai.types module so `from google.genai
+    import types` succeeds inside any AI-calling code, without needing the
+    real google-genai package installed. It's a heavy dependency (pulls in
+    `cryptography`, which needs a Rust/OpenSSL toolchain to build from
+    source on some systems) and none of these tests make a real API call
+    anyway, so there's no good reason to require it just to run tests.
+    Restored automatically after each test via monkeypatch."""
+    fake_types_module = _pytypes.ModuleType('google.genai.types')
+    fake_types_module.GenerateContentConfig = _FakeGenerateContentConfig
+    fake_types_module.ThinkingConfig = _FakeThinkingConfig
+    fake_types_module.Part = _FakePart
+    fake_types_module.Content = _FakeContent
+
+    fake_genai_module = _pytypes.ModuleType('google.genai')
+    fake_genai_module.types = fake_types_module
+
+    fake_google_module = _pytypes.ModuleType('google')
+    fake_google_module.genai = fake_genai_module
+
+    monkeypatch.setitem(sys.modules, 'google', fake_google_module)
+    monkeypatch.setitem(sys.modules, 'google.genai', fake_genai_module)
+    monkeypatch.setitem(sys.modules, 'google.genai.types', fake_types_module)
+    yield

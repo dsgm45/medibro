@@ -1,3 +1,16 @@
+#!/bin/bash
+set -e
+
+echo "=== MediBro: Add tests for AI symptom checker safety behavior ==="
+
+if [ ! -f "app.py" ]; then
+  echo "ERROR: app.py not found. cd into your medimind project folder first, then re-run this script."
+  exit 1
+fi
+
+mkdir -p tests
+
+cat > tests/test_symptom_checker.py << 'TEST_EOF'
 """
 Tests for the AI-assisted symptom checker's safety properties.
 
@@ -6,10 +19,6 @@ no network access needed, and the tests are fully deterministic. The fake
 client mimics just enough of the real google-genai response shape
 (.text, .candidates[0].finish_reason.name) for get_ai_symptom_guidance()
 to work with it exactly as it would with a real response.
-
-The fake_google_genai_types fixture that makes `from google.genai import
-types` work without the real package installed lives in conftest.py,
-shared across every test file that needs it.
 
 The single most important property tested here: the AI is NEVER consulted
 for emergency-level cases, even when a working AI client is configured.
@@ -57,9 +66,10 @@ class _FakeGeminiClient:
 
 def _submit_symptoms(client, symptoms=None, severity='mild', description=''):
     data = {'severity': severity, 'description': description}
-    if symptoms:
-        data['symptoms'] = symptoms  # a list value here = Flask/Werkzeug encodes it as repeated form fields
-    return client.post('/symptoms', data=data, follow_redirects=True)
+    return client.post('/symptoms', data=[
+        *[('symptoms', s) for s in (symptoms or [])],
+        *data.items(),
+    ], follow_redirects=True)
 
 
 def _latest_symptom_log(patient_id):
@@ -195,3 +205,27 @@ class TestTruncationAndMalformationSafety:
         log = _latest_symptom_log(patient_id)
         assert log.ai_generated is False
         assert log.guidance  # still got the rule-based fallback message
+TEST_EOF
+
+echo "Files written."
+echo ""
+echo "=== Running the full test suite ==="
+python3 -m pytest -v
+
+echo ""
+echo "=== Test run complete - see results above ==="
+echo "These new tests use a fake Gemini client (no real API calls, no"
+echo "network needed) - they specifically verify the AI is never consulted"
+echo "for emergency symptoms, and that truncated/malformed AI responses"
+echo "(the exact bug you found) get correctly caught and rejected."
+echo ""
+read -p "Press Enter to commit and push, or Ctrl+C to stop here: "
+
+git add tests/test_symptom_checker.py
+git commit -m "Add tests for AI symptom checker: emergency-skip safety, AI fallback, and truncation/malformation regression tests"
+git push origin main
+
+echo ""
+echo "=== Done. Check Render dashboard for the new deploy. ==="
+echo "This doesn't change any live behavior - tests only, backing up the"
+echo "fix from the last batch."

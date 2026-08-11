@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}AI Health Chat - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('ai_chat') }}" class="active">🤖 AI Health Chat</a>
+        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="sidebar-logout">🚪 Log Out</button>
+        </form>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 16px;">
+            <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">🤖 AI Health Chat</h1>
+            <p style="margin: 4px 0 0 0; color: #64748b;">Ask general health questions or talk through a non-urgent concern.</p>
+        </div>
+
+        <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 20px; font-size: 0.8rem; color: #1e40af;">
+            ℹ️ This is an AI assistant, not a doctor. It can't diagnose conditions or recommend medications. For anything urgent, use the SOS page or call emergency services.
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 16px; min-height: 350px; max-height: 550px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;" id="chat-scroll-area">
+            {% if messages %}
+            {% for msg in messages %}
+            <div style="display: flex; {% if msg.sender == 'patient' %}justify-content: flex-end;{% else %}justify-content: flex-start;{% endif %}">
+                <div style="max-width: 78%; padding: 10px 14px; border-radius: 12px;
+                    {% if msg.sender == 'patient' %}
+                        background-color: #2563eb; color: #ffffff;
+                    {% elif msg.is_crisis_response %}
+                        background-color: #fef2f2; color: #7f1d1d; border: 1px solid #fecaca;
+                    {% else %}
+                        background-color: #f1f5f9; color: #0f172a;
+                    {% endif %}">
+                    {% if msg.sender == 'ai' and msg.is_crisis_response %}
+                    <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">⚠️ Please seek help</p>
+                    {% elif msg.sender == 'ai' %}
+                    <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 0.7rem; color: #6d28d9;">🤖 AI Assistant</p>
+                    {% endif %}
+                    <p style="margin: 0; font-size: 0.9rem; white-space: pre-wrap;">{{ msg.content }}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 0.68rem; opacity: 0.7;">{{ msg.created_at.strftime('%b %d, %I:%M %p') }}</p>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: #94a3b8; margin: auto; text-align: center;">No messages yet. Ask a general health question to get started.</p>
+            {% endif %}
+        </div>
+
+        <form action="{{ url_for('ai_chat') }}" method="POST" style="display: flex; gap: 10px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="message" required placeholder="Ask a health question..." style="flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+            <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Send</button>
+        </form>
+    </main>
+</div>
+
+<script>
+    var scrollArea = document.getElementById('chat-scroll-area');
+    if (scrollArea) { scrollArea.scrollTop = scrollArea.scrollHeight; }
+</script>
+{% endblock %}
