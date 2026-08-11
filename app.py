@@ -516,19 +516,22 @@ def my_health():
         follow_ups=follow_ups
     )
 
-def _pdf_safe_text(value, max_run=60):
+def _pdf_safe_text(value, max_run=20):
     """PDF core fonts only support Latin-1. Replace anything outside that
     range instead of letting it crash the export - degraded output is far
     better than a broken download.
 
-    Also guards against a real fpdf2 bug: its line-wrapper raises
-    FPDFException("Not enough horizontal space to render a single
-    character") when it hits any unbroken run of non-whitespace text wider
-    than the page - a long URL, a long word, or even a side effect of the
-    latin-1 replacement above turning many different characters into a long
-    run of '?'. This inserts a breakable space every max_run characters
-    into any such run, so fpdf2 always has somewhere valid to wrap the
-    line, regardless of what the original text looked like."""
+    Also reduces the likelihood of a known fpdf2 upstream bug (see
+    py-pdf/fpdf2#1250) where its line-wrapper can raise FPDFException("Not
+    enough horizontal space to render a single character") on certain
+    character sequences - most commonly long unbroken runs of text, but
+    the upstream issue shows this can also happen with some non-Latin
+    scripts even in shorter runs, depending on internal line-fragment
+    processing that isn't fully within this app's control. This inserts a
+    breakable space every max_run characters into any long unbroken run as
+    a preventive measure - the real safety net against this bug is
+    _safe_pdf_multi_cell() below, which degrades gracefully per-line if it
+    happens anyway."""
     if value is None:
         return ''
     text = str(value).encode('latin-1', errors='replace').decode('latin-1')
@@ -539,6 +542,22 @@ def _pdf_safe_text(value, max_run=60):
 
     text = re.sub(r'\S{' + str(max_run + 1) + r',}', break_long_run, text)
     return text
+
+def _safe_pdf_multi_cell(pdf, w, h, text):
+    """Wraps pdf.multi_cell() with a fallback for the known fpdf2 upstream
+    bug described above. This is the real safety net: even if the
+    preventive text preprocessing in _pdf_safe_text() doesn't catch every
+    case (the upstream bug's exact trigger conditions aren't something
+    this app can fully control), only THIS ONE LINE degrades to a
+    placeholder instead of the entire PDF export failing for the patient."""
+    try:
+        pdf.multi_cell(w, h, text)
+    except Exception as e:
+        app.logger.warning(f"PDF line rendering failed, using placeholder: {e}")
+        try:
+            pdf.multi_cell(w, h, '[This entry could not be displayed due to a formatting issue.]')
+        except Exception:
+            pass  # even the placeholder failed - skip this line entirely rather than crash
 
 @app.route('/my-health/export-pdf')
 @login_required
@@ -592,7 +611,7 @@ def export_health_pdf():
             for s in symptoms:
                 date_str = s.created_at.strftime('%b %d, %Y') if s.created_at else ''
                 line = f'{date_str}  |  {s.symptoms}  |  Severity: {s.severity}'
-                pdf.multi_cell(0, 6, t(line))
+                _safe_pdf_multi_cell(pdf, 0, 6, t(line))
         else:
             pdf.cell(0, 6, t('No symptoms logged.'))
             pdf.ln(6)
@@ -603,7 +622,7 @@ def export_health_pdf():
             for m in medicines:
                 times = ', '.join(d.time for d in m.doses) if m.doses else (m.time_of_day or '-')
                 line = f'{m.name}  |  {m.dosage or "-"}  |  {m.frequency or "-"}  |  Times: {times}'
-                pdf.multi_cell(0, 6, t(line))
+                _safe_pdf_multi_cell(pdf, 0, 6, t(line))
         else:
             pdf.cell(0, 6, t('No medicines on record.'))
             pdf.ln(6)
@@ -614,10 +633,10 @@ def export_health_pdf():
             for v in visits:
                 doc_name = v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') if v.doctor else 'Unknown'
                 line = f'{v.appointment_date}  |  Dr. {doc_name}  |  Diagnosis: {v.diagnosis or "Not recorded"}'
-                pdf.multi_cell(0, 6, t(line))
+                _safe_pdf_multi_cell(pdf, 0, 6, t(line))
                 if v.visit_notes:
                     pdf.set_font('Helvetica', 'I', 9)
-                    pdf.multi_cell(0, 5, t(f'  Notes: {v.visit_notes}'))
+                    _safe_pdf_multi_cell(pdf, 0, 5, t(f'  Notes: {v.visit_notes}'))
                     pdf.set_font('Helvetica', '', 10)
         else:
             pdf.cell(0, 6, t('No completed visits on record.'))
