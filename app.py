@@ -516,13 +516,29 @@ def my_health():
         follow_ups=follow_ups
     )
 
-def _pdf_safe_text(value):
+def _pdf_safe_text(value, max_run=60):
     """PDF core fonts only support Latin-1. Replace anything outside that
     range instead of letting it crash the export - degraded output is far
-    better than a broken download."""
+    better than a broken download.
+
+    Also guards against a real fpdf2 bug: its line-wrapper raises
+    FPDFException("Not enough horizontal space to render a single
+    character") when it hits any unbroken run of non-whitespace text wider
+    than the page - a long URL, a long word, or even a side effect of the
+    latin-1 replacement above turning many different characters into a long
+    run of '?'. This inserts a breakable space every max_run characters
+    into any such run, so fpdf2 always has somewhere valid to wrap the
+    line, regardless of what the original text looked like."""
     if value is None:
         return ''
-    return str(value).encode('latin-1', errors='replace').decode('latin-1')
+    text = str(value).encode('latin-1', errors='replace').decode('latin-1')
+
+    def break_long_run(match):
+        run = match.group(0)
+        return ' '.join(run[i:i + max_run] for i in range(0, len(run), max_run))
+
+    text = re.sub(r'\S{' + str(max_run + 1) + r',}', break_long_run, text)
+    return text
 
 @app.route('/my-health/export-pdf')
 @login_required
@@ -538,75 +554,81 @@ def export_health_pdf():
 
     t = _pdf_safe_text
 
-    pdf = FPDF()
-    pdf.add_page()
+    try:
+        pdf = FPDF()
+        pdf.add_page()
 
-    pdf.set_font('Helvetica', 'B', 18)
-    pdf.cell(0, 12, t('MediBro Health Summary'))
-    pdf.ln(12)
+        pdf.set_font('Helvetica', 'B', 18)
+        pdf.cell(0, 12, t('MediBro Health Summary'))
+        pdf.ln(12)
 
-    pdf.set_font('Helvetica', '', 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, t(f'{patient.full_name} - Generated {datetime.utcnow().strftime("%B %d, %Y")}'))
-    pdf.ln(10)
-    pdf.set_text_color(0, 0, 0)
-
-    def section_title(title):
-        pdf.set_font('Helvetica', 'B', 13)
-        pdf.cell(0, 8, t(title))
-        pdf.ln(9)
         pdf.set_font('Helvetica', '', 10)
+        pdf.set_text_color(100, 100, 100)
+        pdf.cell(0, 6, t(f'{patient.full_name} - Generated {datetime.utcnow().strftime("%B %d, %Y")}'))
+        pdf.ln(10)
+        pdf.set_text_color(0, 0, 0)
 
-    section_title('Recent Vitals')
-    if vitals:
-        for v in vitals:
-            date_str = v.recorded_at.strftime('%b %d, %Y') if v.recorded_at else ''
-            bp = f'{v.systolic}/{v.diastolic}' if v.systolic and v.diastolic else '-'
-            line = f'{date_str}  |  BP: {bp}  |  HR: {v.heart_rate or "-"} bpm  |  SpO2: {v.spo2 or "-"}%  |  Temp: {v.temperature or "-"} F'
-            pdf.cell(0, 6, t(line))
+        def section_title(title):
+            pdf.set_font('Helvetica', 'B', 13)
+            pdf.cell(0, 8, t(title))
+            pdf.ln(9)
+            pdf.set_font('Helvetica', '', 10)
+
+        section_title('Recent Vitals')
+        if vitals:
+            for v in vitals:
+                date_str = v.recorded_at.strftime('%b %d, %Y') if v.recorded_at else ''
+                bp = f'{v.systolic}/{v.diastolic}' if v.systolic and v.diastolic else '-'
+                line = f'{date_str}  |  BP: {bp}  |  HR: {v.heart_rate or "-"} bpm  |  SpO2: {v.spo2 or "-"}%  |  Temp: {v.temperature or "-"} F'
+                pdf.cell(0, 6, t(line))
+                pdf.ln(6)
+        else:
+            pdf.cell(0, 6, t('No vitals logged.'))
             pdf.ln(6)
-    else:
-        pdf.cell(0, 6, t('No vitals logged.'))
-        pdf.ln(6)
-    pdf.ln(4)
+        pdf.ln(4)
 
-    section_title('Recent Symptoms')
-    if symptoms:
-        for s in symptoms:
-            date_str = s.created_at.strftime('%b %d, %Y') if s.created_at else ''
-            line = f'{date_str}  |  {s.symptoms}  |  Severity: {s.severity}'
-            pdf.multi_cell(0, 6, t(line))
-    else:
-        pdf.cell(0, 6, t('No symptoms logged.'))
-        pdf.ln(6)
-    pdf.ln(4)
+        section_title('Recent Symptoms')
+        if symptoms:
+            for s in symptoms:
+                date_str = s.created_at.strftime('%b %d, %Y') if s.created_at else ''
+                line = f'{date_str}  |  {s.symptoms}  |  Severity: {s.severity}'
+                pdf.multi_cell(0, 6, t(line))
+        else:
+            pdf.cell(0, 6, t('No symptoms logged.'))
+            pdf.ln(6)
+        pdf.ln(4)
 
-    section_title('Medicines')
-    if medicines:
-        for m in medicines:
-            times = ', '.join(d.time for d in m.doses) if m.doses else (m.time_of_day or '-')
-            line = f'{m.name}  |  {m.dosage or "-"}  |  {m.frequency or "-"}  |  Times: {times}'
-            pdf.multi_cell(0, 6, t(line))
-    else:
-        pdf.cell(0, 6, t('No medicines on record.'))
-        pdf.ln(6)
-    pdf.ln(4)
+        section_title('Medicines')
+        if medicines:
+            for m in medicines:
+                times = ', '.join(d.time for d in m.doses) if m.doses else (m.time_of_day or '-')
+                line = f'{m.name}  |  {m.dosage or "-"}  |  {m.frequency or "-"}  |  Times: {times}'
+                pdf.multi_cell(0, 6, t(line))
+        else:
+            pdf.cell(0, 6, t('No medicines on record.'))
+            pdf.ln(6)
+        pdf.ln(4)
 
-    section_title('Visit History')
-    if visits:
-        for v in visits:
-            doc_name = v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') if v.doctor else 'Unknown'
-            line = f'{v.appointment_date}  |  Dr. {doc_name}  |  Diagnosis: {v.diagnosis or "Not recorded"}'
-            pdf.multi_cell(0, 6, t(line))
-            if v.visit_notes:
-                pdf.set_font('Helvetica', 'I', 9)
-                pdf.multi_cell(0, 5, t(f'  Notes: {v.visit_notes}'))
-                pdf.set_font('Helvetica', '', 10)
-    else:
-        pdf.cell(0, 6, t('No completed visits on record.'))
-        pdf.ln(6)
+        section_title('Visit History')
+        if visits:
+            for v in visits:
+                doc_name = v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') if v.doctor else 'Unknown'
+                line = f'{v.appointment_date}  |  Dr. {doc_name}  |  Diagnosis: {v.diagnosis or "Not recorded"}'
+                pdf.multi_cell(0, 6, t(line))
+                if v.visit_notes:
+                    pdf.set_font('Helvetica', 'I', 9)
+                    pdf.multi_cell(0, 5, t(f'  Notes: {v.visit_notes}'))
+                    pdf.set_font('Helvetica', '', 10)
+        else:
+            pdf.cell(0, 6, t('No completed visits on record.'))
+            pdf.ln(6)
 
-    pdf_bytes = bytes(pdf.output())
+        pdf_bytes = bytes(pdf.output())
+    except Exception as e:
+        app.logger.error(f"PDF export error: {e}")
+        flash('There was an error generating your PDF summary. Please try again, or contact support if this keeps happening.', 'error')
+        return redirect(url_for('my_health'))
+
     response = Response(pdf_bytes, mimetype='application/pdf')
     response.headers['Content-Disposition'] = 'attachment; filename=medibro_health_summary.pdf'
     return response
