@@ -363,9 +363,25 @@ def set_security_headers(response):
     return response
 
 # --- BASE / PUBLIC ROUTES ---
+@app.context_processor
+def inject_current_year():
+    return {'current_year': datetime.utcnow().year}
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/legal/terms')
+def legal_terms():
+    return render_template('legal_terms.html')
+
+@app.route('/legal/privacy')
+def legal_privacy():
+    return render_template('legal_privacy.html')
+
+@app.route('/legal/disclaimer')
+def legal_disclaimer():
+    return render_template('legal_disclaimer.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
