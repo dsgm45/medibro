@@ -194,5 +194,14 @@
     <main>
         {% block content %}{% endblock %}
     </main>
+
+    <footer style="margin-top: 48px; padding: 24px 20px; border-top: 1px solid var(--border, #cbd5e1); text-align: center; background-color: #ffffff;">
+        <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 10px;">
+            <a href="{{ url_for('legal_terms') }}" style="color: var(--text-sub, #64748b); text-decoration: none; font-size: 0.85rem;">Terms of Service</a>
+            <a href="{{ url_for('legal_privacy') }}" style="color: var(--text-sub, #64748b); text-decoration: none; font-size: 0.85rem;">Privacy Policy</a>
+            <a href="{{ url_for('legal_disclaimer') }}" style="color: var(--text-sub, #64748b); text-decoration: none; font-size: 0.85rem;">Medical Disclaimer</a>
+        </div>
+        <p style="margin: 0; color: #94a3b8; font-size: 0.78rem;">&copy; {{ current_year }} MediBro. This is a prototype-stage platform, not attorney-reviewed.</p>
+    </footer>
 </body>
 </html>
