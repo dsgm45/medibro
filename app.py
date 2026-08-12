@@ -1235,13 +1235,65 @@ SYMPTOM_OPTIONS = [
 ]
 EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
 
+def build_patient_context_summary(patient_id):
+    """Builds a compact summary of a patient's recent health data (latest
+    vitals, active medicines, recent symptom logs) to personalize AI
+    responses. This is informational context only - it does NOT loosen
+    any of the strict no-diagnosis/no-dosing rules already enforced in the
+    system prompts; both prompts explicitly instruct the AI to treat this
+    as background context, not a basis for clinical judgments. Returns an
+    empty string if the patient has no logged data yet, so prompts degrade
+    gracefully rather than including an awkward empty context block."""
+    today = datetime.utcnow().date()
+
+    latest_vital = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).first()
+    active_medicines = Medicine.query.filter(
+        Medicine.patient_id == patient_id,
+        db.or_(Medicine.start_date == None, Medicine.start_date <= today),
+        db.or_(Medicine.end_date == None, Medicine.end_date >= today)
+    ).all()
+    recent_symptoms = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(3).all()
+
+    lines = []
+
+    if latest_vital:
+        parts = []
+        if latest_vital.systolic and latest_vital.diastolic:
+            parts.append(f'BP {latest_vital.systolic}/{latest_vital.diastolic}')
+        if latest_vital.heart_rate:
+            parts.append(f'HR {latest_vital.heart_rate} bpm')
+        if latest_vital.spo2:
+            parts.append(f'SpO2 {latest_vital.spo2}%')
+        if latest_vital.temperature:
+            parts.append(f'Temp {latest_vital.temperature}F')
+        if parts:
+            lines.append('Most recent vitals: ' + ', '.join(parts))
+
+    if active_medicines:
+        med_names = ', '.join(m.name for m in active_medicines[:8])
+        lines.append(f'Current medicines: {med_names}')
+
+    if recent_symptoms:
+        symptom_summaries = [f'{s.symptoms} (severity: {s.severity})' for s in recent_symptoms]
+        lines.append('Recently logged symptoms: ' + '; '.join(symptom_summaries))
+
+    if not lines:
+        return ''
+
+    return 'Patient context for reference only, NOT a basis for diagnosis: ' + ' | '.join(lines)
+
 SYMPTOM_AI_SYSTEM_PROMPT = (
     "You are a cautious health-guidance assistant inside a patient portal called MediBro. "
     "A patient has logged symptoms below. Give brief, general guidance in 2-4 short sentences "
     "on sensible next steps.\n\n"
+    "The message may begin with a 'Patient context' line summarizing the patient's recent "
+    "vitals, medicines, or symptom history. Use it only to make your guidance more relevant "
+    "(e.g. noting a relevant pattern) - never to name a diagnosis, never to comment on specific "
+    "medication dosing or interactions, and never to treat it as confirmed clinical information.\n\n"
     "Strict rules:\n"
     "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
+    "- Never recommend a specific medication, dosage, or drug, even if the patient context "
+    "lists medicines they're already taking.\n"
     "- If anything described sounds potentially urgent or serious, clearly tell the patient to "
     "seek medical care promptly or contact emergency services - do not downplay it.\n"
     "- Always end by suggesting they see a doctor if symptoms worsen or persist.\n"
@@ -1250,7 +1302,7 @@ SYMPTOM_AI_SYSTEM_PROMPT = (
     "Just complete, ordinary sentences."
 )
 
-def get_ai_symptom_guidance(selected_symptoms, severity, description):
+def get_ai_symptom_guidance(selected_symptoms, severity, description, patient_id=None):
     """Returns AI-generated guidance text, or None if the AI is unavailable
     or the call fails for any reason - callers must fall back to the
     rule-based guidance in that case. Never called for emergency-level
@@ -1260,8 +1312,10 @@ def get_ai_symptom_guidance(selected_symptoms, severity, description):
     try:
         from google.genai import types
         symptoms_text = ', '.join(selected_symptoms) if selected_symptoms else 'none selected'
+        context_summary = build_patient_context_summary(patient_id) if patient_id else ''
         user_prompt = (
-            f"Symptoms: {symptoms_text}. Severity: {severity}. "
+            (context_summary + '\n\n' if context_summary else '')
+            + f"Symptoms: {symptoms_text}. Severity: {severity}. "
             f"Additional details from patient: {description or 'none provided'}."
         )
         response = gemini_client.models.generate_content(
@@ -1337,7 +1391,7 @@ def symptoms():
                         'or call your local emergency number. Do not wait.')
             flash_category = 'error'
         else:
-            ai_guidance = get_ai_symptom_guidance(selected, severity, description)
+            ai_guidance = get_ai_symptom_guidance(selected, severity, description, patient_id=patient_id)
             if ai_guidance:
                 guidance = ai_guidance
                 ai_generated = True
@@ -1403,13 +1457,19 @@ AI_CHAT_SYSTEM_PROMPT = (
     "You are a general health guidance assistant inside a patient portal called MediBro. "
     "You can discuss general health questions and help patients think through non-urgent "
     "concerns they describe.\n\n"
-    "The message you receive may begin with 'Here is the conversation so far:' followed by "
+    "The message you receive may begin with a 'Patient context' line summarizing the "
+    "patient's recent vitals, medicines, or symptom history. Use it only to make your "
+    "guidance more relevant to their situation - never to name a diagnosis, never to comment "
+    "on specific medication dosing or interactions, and never to treat it as confirmed "
+    "clinical information. It may then include 'Here is the conversation so far:' followed by "
     "prior turns labeled Patient/Assistant, then end with 'New message from patient:' - only "
-    "respond to that new message, using the prior turns as context. Do not repeat the "
-    "conversation history back or comment on this formatting.\n\n"
+    "respond to that new message, using the prior turns and any patient context as background. "
+    "Do not repeat the conversation history or patient context back, and do not comment on "
+    "this formatting.\n\n"
     "Strict rules:\n"
     "- Never name or suggest a specific medical diagnosis or condition.\n"
-    "- Never recommend a specific medication, dosage, or drug.\n"
+    "- Never recommend a specific medication, dosage, or drug, even if the patient context "
+    "lists medicines they're already taking.\n"
     "- If a message describes anything that could be a medical emergency or a mental "
     "health crisis, tell the patient clearly to seek emergency care or a crisis line "
     "immediately - do not attempt to handle it yourself.\n"
@@ -1434,7 +1494,7 @@ def detect_crisis(text):
     lowered = text.lower()
     return any(kw in lowered for kw in CRISIS_KEYWORDS)
 
-def get_ai_chat_response(prior_messages, new_message_text):
+def get_ai_chat_response(prior_messages, new_message_text, patient_id=None):
     """prior_messages: list of AIChatMessage, oldest to newest, NOT including
     the new message. Returns AI response text, or None if unavailable/failed
     - caller shows AI_CHAT_FALLBACK_MESSAGE in that case. Never called when
@@ -1452,6 +1512,8 @@ def get_ai_chat_response(prior_messages, new_message_text):
     try:
         from google.genai import types
 
+        context_summary = build_patient_context_summary(patient_id) if patient_id else ''
+
         history_lines = []
         for msg in prior_messages:
             speaker = 'Patient' if msg.sender == 'patient' else 'Assistant'
@@ -1459,12 +1521,13 @@ def get_ai_chat_response(prior_messages, new_message_text):
 
         if history_lines:
             prompt = (
-                'Here is the conversation so far:\n'
+                (context_summary + '\n\n' if context_summary else '')
+                + 'Here is the conversation so far:\n'
                 + '\n'.join(history_lines)
                 + f'\n\nNew message from patient: {new_message_text}'
             )
         else:
-            prompt = new_message_text
+            prompt = (context_summary + '\n\n' if context_summary else '') + new_message_text
 
         response = gemini_client.models.generate_content(
             model=GEMINI_MODEL,
@@ -1472,8 +1535,13 @@ def get_ai_chat_response(prior_messages, new_message_text):
             config=types.GenerateContentConfig(
                 system_instruction=AI_CHAT_SYSTEM_PROMPT,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=500,
-                temperature=0.5,
+                # Matched exactly to the symptom checker's proven-working
+                # values (was max_output_tokens=500, temperature=0.5) to
+                # isolate whether one of those specific values was the
+                # actual trigger for a 400 INVALID_ARGUMENT error that
+                # persisted even after switching to the same request shape.
+                max_output_tokens=400,
+                temperature=0.4,
             )
         )
 
@@ -1533,7 +1601,7 @@ def ai_chat():
             reply_text = CRISIS_RESPONSE_MESSAGE
             is_crisis = True
         else:
-            ai_reply = get_ai_chat_response(prior_messages, user_message)
+            ai_reply = get_ai_chat_response(prior_messages, user_message, patient_id=patient_id)
             reply_text = ai_reply if ai_reply else AI_CHAT_FALLBACK_MESSAGE
             is_crisis = False
 
