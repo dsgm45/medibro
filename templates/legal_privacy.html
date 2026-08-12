@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto; padding: 40px 20px;">
+    <h1 style="font-size: 1.8rem; color: var(--text-dark); margin: 0 0 6px 0;">Privacy Policy</h1>
+    <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0 0 32px 0;">Last updated: {{ current_year }}</p>
+
+    <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px 20px; margin-bottom: 32px; font-size: 0.88rem; color: #92400e;">
+        This is a prototype-stage document, written to reflect what MediBro actually does today. It has not yet been reviewed by a lawyer and should not be treated as a final, binding privacy policy until it has been.
+    </div>
+
+    <div style="color: var(--text-dark); font-size: 0.95rem; line-height: 1.7;">
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">1. What We Collect</h2>
+        <p>MediBro collects: account information (name, email, role, phone); vitals you log (blood pressure, heart rate, SpO2, temperature); medicines and dose schedules you add; symptom checker entries and AI Health Chat messages; appointment and visit data, including doctor-entered diagnoses and notes; and, for admins, an audit log of administrative actions.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">2. AI Features and Third-Party Processing</h2>
+        <p>The Symptom Checker and AI Health Chat send the content you type - along with a summary of your recent vitals, medicines, and symptom history, used to personalize responses - to Google's Gemini API, a third-party AI processor. Google's own terms govern how that data is handled on their end. Emergency-related messages are identified using MediBro's own deterministic rules before this happens, so recognizing a possible emergency does not depend on Gemini being available or working correctly.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">3. Not a HIPAA-Covered Entity</h2>
+        <p>MediBro is not currently a HIPAA-covered entity and does not claim HIPAA compliance. This is stated plainly so as not to overclaim to users, doctors, or investors. Formal compliance work, including audit logging of who views a patient's health data and a proper data-processing review, is an active area of ongoing development, not something already in place today.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">4. How We Use Your Data</h2>
+        <p>Your health data is used to provide the platform's features to you and, where relevant, to the doctors you book appointments with. It is not sold. Admin accounts can view directory and operational information but do not have a special view into your private health entries beyond what's needed for account administration.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">5. Data Retention</h2>
+        <p>Your data is retained for as long as your account is active. Account deletion and data export tools are planned but not yet available in the current version of the platform.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">6. Security</h2>
+        <p>MediBro uses password hashing, CSRF protection, rate limiting, and hardened session cookies. No system is perfectly secure, and no guarantee of absolute security can be made.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">7. Your Choices</h2>
+        <p>You can update your profile information at any time. If you have concerns about how your data is being used, contact the MediBro team through the platform.</p>
+
+        <h2 style="font-size: 1.15rem; margin: 28px 0 10px 0;">8. Changes to This Policy</h2>
+        <p>This policy may be updated as MediBro's features and compliance posture evolve.</p>
+    </div>
+</div>
+{% endblock %}
