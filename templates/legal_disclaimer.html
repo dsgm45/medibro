@@ -2,6 +2,7 @@
 {% block title %}Medical Disclaimer - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 720px; margin: 0 auto; padding: 40px 20px;">
+    <a href="{{ url_for('index') }}" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); return false; }" style="display: inline-flex; align-items: center; gap: 6px; color: var(--text-sub); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px;">&larr; Go Back</a>
     <h1 style="font-size: 1.8rem; color: var(--text-dark); margin: 0 0 6px 0;">Medical Disclaimer</h1>
     <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0 0 24px 0;">Last updated: {{ current_year }}</p>
 
