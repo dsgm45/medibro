@@ -412,8 +412,19 @@ def inject_notification_count():
         if session.get('role') == 'patient':
             ensure_medicine_reminder_notifications(session['user_id'])
         count = Notification.query.filter_by(user_id=session['user_id'], is_read=False).count()
-        return {'unread_notification_count': count}
-    return {'unread_notification_count': 0}
+
+        role = session.get('role')
+        if role == 'patient':
+            portal_home_url = url_for('my_health')
+        elif role == 'doctor':
+            portal_home_url = url_for('doctor_dashboard')
+        elif role in ('hospital', 'admin'):
+            portal_home_url = url_for('admin_dashboard')
+        else:
+            portal_home_url = url_for('index')
+
+        return {'unread_notification_count': count, 'portal_home_url': portal_home_url}
+    return {'unread_notification_count': 0, 'portal_home_url': None}
 
 def ensure_medicine_reminder_notifications(patient_id):
     """Creates a notification for any medicine dose that's due today

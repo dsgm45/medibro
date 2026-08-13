@@ -199,7 +199,7 @@
     <nav>
         <div style="display: flex; align-items: center; gap: 10px;">
             <button type="button" class="hamburger-btn" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Open menu">&#9776;</button>
-            <a href="{{ url_for('index') }}" class="nav-brand">🩺 MediBro</a>
+            <a href="{{ portal_home_url or url_for('index') }}" class="nav-brand">🩺 MediBro</a>
         </div>
         <div style="display: flex; align-items: center; gap: 16px;">
             {% if session.get('user_id') %}
