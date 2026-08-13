@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Notifications - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 640px; margin: 30px auto; padding: 0 20px;">
+    <h1 style="margin: 0 0 20px 0; font-size: 1.6rem; color: #0f172a;">🔔 Notifications</h1>
+
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        {% if notifications %}
+        {% for n in notifications %}
+        <div style="padding: 16px 20px; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %} {% if not n.is_read %}background-color: #eff6ff;{% endif %}">
+            <p style="margin: 0; color: #0f172a; font-size: 0.9rem;">{{ n.message }}</p>
+            <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.75rem;">{{ n.created_at.strftime('%b %d, %Y %I:%M %p') }}</p>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color: #94a3b8; margin: 0; padding: 30px 20px; text-align: center;">No notifications yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

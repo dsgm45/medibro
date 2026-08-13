@@ -150,6 +150,45 @@ class Appointment(db.Model):
     patient = db.relationship('User', foreign_keys=[patient_id], backref='patient_appointments')
     doctor = db.relationship('User', foreign_keys=[doctor_id], backref='doctor_appointments')
 
+class FollowUpRequest(db.Model):
+    """Replaces the old follow_up_requested boolean flag on Appointment
+    with a real proposal/accept/reject flow. The old column is left in
+    place (unused) rather than dropped, to avoid a risky column-removal
+    migration for something that isn't causing any actual harm sitting
+    unused - same approach as the other stray legacy tables already
+    flagged in the roadmap."""
+    id = db.Column(db.Integer, primary_key=True)
+    original_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    proposed_date = db.Column(db.String(50), nullable=False)
+    proposed_time = db.Column(db.String(50), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending / accepted / rejected
+    resulting_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    responded_at = db.Column(db.DateTime, nullable=True)
+
+    original_appointment = db.relationship('Appointment', foreign_keys=[original_appointment_id])
+    doctor = db.relationship('User', foreign_keys=[doctor_id])
+    patient = db.relationship('User', foreign_keys=[patient_id])
+    resulting_appointment = db.relationship('Appointment', foreign_keys=[resulting_appointment_id])
+
+class Notification(db.Model):
+    """Shared notification system - used by the follow-up flow now, and
+    designed to be reused by medicine reminders next. The 'type' field is
+    what lets different notification kinds have different clear behavior
+    (e.g. follow-up notifications clear on view, medicine reminders will
+    need to stay unread until the dose itself is marked taken)."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    type = db.Column(db.String(30), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, nullable=False, default=False)
+    related_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id], backref='notifications')
+
 class Vital(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -367,6 +406,13 @@ def set_security_headers(response):
 def inject_current_year():
     return {'current_year': datetime.utcnow().year}
 
+@app.context_processor
+def inject_notification_count():
+    if session.get('user_id'):
+        count = Notification.query.filter_by(user_id=session['user_id'], is_read=False).count()
+        return {'unread_notification_count': count}
+    return {'unread_notification_count': 0}
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -519,9 +565,13 @@ def my_health():
         except (ValueError, TypeError):
             continue
 
-    follow_ups = Appointment.query.filter_by(
-        patient_id=patient_id, status='completed', follow_up_requested=True
-    ).all()
+    next_appointment_days_left = None
+    if soonest_diff is not None:
+        next_appointment_days_left = max(0, int(soonest_diff // 86400))
+
+    pending_follow_ups = FollowUpRequest.query.filter_by(
+        patient_id=patient_id, status='pending'
+    ).order_by(FollowUpRequest.created_at.desc()).all()
 
     return render_template(
         'my_health.html',
@@ -529,7 +579,8 @@ def my_health():
         latest_symptom=latest_symptom,
         active_medicines=active_medicines,
         next_appointment=next_appointment,
-        follow_ups=follow_ups
+        next_appointment_days_left=next_appointment_days_left,
+        follow_ups=pending_follow_ups
     )
 
 def _pdf_safe_text(value, max_run=20):
@@ -699,7 +750,9 @@ def patient_dashboard():
         except (ValueError, TypeError):
             continue
 
-    follow_ups = [a for a in my_appointments if a.follow_up_requested and a.status == 'completed']
+    follow_ups = FollowUpRequest.query.filter_by(
+        patient_id=patient_id, status='pending'
+    ).order_by(FollowUpRequest.created_at.desc()).all()
     pre_doctor_id = request.args.get('book_with', type=int)
 
     return render_template(
@@ -800,12 +853,36 @@ def doctor_dashboard():
         Appointment.appointment_date.desc(), Appointment.appointment_time.asc()
     ).all()
 
+    # Which completed visits already have a pending follow-up proposal,
+    # so the "Request Follow-up" button correctly hides for those instead
+    # of relying on the old boolean flag, which nothing sets anymore.
+    pending_followups = FollowUpRequest.query.filter_by(doctor_id=doctor_id, status='pending').all()
+    pending_followup_appointment_ids = {f.original_appointment_id for f in pending_followups}
+
+    now = datetime.utcnow()
+    days_until_by_appointment_id = {}
+    for appt in appointments:
+        if appt.status == 'accepted':
+            try:
+                appt_dt = datetime.strptime(f"{appt.appointment_date} {appt.appointment_time}", '%Y-%m-%d %H:%M')
+                diff_seconds = (appt_dt - now).total_seconds()
+                if diff_seconds >= 0:
+                    days_until_by_appointment_id[appt.id] = max(0, int(diff_seconds // 86400))
+            except (ValueError, TypeError):
+                pass
+
     grouped = {}
     for appt in appointments:
         grouped.setdefault(appt.appointment_date, []).append(appt)
     grouped_appointments = sorted(grouped.items(), key=lambda x: x[0], reverse=True)
 
-    return render_template('doctor_dashboard.html', doctor=doctor, grouped_appointments=grouped_appointments)
+    return render_template(
+        'doctor_dashboard.html',
+        doctor=doctor,
+        grouped_appointments=grouped_appointments,
+        pending_followup_appointment_ids=pending_followup_appointment_ids,
+        days_until_by_appointment_id=days_until_by_appointment_id
+    )
 
 @app.route('/appointment/<int:app_id>/<action>', methods=['POST'])
 @login_required
@@ -892,15 +969,144 @@ def request_follow_up(app_id):
             flash('Follow-up can only be requested for completed appointments.', 'error')
             return redirect(url_for('doctor_dashboard'))
 
-        appt.follow_up_requested = True
+        proposed_date = request.form.get('proposed_date', '').strip()
+        proposed_time = request.form.get('proposed_time', '').strip()
+        if not proposed_date or not proposed_time:
+            flash('Please select a date and time for the follow-up.', 'error')
+            return redirect(url_for('doctor_dashboard'))
+
+        existing_pending = FollowUpRequest.query.filter_by(
+            original_appointment_id=appt.id, status='pending'
+        ).first()
+        if existing_pending:
+            flash('A follow-up proposal is already pending for this visit.', 'error')
+            return redirect(url_for('doctor_dashboard'))
+
+        follow_up = FollowUpRequest(
+            original_appointment_id=appt.id,
+            doctor_id=appt.doctor_id,
+            patient_id=appt.patient_id,
+            proposed_date=proposed_date,
+            proposed_time=proposed_time,
+            status='pending'
+        )
+        db.session.add(follow_up)
         db.session.commit()
-        flash('Follow-up requested. The patient will see a prompt to book one.', 'success')
+        flash('Follow-up proposed. The patient will see it and can accept or decline.', 'success')
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Request follow-up error: {e}")
         flash('Error requesting follow-up.', 'error')
 
     return redirect(url_for('doctor_dashboard'))
+
+@app.route('/follow-up/<int:followup_id>/accept', methods=['POST'])
+@login_required
+@role_required('patient')
+def accept_follow_up(followup_id):
+    try:
+        follow_up = db.get_or_404(FollowUpRequest, followup_id)
+        if follow_up.patient_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('my_health'))
+        if follow_up.status != 'pending':
+            flash('This follow-up request has already been responded to.', 'error')
+            return redirect(url_for('my_health'))
+
+        # Same double-booking check as regular booking, in case the
+        # doctor's proposed slot got taken by someone else in the meantime.
+        existing_conflict = Appointment.query.filter_by(
+            doctor_id=follow_up.doctor_id,
+            appointment_date=follow_up.proposed_date,
+            appointment_time=follow_up.proposed_time
+        ).filter(Appointment.status.in_(['pending', 'accepted'])).first()
+
+        if existing_conflict:
+            flash('Sorry, that time slot is no longer available. Please contact your doctor to reschedule.', 'error')
+            return redirect(url_for('my_health'))
+
+        # The doctor proposed this specific time themselves, so the
+        # resulting appointment is created already-accepted rather than
+        # making them redundantly re-approve their own proposal.
+        new_appt = Appointment(
+            patient_id=follow_up.patient_id,
+            doctor_id=follow_up.doctor_id,
+            appointment_date=follow_up.proposed_date,
+            appointment_time=follow_up.proposed_time,
+            reason='Follow-up visit',
+            status='accepted'
+        )
+        db.session.add(new_appt)
+        db.session.flush()
+
+        follow_up.status = 'accepted'
+        follow_up.resulting_appointment_id = new_appt.id
+        follow_up.responded_at = datetime.utcnow()
+
+        notification = Notification(
+            user_id=follow_up.doctor_id,
+            type='follow_up_accepted',
+            message=f'{follow_up.patient.full_name} accepted your follow-up proposal for {follow_up.proposed_date} at {follow_up.proposed_time}.',
+            related_id=new_appt.id
+        )
+        db.session.add(notification)
+        db.session.commit()
+        flash('Follow-up appointment confirmed!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Accept follow-up error: {e}")
+        flash('Error accepting follow-up.', 'error')
+
+    return redirect(url_for('my_health'))
+
+@app.route('/follow-up/<int:followup_id>/reject', methods=['POST'])
+@login_required
+@role_required('patient')
+def reject_follow_up(followup_id):
+    try:
+        follow_up = db.get_or_404(FollowUpRequest, followup_id)
+        if follow_up.patient_id != session.get('user_id'):
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for('my_health'))
+        if follow_up.status != 'pending':
+            flash('This follow-up request has already been responded to.', 'error')
+            return redirect(url_for('my_health'))
+
+        follow_up.status = 'rejected'
+        follow_up.responded_at = datetime.utcnow()
+
+        notification = Notification(
+            user_id=follow_up.doctor_id,
+            type='follow_up_rejected',
+            message=f'{follow_up.patient.full_name} declined your follow-up proposal for {follow_up.proposed_date} at {follow_up.proposed_time}.',
+            related_id=follow_up.original_appointment_id
+        )
+        db.session.add(notification)
+        db.session.commit()
+        flash('Follow-up declined.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Reject follow-up error: {e}")
+        flash('Error declining follow-up.', 'error')
+
+    return redirect(url_for('my_health'))
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    user_id = session.get('user_id')
+
+    # Mark as read on view - but explicitly excluding medicine_reminder
+    # type (not built yet, but this exclusion is here from day one so
+    # sub-batch 2 doesn't need to touch this logic). Those need to persist
+    # until the dose itself is marked taken, not just until viewed.
+    Notification.query.filter_by(user_id=user_id, is_read=False).filter(
+        Notification.type != 'medicine_reminder'
+    ).update({'is_read': True}, synchronize_session=False)
+    db.session.commit()
+
+    all_notifications = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).limit(30).all()
+    return render_template('notifications.html', notifications=all_notifications)
 
 @app.route('/doctor/profile', methods=['GET', 'POST'])
 @login_required

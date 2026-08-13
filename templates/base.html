@@ -203,6 +203,12 @@
         </div>
         <div style="display: flex; align-items: center; gap: 16px;">
             {% if session.get('user_id') %}
+                <a href="{{ url_for('notifications') }}" style="position: relative; color: #64748b; text-decoration: none; font-size: 1.2rem; display: inline-flex; align-items: center;" aria-label="Notifications">
+                    🔔
+                    {% if unread_notification_count and unread_notification_count > 0 %}
+                    <span style="position: absolute; top: -4px; right: -8px; background-color: #dc2626; color: #ffffff; border-radius: 10px; font-size: 0.65rem; font-weight: 700; padding: 1px 5px; min-width: 16px; text-align: center; line-height: 1.3;">{{ unread_notification_count if unread_notification_count < 10 else '9+' }}</span>
+                    {% endif %}
+                </a>
                 <a href="{{ url_for('profile') }}" style="color: #64748b; text-decoration: none; font-weight: 500;">{{ session.get('full_name') }}</a>
                 <form action="{{ url_for('logout') }}" method="POST" style="margin: 0; display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

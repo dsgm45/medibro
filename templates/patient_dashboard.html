@@ -39,12 +39,21 @@
         <!-- Follow-up Requests -->
         {% if follow_ups %}
         <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Requested</p>
-            {% for appt in follow_ups %}
-            <p style="margin: 4px 0; color: #6d28d9; font-size: 0.85rem;">
-                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} recommended a follow-up visit.
-                <a href="{{ url_for('patient_dashboard', book_with=appt.doctor.id) }}" style="color: #6d28d9; font-weight: 700; text-decoration: underline;">Book it now</a>
-            </p>
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Proposed</p>
+            {% for followup in follow_ups %}
+            <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #ddd6fe;{% endif %}">
+                <p style="margin: 0 0 8px 0; color: #6d28d9; font-size: 0.85rem;">
+                    Dr. {{ followup.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} proposed a follow-up on <strong>{{ followup.proposed_date }} at {{ followup.proposed_time }}</strong>.
+                </p>
+                <form action="{{ url_for('accept_follow_up', followup_id=followup.id) }}" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="padding: 6px 16px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; margin-right: 8px;">Accept</button>
+                </form>
+                <form action="{{ url_for('reject_follow_up', followup_id=followup.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Decline this follow-up proposal?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="padding: 6px 16px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">Decline</button>
+                </form>
+            </div>
             {% endfor %}
         </div>
         {% endif %}

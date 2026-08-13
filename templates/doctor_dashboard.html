@@ -41,12 +41,15 @@
                             <td style="padding: 12px 10px;">
                                 {% if appt.status == 'accepted' %}
                                 <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                {% if appt.id in days_until_by_appointment_id %}
+                                <span style="background-color: #eff6ff; color: #1e40af; padding: 2px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 4px;">{{ days_until_by_appointment_id[appt.id] }} day{{ 's' if days_until_by_appointment_id[appt.id] != 1 else '' }} left</span>
+                                {% endif %}
                                 {% elif appt.status == 'declined' %}
                                 <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
                                 {% elif appt.status == 'cancelled' %}
                                 <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
                                 {% elif appt.status == 'completed' %}
-                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed{% if appt.follow_up_requested %} &middot; Follow-up sent{% endif %}</span>
+                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed{% if appt.id in pending_followup_appointment_ids %} &middot; Follow-up pending{% endif %}</span>
                                 {% else %}
                                 <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
                                 {% endif %}
@@ -67,10 +70,15 @@
                                 {% elif appt.status == 'completed' %}
                                 <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
                                 <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: #6d28d9; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">📝 Edit Summary</a>
-                                {% if not appt.follow_up_requested %}
-                                <form action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: inline;">
+                                {% if appt.id not in pending_followup_appointment_ids %}
+                                <button type="button" onclick="toggleFollowUpForm({{ appt.id }})" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
+                                <form id="followUpForm{{ appt.id }}" action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: none; margin-top: 8px; text-align: left;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
+                                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                                        <input type="date" name="proposed_date" required style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
+                                        <input type="time" name="proposed_time" required style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
+                                        <button type="submit" style="padding: 6px 12px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; font-family: inherit; cursor: pointer;">Send</button>
+                                    </div>
                                 </form>
                                 {% endif %}
                                 {% else %}
@@ -89,4 +97,10 @@
         {% endif %}
     </div>
 </div>
+<script>
+function toggleFollowUpForm(appId) {
+    var form = document.getElementById('followUpForm' + appId);
+    form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+}
+</script>
 {% endblock %}
