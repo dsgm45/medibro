@@ -128,6 +128,26 @@
             flex: 1;
             min-width: 0;
         }
+        .hamburger-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 4px 8px;
+            color: #0f172a;
+        }
+        .mobile-menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 999;
+        }
+        .mobile-menu-overlay.active {
+            display: block;
+        }
 
         @media (max-width: 640px) {
             nav {
@@ -150,23 +170,37 @@
                 padding: 0 12px;
                 margin: 16px auto;
             }
-            .patient-sidebar {
-                flex-direction: row;
-                width: 100%;
-                overflow-x: auto;
-                position: static;
-                gap: 6px;
+            .hamburger-btn.has-sidebar {
+                display: block;
             }
-            .patient-sidebar a {
-                white-space: nowrap;
-                flex-shrink: 0;
+            .patient-sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                width: 260px;
+                max-width: 80vw;
+                flex-direction: column;
+                overflow-y: auto;
+                overflow-x: hidden;
+                z-index: 1000;
+                border-radius: 0;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+            }
+            .patient-sidebar.mobile-open {
+                transform: translateX(0);
             }
         }
     </style>
 </head>
 <body>
     <nav>
-        <a href="{{ url_for('index') }}" class="nav-brand">🩺 MediBro</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button type="button" class="hamburger-btn" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Open menu">&#9776;</button>
+            <a href="{{ url_for('index') }}" class="nav-brand">🩺 MediBro</a>
+        </div>
         <div style="display: flex; align-items: center; gap: 16px;">
             {% if session.get('user_id') %}
                 <a href="{{ url_for('profile') }}" style="color: #64748b; text-decoration: none; font-weight: 500;">{{ session.get('full_name') }}</a>
@@ -180,6 +214,37 @@
             {% endif %}
         </div>
     </nav>
+
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay" onclick="closeMobileMenu()"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var sidebar = document.querySelector('.patient-sidebar');
+            var hamburgerBtn = document.getElementById('hamburgerBtn');
+            if (sidebar && hamburgerBtn) {
+                hamburgerBtn.classList.add('has-sidebar');
+            }
+        });
+
+        function toggleMobileMenu() {
+            var sidebar = document.querySelector('.patient-sidebar');
+            var overlay = document.getElementById('mobileMenuOverlay');
+            if (!sidebar) return;
+            if (sidebar.classList.contains('mobile-open')) {
+                closeMobileMenu();
+            } else {
+                sidebar.classList.add('mobile-open');
+                overlay.classList.add('active');
+            }
+        }
+
+        function closeMobileMenu() {
+            var sidebar = document.querySelector('.patient-sidebar');
+            var overlay = document.getElementById('mobileMenuOverlay');
+            if (sidebar) sidebar.classList.remove('mobile-open');
+            if (overlay) overlay.classList.remove('active');
+        }
+    </script>
 
     <div class="flash-messages">
         {% with messages = get_flashed_messages(with_categories=true) %}
