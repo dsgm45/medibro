@@ -1069,6 +1069,42 @@ def admin_dashboard():
         top_doctors=top_doctors
     )
 
+# The full migration chain in order, so the diagnostic page can show it
+# alongside what Alembic currently thinks and what actually exists.
+MIGRATION_CHAIN = [
+    ('baseline_v1', '0001_baseline.py'),
+    ('visit_summary_v1', '0002_visit_summary.py'),
+    ('multi_contact_v1', '0003_multi_contact.py'),
+    ('ai_symptom_v1', '0004_ai_symptom.py'),
+    ('ai_chat_v1', '0005_ai_chat.py'),
+]
+
+@app.route('/admin/db-diagnostic')
+@login_required
+@role_required('hospital', 'admin')
+def admin_db_diagnostic():
+    """Read-only diagnostic: shows what Alembic's tracking table thinks the
+    current migration state is, alongside what tables actually exist in
+    the database. Never modifies anything - purely for figuring out
+    whether the two have drifted out of sync, which is a real thing that
+    can happen (e.g. if the alembic_version table itself was ever lost or
+    reset while the actual application tables remained intact)."""
+    try:
+        tracked_revision = db.session.execute(text('SELECT version_num FROM alembic_version')).scalar()
+    except Exception as e:
+        db.session.rollback()  # Postgres aborts the whole transaction on error until rolled back
+        tracked_revision = f'(could not read alembic_version table: {e})'
+
+    inspector = inspect(db.engine)
+    existing_tables = sorted(inspector.get_table_names())
+
+    return render_template(
+        'admin_db_diagnostic.html',
+        tracked_revision=tracked_revision,
+        existing_tables=existing_tables,
+        migration_chain=MIGRATION_CHAIN
+    )
+
 def csv_response(filename, header, rows):
     output = io.StringIO()
     writer = csv.writer(output)
