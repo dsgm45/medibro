@@ -409,9 +409,63 @@ def inject_current_year():
 @app.context_processor
 def inject_notification_count():
     if session.get('user_id'):
+        if session.get('role') == 'patient':
+            ensure_medicine_reminder_notifications(session['user_id'])
         count = Notification.query.filter_by(user_id=session['user_id'], is_read=False).count()
         return {'unread_notification_count': count}
     return {'unread_notification_count': 0}
+
+def ensure_medicine_reminder_notifications(patient_id):
+    """Creates a notification for any medicine dose that's due today
+    (scheduled time has passed) and hasn't been marked taken, if one
+    doesn't already exist for that dose today. Runs opportunistically on
+    page load rather than via a background job, since no scheduler
+    infrastructure exists yet - same pragmatic approach the existing
+    on-page reminder banner already uses, just extended so it shows in
+    the shared bell across the whole app, not only the Medicines page.
+
+    Unlike follow-up notifications (which clear the moment they're
+    viewed), these are only marked read when the dose itself is marked
+    taken - see toggle_dose_taken()."""
+    today = datetime.utcnow().date()
+    now_time = datetime.utcnow().strftime('%H:%M')
+    day_start = datetime.combine(today, datetime.min.time())
+    day_end = day_start + timedelta(days=1)
+
+    active_medicines = Medicine.query.filter(
+        Medicine.patient_id == patient_id,
+        db.or_(Medicine.start_date == None, Medicine.start_date <= today),
+        db.or_(Medicine.end_date == None, Medicine.end_date >= today)
+    ).all()
+
+    for med in active_medicines:
+        for dose in med.doses:
+            if dose.time > now_time:
+                continue  # not due yet today
+
+            log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
+            if log and log.taken_at:
+                continue  # already taken today, no reminder needed
+
+            existing_notif = Notification.query.filter(
+                Notification.user_id == patient_id,
+                Notification.type == 'medicine_reminder',
+                Notification.related_id == dose.id,
+                Notification.created_at >= day_start,
+                Notification.created_at < day_end
+            ).first()
+            if existing_notif:
+                continue  # already have today's reminder for this dose
+
+            notif = Notification(
+                user_id=patient_id,
+                type='medicine_reminder',
+                message=f'Time to take {med.name} ({dose.time}).',
+                related_id=dose.id
+            )
+            db.session.add(notif)
+
+    db.session.commit()
 
 @app.route('/')
 def index():
@@ -2185,15 +2239,31 @@ def toggle_dose_taken(dose_id):
             return redirect(url_for('medicines'))
 
         today = datetime.utcnow().date()
+        day_start = datetime.combine(today, datetime.min.time())
+        day_end = day_start + timedelta(days=1)
         log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
+
+        todays_reminder = Notification.query.filter(
+            Notification.user_id == dose.medicine.patient_id,
+            Notification.type == 'medicine_reminder',
+            Notification.related_id == dose.id,
+            Notification.created_at >= day_start,
+            Notification.created_at < day_end
+        ).first()
 
         if log and log.taken_at:
             log.taken_at = None
+            if todays_reminder:
+                todays_reminder.is_read = False
         elif log:
             log.taken_at = datetime.utcnow()
+            if todays_reminder:
+                todays_reminder.is_read = True
         else:
             log = MedicineDoseLog(dose_id=dose.id, log_date=today, taken_at=datetime.utcnow())
             db.session.add(log)
+            if todays_reminder:
+                todays_reminder.is_read = True
 
         db.session.commit()
     except Exception as e:
