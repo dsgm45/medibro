@@ -1098,12 +1098,53 @@ def admin_db_diagnostic():
     inspector = inspect(db.engine)
     existing_tables = sorted(inspector.get_table_names())
 
+    # Only offer the fix button for this one specific, confirmed mismatch -
+    # tracked revision one step behind ai_chat_v1, whose table already
+    # exists. Not a general "stamp to anything" tool.
+    fix_available = (tracked_revision == 'ai_symptom_v1' and 'ai_chat_message' in existing_tables)
+
     return render_template(
         'admin_db_diagnostic.html',
         tracked_revision=tracked_revision,
         existing_tables=existing_tables,
-        migration_chain=MIGRATION_CHAIN
+        migration_chain=MIGRATION_CHAIN,
+        fix_available=fix_available
     )
+
+@app.route('/admin/db-diagnostic/fix-tracking', methods=['POST'])
+@login_required
+@role_required('hospital', 'admin')
+def admin_db_diagnostic_fix():
+    """Corrects Alembic's tracked revision when it has fallen behind the
+    actual database state - e.g. a migration's real work (creating a
+    table) already happened, but the bookkeeping was never updated to
+    reflect it. Only proceeds when the exact expected mismatch is
+    re-confirmed at the moment of the fix (not just trusting the earlier
+    page load), as a safety guard against stamping to an incorrect
+    revision. Uses Alembic's own stamp() mechanism - the same one already
+    used elsewhere in this app for this exact purpose - rather than a raw
+    SQL update."""
+    try:
+        tracked_revision = db.session.execute(text('SELECT version_num FROM alembic_version')).scalar()
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not read current tracked revision, no change made: {e}', 'error')
+        return redirect(url_for('admin_db_diagnostic'))
+
+    inspector = inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+
+    if tracked_revision == 'ai_symptom_v1' and 'ai_chat_message' in existing_tables:
+        try:
+            stamp(revision='ai_chat_v1')
+            app.logger.warning(f"Admin manually corrected Alembic tracking: ai_symptom_v1 -> ai_chat_v1")
+            flash('Fixed: Alembic tracking updated to ai_chat_v1 to match the database state. No data was changed.', 'success')
+        except Exception as e:
+            flash(f'Fix failed: {e}', 'error')
+    else:
+        flash('The expected mismatch was not found at the moment of the fix - no change made. The state may have already changed since the page loaded.', 'error')
+
+    return redirect(url_for('admin_db_diagnostic'))
 
 def csv_response(filename, header, rows):
     output = io.StringIO()

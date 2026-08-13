@@ -8,6 +8,18 @@
     <div style="background-color: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
         <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">What Alembic thinks the current state is</h2>
         <p style="font-family: monospace; font-size: 0.95rem; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin: 0;">{{ tracked_revision }}</p>
+
+        {% if fix_available %}
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <p style="color: #92400e; font-size: 0.88rem; margin: 0 0 10px 0;">
+                Mismatch detected: the <code>ai_chat_message</code> table already exists, but the tracked revision is one step behind. This will update only the tracking record - no data is changed.
+            </p>
+            <form action="{{ url_for('admin_db_diagnostic_fix') }}" method="POST" onsubmit="return confirm('This will mark the database as being at revision ai_chat_v1. No tables or data will be changed - only the internal tracking record. Continue?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" style="padding: 10px 20px; background-color: var(--warning, #b45309); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Fix: Update tracking to ai_chat_v1</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 
     <div style="background-color: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
