@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local-only runtime data - the real app always connects to DATABASE_URL
+# on Render, never uses a local SQLite file. This folder/file type should
+# never be committed.
+instance/
+*.db
+
+# Environment files (not currently used, but standard practice to exclude)
+.env
+
+# Virtual environments
+venv/
+.venv/
+
+# Deploy scripts are one-time-use, regenerated per change, and never
+# meant to be committed - see project README for the deploy workflow
+deploy_batch*.sh
