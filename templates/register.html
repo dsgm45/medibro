@@ -12,16 +12,15 @@
         </div>
         <div>
             <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Email</label>
-            <input type="email" name="email" id="emailInput" required oninput="checkEmail()" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
-            <p id="emailMessage" style="margin: 6px 0 0 0; font-size: 0.8rem; display: none;"></p>
+            <input type="email" name="email" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
         </div>
         <div>
             <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Password</label>
             <input type="password" name="password" id="passwordInput" required minlength="6" oninput="checkPassword()" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
             <ul id="passwordChecklist" style="margin: 8px 0 0 0; padding: 0; list-style: none; font-size: 0.8rem; display: none;">
-                <li id="checkLength" style="margin-bottom: 3px;">At least 6 characters</li>
-                <li id="checkLetter" style="margin-bottom: 3px;">Contains a letter</li>
-                <li id="checkNumber">Contains a number</li>
+                <li id="checkLength" style="margin-bottom: 3px; color: #94a3b8;">At least 6 characters</li>
+                <li id="checkLetter" style="margin-bottom: 3px; color: #94a3b8;">Contains a letter</li>
+                <li id="checkNumber" style="color: #94a3b8;">Contains a number</li>
             </ul>
         </div>
         <div>
@@ -55,9 +54,14 @@ function toggleSpecialty() {
 
 function setCheckItem(elementId, met) {
     const el = document.getElementById(elementId);
-    const label = el.textContent.replace(/^[\u2713\u2717]\s*/, '');
-    el.textContent = (met ? '\u2713 ' : '\u2717 ') + label;
-    el.style.color = met ? '#15803d' : '#b91c1c';
+    const label = el.textContent.replace(/^\u2713\s*/, '');
+    if (met) {
+        el.textContent = '\u2713 ' + label;
+        el.style.color = '#15803d';
+    } else {
+        el.textContent = label;
+        el.style.color = '#94a3b8';
+    }
 }
 
 function checkPassword() {
@@ -68,27 +72,6 @@ function checkPassword() {
     setCheckItem('checkLength', password.length >= 6);
     setCheckItem('checkLetter', /[A-Za-z]/.test(password));
     setCheckItem('checkNumber', /[0-9]/.test(password));
-}
-
-function checkEmail() {
-    const email = document.getElementById('emailInput').value;
-    const message = document.getElementById('emailMessage');
-    // A simple format check for live UX feedback only - the real,
-    // authoritative check still happens server-side via the email-validator
-    // library. This is just a helpful hint, not the source of truth.
-    const looksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-    if (email.length === 0) {
-        message.style.display = 'none';
-    } else if (looksValid) {
-        message.style.display = 'block';
-        message.textContent = '\u2713 Looks like a valid email';
-        message.style.color = '#15803d';
-    } else {
-        message.style.display = 'block';
-        message.textContent = '\u2717 Please enter a valid email address';
-        message.style.color = '#b91c1c';
-    }
 }
 </script>
 {% endblock %}
