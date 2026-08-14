@@ -9,6 +9,7 @@ from collections import defaultdict, Counter
 from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text, inspect
+from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
 from email_validator import validate_email, EmailNotValidError
 from flask_wtf import CSRFProtect
@@ -134,8 +135,8 @@ class User(db.Model):
 
 class Appointment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     appointment_date = db.Column(db.String(50), nullable=False)
     appointment_time = db.Column(db.String(50), nullable=True)
     reason = db.Column(db.Text, nullable=True)
@@ -158,13 +159,13 @@ class FollowUpRequest(db.Model):
     unused - same approach as the other stray legacy tables already
     flagged in the roadmap."""
     id = db.Column(db.Integer, primary_key=True)
-    original_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False)
-    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    original_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False, index=True)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     proposed_date = db.Column(db.String(50), nullable=False)
     proposed_time = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='pending')  # pending / accepted / rejected
-    resulting_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=True)
+    resulting_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     responded_at = db.Column(db.DateTime, nullable=True)
 
@@ -180,18 +181,18 @@ class Notification(db.Model):
     (e.g. follow-up notifications clear on view, medicine reminders will
     need to stay unread until the dose itself is marked taken)."""
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     type = db.Column(db.String(30), nullable=False)
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
-    related_id = db.Column(db.Integer, nullable=True)
+    related_id = db.Column(db.Integer, nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', foreign_keys=[user_id], backref='notifications')
 
 class Vital(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     systolic = db.Column(db.Integer, nullable=True)
     diastolic = db.Column(db.Integer, nullable=True)
     heart_rate = db.Column(db.Integer, nullable=True)
@@ -204,7 +205,7 @@ class Vital(db.Model):
 
 class SymptomLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     symptoms = db.Column(db.Text, nullable=False)
     severity = db.Column(db.String(20), nullable=False, default='mild')
     description = db.Column(db.Text, nullable=True)
@@ -216,7 +217,7 @@ class SymptomLog(db.Model):
 
 class EmergencyContact(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     contact_name = db.Column(db.String(120), nullable=False)
     contact_phone = db.Column(db.String(20), nullable=False)
     relation = db.Column(db.String(50), nullable=True)
@@ -225,7 +226,7 @@ class EmergencyContact(db.Model):
 
 class SosEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -233,7 +234,7 @@ class SosEvent(db.Model):
 
 class AdminAuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     action = db.Column(db.String(100), nullable=False)
     target_name = db.Column(db.String(120), nullable=True)
     details = db.Column(db.Text, nullable=True)
@@ -243,8 +244,8 @@ class AdminAuditLog(db.Model):
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False, index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -253,7 +254,7 @@ class Message(db.Model):
 
 class Medicine(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     name = db.Column(db.String(120), nullable=False)
     dosage = db.Column(db.String(80), nullable=True)
     frequency = db.Column(db.String(80), nullable=True)
@@ -267,7 +268,7 @@ class Medicine(db.Model):
 
 class AIChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     sender = db.Column(db.String(10), nullable=False)  # 'patient' or 'ai'
     content = db.Column(db.Text, nullable=False)
     is_crisis_response = db.Column(db.Boolean, nullable=False, default=False)
@@ -277,14 +278,14 @@ class AIChatMessage(db.Model):
 
 class MedicineDose(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    medicine_id = db.Column(db.Integer, db.ForeignKey('medicine.id'), nullable=False)
+    medicine_id = db.Column(db.Integer, db.ForeignKey('medicine.id'), nullable=False, index=True)
     time = db.Column(db.String(5), nullable=False)  # 24-hour "HH:MM"
 
     medicine = db.relationship('Medicine', backref=db.backref('doses', cascade='all, delete-orphan', order_by='MedicineDose.time'))
 
 class MedicineDoseLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    dose_id = db.Column(db.Integer, db.ForeignKey('medicine_dose.id'), nullable=False)
+    dose_id = db.Column(db.Integer, db.ForeignKey('medicine_dose.id'), nullable=False, index=True)
     log_date = db.Column(db.Date, nullable=False)
     taken_at = db.Column(db.DateTime, nullable=True)
 
@@ -648,7 +649,7 @@ def my_health():
     ).order_by(Medicine.created_at.desc()).all()
 
     now = datetime.utcnow()
-    upcoming_appointments = Appointment.query.filter_by(patient_id=patient_id, status='accepted').all()
+    upcoming_appointments = Appointment.query.options(joinedload(Appointment.doctor)).filter_by(patient_id=patient_id, status='accepted').all()
     next_appointment = None
     soonest_diff = None
     for appt in upcoming_appointments:
@@ -665,7 +666,7 @@ def my_health():
     if soonest_diff is not None:
         next_appointment_days_left = max(0, int(soonest_diff // 86400))
 
-    pending_follow_ups = FollowUpRequest.query.filter_by(
+    pending_follow_ups = FollowUpRequest.query.options(joinedload(FollowUpRequest.doctor)).filter_by(
         patient_id=patient_id, status='pending'
     ).order_by(FollowUpRequest.created_at.desc()).all()
 
@@ -831,7 +832,7 @@ def patient_dashboard():
         d.specialty for d in User.query.filter_by(role='doctor', status='approved').all() if d.specialty
     ))
 
-    my_appointments = Appointment.query.filter_by(patient_id=patient_id).order_by(Appointment.created_at.desc()).all()
+    my_appointments = Appointment.query.options(joinedload(Appointment.doctor)).filter_by(patient_id=patient_id).order_by(Appointment.created_at.desc()).all()
 
     upcoming = []
     now = datetime.utcnow()
@@ -846,7 +847,7 @@ def patient_dashboard():
         except (ValueError, TypeError):
             continue
 
-    follow_ups = FollowUpRequest.query.filter_by(
+    follow_ups = FollowUpRequest.query.options(joinedload(FollowUpRequest.doctor)).filter_by(
         patient_id=patient_id, status='pending'
     ).order_by(FollowUpRequest.created_at.desc()).all()
     pre_doctor_id = request.args.get('book_with', type=int)
@@ -950,7 +951,7 @@ def cancel_appointment(app_id):
 def doctor_dashboard():
     doctor_id = session.get('user_id')
     doctor = db.get_or_404(User, doctor_id)
-    appointments = Appointment.query.filter_by(doctor_id=doctor_id).order_by(
+    appointments = Appointment.query.options(joinedload(Appointment.patient)).filter_by(doctor_id=doctor_id).order_by(
         Appointment.appointment_date.desc(), Appointment.appointment_time.asc()
     ).all()
 
@@ -1274,7 +1275,7 @@ def view_patient_history(patient_id):
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
-    visit_history = Appointment.query.filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(20).all()
+    visit_history = Appointment.query.options(joinedload(Appointment.doctor)).filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(20).all()
 
     return render_template(
         'patient_history_view.html',
@@ -1293,20 +1294,38 @@ def chat_list():
     role = session.get('role')
 
     if role == 'patient':
-        appts = Appointment.query.filter(
+        appts = Appointment.query.options(joinedload(Appointment.doctor)).filter(
             Appointment.patient_id == user_id,
             Appointment.status.in_(['accepted', 'completed'])
         ).order_by(Appointment.appointment_date.desc()).all()
     else:
-        appts = Appointment.query.filter(
+        appts = Appointment.query.options(joinedload(Appointment.patient)).filter(
             Appointment.doctor_id == user_id,
             Appointment.status.in_(['accepted', 'completed'])
         ).order_by(Appointment.appointment_date.desc()).all()
 
+    # Batch-fetch every relevant message in one query (newest first), then
+    # take the first occurrence per appointment in Python - that's the
+    # latest message for that thread. This replaces what used to be one
+    # separate Message query PER conversation (on top of a separate
+    # lazy-load per conversation for the partner's name), which meant a
+    # patient or doctor with several chat threads triggered roughly
+    # 2x-per-conversation extra database round trips on every visit to
+    # this page.
+    appointment_ids = [a.id for a in appts]
+    last_message_by_appointment_id = {}
+    if appointment_ids:
+        all_messages = Message.query.filter(
+            Message.appointment_id.in_(appointment_ids)
+        ).order_by(Message.created_at.desc()).all()
+        for msg in all_messages:
+            if msg.appointment_id not in last_message_by_appointment_id:
+                last_message_by_appointment_id[msg.appointment_id] = msg
+
     conversations = []
     for appt in appts:
         partner = appt.doctor if role == 'patient' else appt.patient
-        last_msg = Message.query.filter_by(appointment_id=appt.id).order_by(Message.created_at.desc()).first()
+        last_msg = last_message_by_appointment_id.get(appt.id)
         conversations.append({'appointment': appt, 'partner': partner, 'last_message': last_msg})
 
     conversations.sort(key=lambda c: c['last_message'].created_at if c['last_message'] else datetime.min, reverse=True)
@@ -1408,6 +1427,7 @@ MIGRATION_CHAIN = [
     ('ai_chat_v1', '0005_ai_chat.py'),
     ('notifications_v1', '0006_notifications.py'),
     ('optional_time_v1', '0007_optional_time.py'),
+    ('fk_indexes_v1', '0008_fk_indexes.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1443,6 +1463,13 @@ def _migration_signature_present(revision_id, inspector):
             return False
         columns = {c['name']: c for c in inspector.get_columns('appointment')}
         return columns.get('appointment_time', {}).get('nullable', False)
+    elif revision_id == 'fk_indexes_v1':
+        if 'appointment' not in tables:
+            return False
+        index_columns = set()
+        for idx in inspector.get_indexes('appointment'):
+            index_columns.update(idx.get('column_names', []))
+        return 'patient_id' in index_columns and 'doctor_id' in index_columns
     return False
 
 def _detect_actual_revision(inspector):
