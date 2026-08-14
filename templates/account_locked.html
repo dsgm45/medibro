@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Account Deletion Pending - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 480px; margin: 60px auto; padding: 0 20px; text-align: center;">
+    <div style="background-color: #ffffff; border: 1px solid #fecaca; border-radius: 12px; padding: 32px 28px;">
+        <p style="font-size: 2.5rem; margin: 0 0 12px 0;">🔒</p>
+        <h1 style="font-size: 1.4rem; color: #b91c1c; margin: 0 0 12px 0;">Account Deletion Requested</h1>
+
+        {% if deletion_request.status == 'pending' %}
+        <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 8px 0;">
+            Your account is locked and awaiting admin review before deletion can proceed.
+        </p>
+        {% else %}
+        <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 8px 0;">
+            Your deletion request has been approved by an admin.
+        </p>
+        {% endif %}
+
+        <p style="color: var(--text-dark); font-weight: 700; font-size: 1rem; margin: 12px 0 20px 0;">
+            Scheduled for {{ deletion_request.scheduled_for.strftime('%B %d, %Y') }}
+        </p>
+
+        <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0 0 24px 0;">
+            You can cancel this request at any time before then, and your account will be fully restored.
+        </p>
+
+        <form action="{{ url_for('cancel_account_deletion', req_id=deletion_request.id) }}" method="POST" onsubmit="return confirm('Cancel your account deletion request?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="padding: 10px 24px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Cancel Deletion Request</button>
+        </form>
+    </div>
+
+    <form action="{{ url_for('logout') }}" method="POST" style="margin-top: 16px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" style="background: none; border: none; color: var(--text-sub); font-size: 0.85rem; cursor: pointer; text-decoration: underline; font-family: inherit;">Log Out</button>
+    </form>
+</div>
+{% endblock %}

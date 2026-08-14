@@ -319,6 +319,22 @@ class Document(db.Model):
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='documents')
 
+class AccountDeletionRequest(db.Model):
+    """scheduled_for is fixed at request time (requested_at + 7 days) and
+    is NOT reset when an admin approves later - see request_account_deletion().
+    Deletion only actually executes once BOTH status == 'approved' AND
+    scheduled_for has passed - never on the schedule alone."""
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow)
+    scheduled_for = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending / approved / cancelled
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+
+    patient = db.relationship('User', foreign_keys=[patient_id])
+    approved_by = db.relationship('User', foreign_keys=[approved_by_id])
+
 def run_migrations():
     """
     Applies database schema changes using real, versioned Alembic migrations
@@ -535,6 +551,98 @@ def ensure_medicine_reminder_notifications(patient_id):
 
     if created_any:
         db.session.commit()
+
+def _permanently_delete_patient_account(patient_id):
+    """Full, genuinely irreversible cascade deletion of a patient account
+    and everything tied to it. Only ever call this after a deletion
+    request has been BOTH approved by an admin AND its scheduled date has
+    passed - see execute_due_account_deletions().
+
+    Deletion order matters - children are deleted before the parents they
+    reference, to respect foreign key constraints:
+      Message (both sides of any thread tied to this patient's appointments)
+      -> FollowUpRequest -> Appointment
+      -> Vital, SymptomLog, EmergencyContact, SosEvent, AIChatMessage, Document
+      -> Medicine (via ORM delete, not bulk, so its dose/log cascade fires)
+      -> Notification (this patient's own - a doctor's notification ABOUT
+         this patient, e.g. "patient accepted your follow-up", has
+         user_id = the doctor, not this patient, so it's preserved)
+      -> AccountDeletionRequest itself
+      -> the User record
+
+    Returns True if deletion happened, False if patient_id didn't
+    resolve to an actual patient (safety guard against misuse)."""
+    patient = db.session.get(User, patient_id)
+    if not patient or patient.role != 'patient':
+        return False
+
+    appointment_ids = [row.id for row in Appointment.query.filter_by(patient_id=patient_id).with_entities(Appointment.id).all()]
+    if appointment_ids:
+        Message.query.filter(Message.appointment_id.in_(appointment_ids)).delete(synchronize_session=False)
+
+    FollowUpRequest.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    Appointment.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    Vital.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    SymptomLog.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    EmergencyContact.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    SosEvent.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    AIChatMessage.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+    Document.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+
+    # Medicines need an ORM-level delete (not a bulk .delete() query) so
+    # the dose/log cascade already configured on this relationship
+    # actually fires - a bulk query operates at the raw SQL level and
+    # bypasses relationship cascade behavior entirely.
+    for med in Medicine.query.filter_by(patient_id=patient_id).all():
+        db.session.delete(med)
+
+    Notification.query.filter_by(user_id=patient_id).delete(synchronize_session=False)
+    AccountDeletionRequest.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
+
+    db.session.delete(patient)
+    db.session.commit()
+    return True
+
+def execute_due_account_deletions():
+    """Checks for any deletion requests that are BOTH approved AND past
+    their scheduled date, and actually executes them. Runs opportunistically
+    when an admin dashboard loads, rather than via a background job, since
+    no scheduler infrastructure exists yet - same pragmatic pattern already
+    used for medicine reminders. Deliberately does NOT check pending
+    (unapproved) requests, no matter how overdue - approval is required,
+    the schedule alone is never sufficient."""
+    now = datetime.utcnow()
+    due_requests = AccountDeletionRequest.query.filter(
+        AccountDeletionRequest.status == 'approved',
+        AccountDeletionRequest.scheduled_for <= now
+    ).all()
+
+    for req in due_requests:
+        try:
+            patient = db.session.get(User, req.patient_id)
+            if not patient:
+                # Already gone somehow - just clean up the stale request record.
+                db.session.delete(req)
+                db.session.commit()
+                continue
+
+            app.logger.warning(
+                f"Executing approved account deletion: patient_id={req.patient_id}, "
+                f"email={patient.email}, requested_at={req.requested_at}, "
+                f"approved_by_id={req.approved_by_id}, scheduled_for={req.scheduled_for}"
+            )
+            audit = AdminAuditLog(
+                admin_id=req.approved_by_id,
+                action='account_deletion_executed',
+                target_name=patient.email,
+                details=f'Requested {req.requested_at}, approved by admin id {req.approved_by_id}, scheduled for {req.scheduled_for}'
+            )
+            db.session.add(audit)
+            db.session.commit()
+            _permanently_delete_patient_account(req.patient_id)
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to execute due account deletion for request {req.id}: {e}")
 
 @app.route('/')
 def index():
@@ -1509,6 +1617,8 @@ def chat_thread(appointment_id):
 @login_required
 @role_required('hospital', 'admin')
 def admin_dashboard():
+    execute_due_account_deletions()
+
     pending_doctors = User.query.filter_by(role='doctor', status='pending').all()
     approved_doctors = User.query.filter_by(role='doctor', status='approved').all()
     patients = User.query.filter_by(role='patient').all()
@@ -1541,6 +1651,13 @@ def admin_dashboard():
         'completed_visits': status_counts.get('completed', 0),
     }
 
+    pending_deletion_requests = AccountDeletionRequest.query.filter_by(status='pending').options(
+        joinedload(AccountDeletionRequest.patient)
+    ).order_by(AccountDeletionRequest.requested_at.asc()).all()
+    approved_deletion_requests = AccountDeletionRequest.query.filter_by(status='approved').options(
+        joinedload(AccountDeletionRequest.patient)
+    ).order_by(AccountDeletionRequest.scheduled_for.asc()).all()
+
     return render_template(
         'admin.html',
         pending_doctors=pending_doctors,
@@ -1548,7 +1665,9 @@ def admin_dashboard():
         patients=patients,
         stats=stats,
         volume_by_day=volume_by_day,
-        top_doctors=top_doctors
+        top_doctors=top_doctors,
+        pending_deletion_requests=pending_deletion_requests,
+        approved_deletion_requests=approved_deletion_requests
     )
 
 # The full migration chain in order, so the diagnostic page can show it
@@ -1563,6 +1682,7 @@ MIGRATION_CHAIN = [
     ('optional_time_v1', '0007_optional_time.py'),
     ('fk_indexes_v1', '0008_fk_indexes.py'),
     ('documents_v1', '0009_documents.py'),
+    ('account_deletion_v1', '0010_account_deletion.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1607,6 +1727,8 @@ def _migration_signature_present(revision_id, inspector):
         return 'patient_id' in index_columns and 'doctor_id' in index_columns
     elif revision_id == 'documents_v1':
         return 'document' in tables
+    elif revision_id == 'account_deletion_v1':
+        return 'account_deletion_request' in tables
     return False
 
 def _detect_actual_revision(inspector):
@@ -2589,6 +2711,134 @@ def profile():
 
     back_endpoint = dashboard_endpoint_for_role(session.get('role'))
     return render_template('profile.html', back_endpoint=back_endpoint)
+
+@app.route('/profile/request-deletion', methods=['POST'])
+@login_required
+@role_required('patient')
+def request_account_deletion():
+    patient_id = session.get('user_id')
+
+    existing = AccountDeletionRequest.query.filter(
+        AccountDeletionRequest.patient_id == patient_id,
+        AccountDeletionRequest.status.in_(['pending', 'approved'])
+    ).first()
+    if existing:
+        return redirect(url_for('account_locked'))
+
+    try:
+        now = datetime.utcnow()
+        req = AccountDeletionRequest(
+            patient_id=patient_id,
+            requested_at=now,
+            scheduled_for=now + timedelta(days=7),
+            status='pending'
+        )
+        db.session.add(req)
+        db.session.flush()
+
+        patient = db.session.get(User, patient_id)
+        admins = User.query.filter(User.role.in_(['hospital', 'admin'])).all()
+        for admin in admins:
+            notif = Notification(
+                user_id=admin.id,
+                type='account_deletion_requested',
+                message=f'{patient.full_name} ({patient.email}) requested account deletion, scheduled for {req.scheduled_for.strftime("%b %d, %Y")}. Review and approve in the admin dashboard.',
+                related_id=req.id
+            )
+            db.session.add(notif)
+
+        db.session.commit()
+        flash('Account deletion requested.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Request account deletion error: {e}")
+        flash('Error requesting account deletion.', 'error')
+
+    return redirect(url_for('account_locked'))
+
+@app.route('/account-deletion/<int:req_id>/approve', methods=['POST'])
+@login_required
+@role_required('hospital', 'admin')
+def approve_account_deletion(req_id):
+    req = db.get_or_404(AccountDeletionRequest, req_id)
+    if req.status != 'pending':
+        flash('This request has already been handled.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        req.status = 'approved'
+        req.approved_by_id = session.get('user_id')
+        req.approved_at = datetime.utcnow()
+        db.session.commit()
+        flash('Deletion request approved.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Approve account deletion error: {e}")
+        flash('Error approving deletion request.', 'error')
+
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/account-deletion/<int:req_id>/cancel', methods=['POST'])
+@login_required
+@role_required('patient', 'hospital', 'admin')
+def cancel_account_deletion(req_id):
+    req = db.get_or_404(AccountDeletionRequest, req_id)
+    role = session.get('role')
+    user_id = session.get('user_id')
+
+    if role == 'patient' and req.patient_id != user_id:
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('account_locked'))
+
+    if req.status not in ('pending', 'approved'):
+        flash('This request has already been handled.', 'error')
+        return redirect(url_for('account_locked') if role == 'patient' else url_for('admin_dashboard'))
+
+    try:
+        req.status = 'cancelled'
+        db.session.commit()
+        flash('Account deletion cancelled.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Cancel account deletion error: {e}")
+        flash('Error cancelling deletion request.', 'error')
+
+    return redirect(url_for('my_health') if role == 'patient' else url_for('admin_dashboard'))
+
+@app.route('/account-locked')
+@login_required
+@role_required('patient')
+def account_locked():
+    patient_id = session.get('user_id')
+    req = AccountDeletionRequest.query.filter(
+        AccountDeletionRequest.patient_id == patient_id,
+        AccountDeletionRequest.status.in_(['pending', 'approved'])
+    ).order_by(AccountDeletionRequest.requested_at.desc()).first()
+
+    if not req:
+        return redirect(url_for('my_health'))
+
+    return render_template('account_locked.html', deletion_request=req)
+
+@app.before_request
+def check_account_deletion_lock():
+    """If a logged-in patient has a pending or approved deletion request,
+    every page redirects to the locked status screen except the screen
+    itself, the cancel action, and logout. Doctors and admins are never
+    affected by this, regardless of what's happening with any patient's
+    deletion request."""
+    if session.get('role') == 'patient' and session.get('user_id'):
+        allowed_endpoints = {'account_locked', 'cancel_account_deletion', 'logout', 'static'}
+        if request.endpoint in allowed_endpoints:
+            return None
+
+        has_active_request = AccountDeletionRequest.query.filter(
+            AccountDeletionRequest.patient_id == session['user_id'],
+            AccountDeletionRequest.status.in_(['pending', 'approved'])
+        ).first()
+        if has_active_request:
+            return redirect(url_for('account_locked'))
+    return None
 
 @app.route('/logout', methods=['POST'])
 def logout():

@@ -26,6 +26,45 @@
     </div>
     {% endif %}
 
+    <!-- Account Deletion Requests -->
+    {% if pending_deletion_requests or approved_deletion_requests %}
+    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.15rem; margin-top: 0; color: #9a3412;">🗑️ Account Deletion Requests</h2>
+        <div style="display: grid; gap: 10px; margin-top: 12px;">
+            {% for req in pending_deletion_requests %}
+            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <strong style="color: var(--text-dark);">{{ req.patient.full_name }}</strong> ({{ req.patient.email }})
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">Requested {{ req.requested_at.strftime('%b %d, %Y') }} &middot; Scheduled for {{ req.scheduled_for.strftime('%b %d, %Y') }} &middot; <span style="color: #b45309; font-weight: 600;">Awaiting approval</span></div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <form action="{{ url_for('approve_account_deletion', req_id=req.id) }}" method="POST" onsubmit="return confirm('Approve this account deletion? It will proceed automatically once the scheduled date passes.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Approve</button>
+                    </form>
+                    <form action="{{ url_for('cancel_account_deletion', req_id=req.id) }}" method="POST" onsubmit="return confirm('Cancel this deletion request? The patient\'s account will be unlocked.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" style="padding: 6px 14px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% for req in approved_deletion_requests %}
+            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <strong style="color: var(--text-dark);">{{ req.patient.full_name }}</strong> ({{ req.patient.email }})
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">Approved {{ req.approved_at.strftime('%b %d, %Y') if req.approved_at else '' }} &middot; Will be deleted {{ req.scheduled_for.strftime('%b %d, %Y') }} &middot; <span style="color: #15803d; font-weight: 600;">Approved</span></div>
+                </div>
+                <form action="{{ url_for('cancel_account_deletion', req_id=req.id) }}" method="POST" onsubmit="return confirm('Cancel this deletion request? The patient\'s account will be unlocked.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="padding: 6px 14px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Analytics Stats Cards -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
         <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
@@ -114,7 +153,10 @@
 
     <!-- Active Doctors Directory -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0;">👨‍⚕️ Active Doctors</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;">👨‍⚕️ Active Doctors</h2>
+            <a href="{{ url_for('export_doctors_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">⬇ Export CSV</a>
+        </div>
         {% if approved_doctors %}
         <input type="text" id="activeDoctorSearch" onkeyup="filterTable('activeDoctorSearch', 'activeDoctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
         <table id="activeDoctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -153,7 +195,10 @@
 
     <!-- Patient Directory -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0;">👥 Patient Directory</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;">👥 Patient Directory</h2>
+            <a href="{{ url_for('export_patients_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">⬇ Export CSV</a>
+        </div>
         {% if patients %}
         <input type="text" id="patientSearch" onkeyup="filterTable('patientSearch', 'patientTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
         <table id="patientTable" style="width: 100%; border-collapse: collapse; text-align: left;">
