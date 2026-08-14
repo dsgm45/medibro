@@ -7,16 +7,19 @@
 
     <div style="background-color: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
         <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">What Alembic thinks the current state is</h2>
-        <p style="font-family: monospace; font-size: 0.95rem; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin: 0;">{{ tracked_revision }}</p>
+        <p style="font-family: monospace; font-size: 0.95rem; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin: 0 0 12px 0;">{{ tracked_revision }}</p>
+
+        <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">What the schema actually shows (detected independently)</h2>
+        <p style="font-family: monospace; font-size: 0.95rem; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin: 0;">{{ detected_revision or '(could not detect any known state)' }}</p>
 
         {% if fix_available %}
         <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
             <p style="color: #92400e; font-size: 0.88rem; margin: 0 0 10px 0;">
-                Mismatch detected: the <code>ai_chat_message</code> table already exists, but the tracked revision is one step behind. This will update only the tracking record - no data is changed.
+                Mismatch detected: the schema shows <code>{{ detected_revision }}</code> is genuinely complete, but tracking says <code>{{ tracked_revision }}</code>. This will correct the tracking record and then apply any migrations still pending beyond that point. No existing data is changed.
             </p>
-            <form action="{{ url_for('admin_db_diagnostic_fix') }}" method="POST" onsubmit="return confirm('This will mark the database as being at revision ai_chat_v1. No tables or data will be changed - only the internal tracking record. Continue?');">
+            <form action="{{ url_for('admin_db_diagnostic_fix') }}" method="POST" onsubmit="return confirm('This will correct the tracking record to {{ detected_revision }} and apply any remaining pending migrations. No existing tables or data will be changed. Continue?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" style="padding: 10px 20px; background-color: var(--warning, #b45309); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Fix: Update tracking to ai_chat_v1</button>
+                <button type="submit" style="padding: 10px 20px; background-color: var(--warning, #b45309); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Fix: Correct tracking and apply pending migrations</button>
             </form>
         </div>
         {% endif %}
@@ -29,7 +32,8 @@
                 <tr style="text-align: left; border-bottom: 1px solid var(--border);">
                     <th style="padding: 8px 4px;">Revision ID</th>
                     <th style="padding: 8px 4px;">File</th>
-                    <th style="padding: 8px 4px;">Matches tracked state?</th>
+                    <th style="padding: 8px 4px;">Tracked?</th>
+                    <th style="padding: 8px 4px;">Detected in schema?</th>
                 </tr>
             </thead>
             <tbody>
@@ -39,7 +43,14 @@
                     <td style="padding: 8px 4px; color: var(--text-sub);">{{ filename }}</td>
                     <td style="padding: 8px 4px;">
                         {% if revision_id == tracked_revision %}
-                        <span style="color: var(--success); font-weight: 700;">&#10003; This is the tracked revision</span>
+                        <span style="color: var(--success); font-weight: 700;">&#10003;</span>
+                        {% else %}
+                        <span style="color: var(--text-sub);">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 8px 4px;">
+                        {% if revision_id == detected_revision %}
+                        <span style="color: var(--success); font-weight: 700;">&#10003;</span>
                         {% else %}
                         <span style="color: var(--text-sub);">-</span>
                         {% endif %}

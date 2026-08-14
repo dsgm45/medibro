@@ -1375,18 +1375,65 @@ MIGRATION_CHAIN = [
     ('multi_contact_v1', '0003_multi_contact.py'),
     ('ai_symptom_v1', '0004_ai_symptom.py'),
     ('ai_chat_v1', '0005_ai_chat.py'),
+    ('notifications_v1', '0006_notifications.py'),
+    ('optional_time_v1', '0007_optional_time.py'),
 ]
+
+def _migration_signature_present(revision_id, inspector):
+    """Checks whether a given migration's actual schema change is
+    genuinely present in the database - used to detect the real current
+    state directly from the schema itself, rather than trusting Alembic's
+    tracking table, which has drifted out of sync more than once now."""
+    tables = inspector.get_table_names()
+
+    if revision_id == 'baseline_v1':
+        return 'user' in tables and 'appointment' in tables
+    elif revision_id == 'visit_summary_v1':
+        if 'appointment' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('appointment')}
+        return 'diagnosis' in columns and 'visit_notes' in columns
+    elif revision_id == 'multi_contact_v1':
+        if 'emergency_contact' not in tables:
+            return False
+        unique_constraints = inspector.get_unique_constraints('emergency_contact')
+        return not any(uc.get('column_names') == ['patient_id'] for uc in unique_constraints)
+    elif revision_id == 'ai_symptom_v1':
+        if 'symptom_log' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('symptom_log')}
+        return 'ai_generated' in columns
+    elif revision_id == 'ai_chat_v1':
+        return 'ai_chat_message' in tables
+    elif revision_id == 'notifications_v1':
+        return 'follow_up_request' in tables and 'notification' in tables
+    elif revision_id == 'optional_time_v1':
+        if 'appointment' not in tables:
+            return False
+        columns = {c['name']: c for c in inspector.get_columns('appointment')}
+        return columns.get('appointment_time', {}).get('nullable', False)
+    return False
+
+def _detect_actual_revision(inspector):
+    """Walks the migration chain in order and returns the latest revision
+    whose signature is genuinely present - the true current schema state,
+    independent of what the alembic_version tracking table claims."""
+    detected = None
+    for revision_id, _ in MIGRATION_CHAIN:
+        if _migration_signature_present(revision_id, inspector):
+            detected = revision_id
+        else:
+            break
+    return detected
 
 @app.route('/admin/db-diagnostic')
 @login_required
 @role_required('hospital', 'admin')
 def admin_db_diagnostic():
     """Read-only diagnostic: shows what Alembic's tracking table thinks the
-    current migration state is, alongside what tables actually exist in
-    the database. Never modifies anything - purely for figuring out
-    whether the two have drifted out of sync, which is a real thing that
-    can happen (e.g. if the alembic_version table itself was ever lost or
-    reset while the actual application tables remained intact)."""
+    current migration state is, what the schema itself actually shows
+    (detected independently), and every table that exists. Never modifies
+    anything."""
     try:
         tracked_revision = db.session.execute(text('SELECT version_num FROM alembic_version')).scalar()
     except Exception as e:
@@ -1395,15 +1442,14 @@ def admin_db_diagnostic():
 
     inspector = inspect(db.engine)
     existing_tables = sorted(inspector.get_table_names())
+    detected_revision = _detect_actual_revision(inspector)
 
-    # Only offer the fix button for this one specific, confirmed mismatch -
-    # tracked revision one step behind ai_chat_v1, whose table already
-    # exists. Not a general "stamp to anything" tool.
-    fix_available = (tracked_revision == 'ai_symptom_v1' and 'ai_chat_message' in existing_tables)
+    fix_available = (detected_revision is not None and detected_revision != tracked_revision)
 
     return render_template(
         'admin_db_diagnostic.html',
         tracked_revision=tracked_revision,
+        detected_revision=detected_revision,
         existing_tables=existing_tables,
         migration_chain=MIGRATION_CHAIN,
         fix_available=fix_available
@@ -1413,34 +1459,36 @@ def admin_db_diagnostic():
 @login_required
 @role_required('hospital', 'admin')
 def admin_db_diagnostic_fix():
-    """Corrects Alembic's tracked revision when it has fallen behind the
-    actual database state - e.g. a migration's real work (creating a
-    table) already happened, but the bookkeeping was never updated to
-    reflect it. Only proceeds when the exact expected mismatch is
-    re-confirmed at the moment of the fix (not just trusting the earlier
-    page load), as a safety guard against stamping to an incorrect
-    revision. Uses Alembic's own stamp() mechanism - the same one already
-    used elsewhere in this app for this exact purpose - rather than a raw
-    SQL update."""
+    """Corrects Alembic's tracked revision to match what the schema itself
+    actually shows (detected independently via _detect_actual_revision),
+    then runs upgrade() to apply anything genuinely still pending beyond
+    that point - completing the fix in one action rather than requiring a
+    separate redeploy afterward. Re-detects at the moment of the fix
+    rather than trusting the earlier page load, as a safety guard."""
+    inspector = inspect(db.engine)
+    detected_revision = _detect_actual_revision(inspector)
+
     try:
         tracked_revision = db.session.execute(text('SELECT version_num FROM alembic_version')).scalar()
     except Exception as e:
         db.session.rollback()
-        flash(f'Could not read current tracked revision, no change made: {e}', 'error')
+        tracked_revision = None
+
+    if detected_revision is None:
+        flash('Could not detect a valid schema state - no change made.', 'error')
         return redirect(url_for('admin_db_diagnostic'))
 
-    inspector = inspect(db.engine)
-    existing_tables = set(inspector.get_table_names())
+    if detected_revision == tracked_revision:
+        flash('Tracking already matches the actual schema state - no change needed.', 'success')
+        return redirect(url_for('admin_db_diagnostic'))
 
-    if tracked_revision == 'ai_symptom_v1' and 'ai_chat_message' in existing_tables:
-        try:
-            stamp(revision='ai_chat_v1')
-            app.logger.warning(f"Admin manually corrected Alembic tracking: ai_symptom_v1 -> ai_chat_v1")
-            flash('Fixed: Alembic tracking updated to ai_chat_v1 to match the database state. No data was changed.', 'success')
-        except Exception as e:
-            flash(f'Fix failed: {e}', 'error')
-    else:
-        flash('The expected mismatch was not found at the moment of the fix - no change made. The state may have already changed since the page loaded.', 'error')
+    try:
+        stamp(revision=detected_revision)
+        app.logger.warning(f"Admin corrected Alembic tracking: {tracked_revision} -> {detected_revision}")
+        upgrade()
+        flash(f'Fixed: tracking corrected to {detected_revision} and any remaining pending migrations applied. No data was changed.', 'success')
+    except Exception as e:
+        flash(f'Fix failed: {e}', 'error')
 
     return redirect(url_for('admin_db_diagnostic'))
 
