@@ -36,7 +36,7 @@
                                 <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #0f172a; text-decoration: none;">{{ appt.patient.full_name }}</a>
                             </td>
                             <td style="padding: 12px 10px; color: #334155;">{{ appt.phone_number or appt.patient.phone or 'N/A' }}</td>
-                            <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time }}</td>
+                            <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time or 'To be confirmed' }}</td>
                             <td style="padding: 12px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
                             <td style="padding: 12px 10px;">
                                 {% if appt.status == 'accepted' %}
@@ -56,10 +56,18 @@
                             </td>
                             <td style="padding: 12px 10px; text-align: right;">
                                 {% if appt.status == 'pending' %}
+                                {% if not appt.appointment_time %}
+                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline-flex; gap: 6px; align-items: center;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="time" name="assigned_time" required style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
+                                    <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Accept &amp; Set Time</button>
+                                </form>
+                                {% else %}
                                 <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer; margin-right: 6px;">Accept</button>
                                 </form>
+                                {% endif %}
                                 <form action="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" method="POST" style="display: inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Decline</button>

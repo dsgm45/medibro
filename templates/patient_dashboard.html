@@ -30,7 +30,7 @@
             <p style="margin: 0 0 8px 0; font-weight: 700; color: #92400e; font-size: 0.9rem;">⏰ Upcoming Appointments</p>
             {% for appt in upcoming %}
             <p style="margin: 4px 0; color: #92400e; font-size: 0.85rem;">
-                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &mdash; {{ appt.appointment_date }} at {{ appt.appointment_time }}
+                Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &mdash; {{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% endif %}
             </p>
             {% endfor %}
         </div>
@@ -93,8 +93,8 @@
                         <input type="date" name="appointment_date" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time</label>
-                        <input type="time" name="appointment_time" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time <span style="font-weight: 500; color: #94a3b8;">(optional - leave blank and your doctor will confirm a time)</span></label>
+                        <input type="time" name="appointment_time" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
                     </div>
                     <div>
                         <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number</label>
@@ -133,7 +133,7 @@
                         {% for appt in appointments %}
                         <tr style="border-bottom: 1px solid #f1f5f9;">
                             <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
-                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }} at {{ appt.appointment_time }}</td>
+                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% else %} &middot; <span style="color: #94a3b8; font-style: italic;">time to be confirmed</span>{% endif %}</td>
                             <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
                             <td style="padding: 14px 10px;">
                                 {% if appt.status == 'accepted' %}

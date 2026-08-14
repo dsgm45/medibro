@@ -31,7 +31,7 @@
             <h1 style="margin: 0; font-size: 1.4rem; color: var(--text-dark);">
                 {% if session.role == 'patient' %}Dr. {{ other_user.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ other_user.full_name }}{% endif %}
             </h1>
-            <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem;">Appointment on {{ appointment.appointment_date }} at {{ appointment.appointment_time }} &middot; {{ appointment.reason or 'General Consultation' }}</p>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.85rem;">Appointment on {{ appointment.appointment_date }}{% if appointment.appointment_time %} at {{ appointment.appointment_time }}{% endif %} &middot; {{ appointment.reason or 'General Consultation' }}</p>
         </div>
 
         <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 16px; min-height: 300px; max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">

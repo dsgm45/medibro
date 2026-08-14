@@ -137,7 +137,7 @@ class Appointment(db.Model):
     patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     appointment_date = db.Column(db.String(50), nullable=False)
-    appointment_time = db.Column(db.String(50), nullable=False)
+    appointment_time = db.Column(db.String(50), nullable=True)
     reason = db.Column(db.Text, nullable=True)
     phone_number = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
@@ -837,11 +837,11 @@ def patient_dashboard():
 def book_appointment():
     doctor_id = request.form.get('doctor_id')
     appointment_date = request.form.get('appointment_date')
-    appointment_time = request.form.get('appointment_time')
+    appointment_time = request.form.get('appointment_time', '').strip() or None
     reason = request.form.get('reason', '').strip()
     phone_number = request.form.get('phone_number', '').strip()
 
-    if not doctor_id or not appointment_date or not appointment_time:
+    if not doctor_id or not appointment_date:
         flash('Please fill in all required appointment fields.', 'error')
         return redirect(url_for('patient_dashboard'))
 
@@ -855,15 +855,20 @@ def book_appointment():
         flash('Invalid doctor selection.', 'error')
         return redirect(url_for('patient_dashboard'))
 
-    existing_conflict = Appointment.query.filter_by(
-        doctor_id=doctor_id,
-        appointment_date=appointment_date,
-        appointment_time=appointment_time
-    ).filter(Appointment.status.in_(['pending', 'accepted'])).first()
+    # Only a real, specific time can conflict with another booking - two
+    # requests for the same date with no time set yet aren't a conflict,
+    # since neither has claimed an actual slot. The real check happens
+    # when the doctor assigns a time while accepting (see handle_appointment).
+    if appointment_time:
+        existing_conflict = Appointment.query.filter_by(
+            doctor_id=doctor_id,
+            appointment_date=appointment_date,
+            appointment_time=appointment_time
+        ).filter(Appointment.status.in_(['pending', 'accepted'])).first()
 
-    if existing_conflict:
-        flash('This doctor already has a request or appointment at that date and time. Please choose a different time.', 'error')
-        return redirect(url_for('patient_dashboard'))
+        if existing_conflict:
+            flash('This doctor already has a request or appointment at that date and time. Please choose a different time.', 'error')
+            return redirect(url_for('patient_dashboard'))
 
     try:
         new_app = Appointment(
@@ -960,6 +965,28 @@ def handle_appointment(app_id, action):
             return redirect(url_for('doctor_dashboard'))
 
         if action == 'accept':
+            if not appt.appointment_time:
+                assigned_time = request.form.get('assigned_time', '').strip()
+                if not assigned_time:
+                    flash('Please set a time for this appointment before accepting.', 'error')
+                    return redirect(url_for('doctor_dashboard'))
+
+                # This is the real double-booking check for time-optional
+                # requests - it only matters once an actual specific time
+                # is being claimed, which is happening right now.
+                conflict = Appointment.query.filter(
+                    Appointment.id != appt.id,
+                    Appointment.doctor_id == appt.doctor_id,
+                    Appointment.appointment_date == appt.appointment_date,
+                    Appointment.appointment_time == assigned_time,
+                    Appointment.status.in_(['pending', 'accepted'])
+                ).first()
+                if conflict:
+                    flash('You already have a request or appointment at that date and time. Please choose a different time.', 'error')
+                    return redirect(url_for('doctor_dashboard'))
+
+                appt.appointment_time = assigned_time
+
             appt.status = 'accepted'
             flash('Appointment accepted!', 'success')
         elif action == 'decline':

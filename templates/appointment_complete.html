@@ -10,7 +10,7 @@
         <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">
             {% if appt.status == 'completed' %}Edit Visit Summary{% else %}Complete Visit{% endif %}
         </h1>
-        <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ appt.patient.full_name }} &middot; {{ appt.appointment_date }} at {{ appt.appointment_time }}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
+        <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ appt.patient.full_name }} &middot; {{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% endif %}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
     </div>
 
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
