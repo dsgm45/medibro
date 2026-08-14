@@ -435,6 +435,14 @@ def ensure_medicine_reminder_notifications(patient_id):
     on-page reminder banner already uses, just extended so it shows in
     the shared bell across the whole app, not only the Medicines page.
 
+    Uses a fixed handful of batch queries rather than looping per
+    medicine/per dose - the original version made a separate query for
+    each dose's log and each dose's existing-notification check inside a
+    nested loop, which meant a patient with a few medicines could trigger
+    15-20+ database round trips on every single page load, not just the
+    Medicines page. This version scales at roughly 4 queries total no
+    matter how many medicines or doses exist.
+
     Unlike follow-up notifications (which clear the moment they're
     viewed), these are only marked read when the dose itself is marked
     taken - see toggle_dose_taken()."""
@@ -447,36 +455,59 @@ def ensure_medicine_reminder_notifications(patient_id):
         Medicine.patient_id == patient_id,
         db.or_(Medicine.start_date == None, Medicine.start_date <= today),
         db.or_(Medicine.end_date == None, Medicine.end_date >= today)
+    ).with_entities(Medicine.id, Medicine.name).all()
+
+    if not active_medicines:
+        return
+
+    medicine_name_by_id = {m.id: m.name for m in active_medicines}
+    active_medicine_ids = list(medicine_name_by_id.keys())
+
+    due_doses = MedicineDose.query.filter(
+        MedicineDose.medicine_id.in_(active_medicine_ids),
+        MedicineDose.time <= now_time
     ).all()
 
-    for med in active_medicines:
-        for dose in med.doses:
-            if dose.time > now_time:
-                continue  # not due yet today
+    if not due_doses:
+        return
 
-            log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
-            if log and log.taken_at:
-                continue  # already taken today, no reminder needed
+    due_dose_ids = [d.id for d in due_doses]
 
-            existing_notif = Notification.query.filter(
-                Notification.user_id == patient_id,
-                Notification.type == 'medicine_reminder',
-                Notification.related_id == dose.id,
-                Notification.created_at >= day_start,
-                Notification.created_at < day_end
-            ).first()
-            if existing_notif:
-                continue  # already have today's reminder for this dose
+    taken_dose_ids = {
+        row.dose_id for row in MedicineDoseLog.query.filter(
+            MedicineDoseLog.dose_id.in_(due_dose_ids),
+            MedicineDoseLog.log_date == today,
+            MedicineDoseLog.taken_at.isnot(None)
+        ).with_entities(MedicineDoseLog.dose_id).all()
+    }
 
-            notif = Notification(
-                user_id=patient_id,
-                type='medicine_reminder',
-                message=f'Time to take {med.name} ({dose.time}).',
-                related_id=dose.id
-            )
-            db.session.add(notif)
+    already_notified_dose_ids = {
+        row.related_id for row in Notification.query.filter(
+            Notification.user_id == patient_id,
+            Notification.type == 'medicine_reminder',
+            Notification.related_id.in_(due_dose_ids),
+            Notification.created_at >= day_start,
+            Notification.created_at < day_end
+        ).with_entities(Notification.related_id).all()
+    }
 
-    db.session.commit()
+    created_any = False
+    for dose in due_doses:
+        if dose.id in taken_dose_ids or dose.id in already_notified_dose_ids:
+            continue
+
+        med_name = medicine_name_by_id.get(dose.medicine_id, 'your medicine')
+        notif = Notification(
+            user_id=patient_id,
+            type='medicine_reminder',
+            message=f'Time to take {med_name} ({dose.time}).',
+            related_id=dose.id
+        )
+        db.session.add(notif)
+        created_any = True
+
+    if created_any:
+        db.session.commit()
 
 @app.route('/')
 def index():
