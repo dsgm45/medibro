@@ -155,6 +155,40 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Documents -->
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px;">
+            <p style="margin: 0 0 14px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">📄 Documents</p>
+
+            <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data" style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png" required style="font-size: 0.85rem;">
+                <button type="submit" style="padding: 8px 16px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Upload</button>
+            </form>
+            <p style="margin: 0 0 16px 0; color: #94a3b8; font-size: 0.75rem;">PDF, JPG, or PNG only. Maximum 10 MB per file.</p>
+
+            {% if documents %}
+            <div>
+                {% for doc in documents %}
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">
+                    <div>
+                        <p style="margin: 0; color: #0f172a; font-size: 0.85rem; font-weight: 600;">{{ doc.original_filename }}</p>
+                        <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 0.75rem;">{{ doc.uploaded_at.strftime('%b %d, %Y') }}{% if doc.file_size %} &middot; {{ (doc.file_size / 1024) | round(0, 'floor') | int }} KB{% endif %}</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
+                        <form action="{{ url_for('delete_document', doc_id=doc.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Delete this document? This cannot be undone.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" style="background: none; border: none; color: #b91c1c; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0; font-family: inherit;">Delete</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #94a3b8; margin: 0; font-size: 0.85rem;">No documents uploaded yet.</p>
+            {% endif %}
+        </div>
     </main>
 </div>
 {% endblock %}

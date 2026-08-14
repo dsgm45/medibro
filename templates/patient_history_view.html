@@ -119,5 +119,22 @@
         <p style="color: var(--text-sub); margin: 0;">No symptoms logged by this patient.</p>
         {% endif %}
     </div>
+
+    <div style="background-color: var(--surface, #ffffff); border: 1px solid var(--border, #cbd5e1); border-radius: 12px; padding: 20px; margin-top: 20px;">
+        <p style="margin: 0 0 14px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">📄 Documents</p>
+        {% if documents %}
+        {% for doc in documents %}
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">
+            <div>
+                <p style="margin: 0; color: var(--text-dark); font-size: 0.85rem; font-weight: 600;">{{ doc.original_filename }}</p>
+                <p style="margin: 2px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">{{ doc.uploaded_at.strftime('%b %d, %Y') }}</p>
+            </div>
+            <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No documents uploaded by this patient.</p>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

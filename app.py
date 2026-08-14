@@ -1,4 +1,5 @@
 import os
+import uuid
 import re
 import csv
 import io
@@ -63,6 +64,14 @@ if GEMINI_API_KEY:
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Gemini client setup failed, AI guidance disabled: {e}")
+
+# Document uploads. Files are stored directly in this app's own Postgres
+# database (Document.file_data) - no external service, no external
+# account, no external billing risk. These constants define what's
+# actually allowed, checked in _validate_document_upload().
+ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png'}
+ALLOWED_DOCUMENT_CONTENT_TYPES = {'application/pdf', 'image/jpeg', 'image/png'}
+MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 # Session cookie hardening. SESSION_COOKIE_SECURE is left off automatically
 # for local development (where requests are plain HTTP), but forced on when
@@ -292,6 +301,23 @@ class MedicineDoseLog(db.Model):
     dose = db.relationship('MedicineDose', backref=db.backref('logs', cascade='all, delete-orphan'))
 
     __table_args__ = (db.UniqueConstraint('dose_id', 'log_date', name='uq_dose_log_date'),)
+
+class Document(db.Model):
+    """The actual file bytes are stored directly in this table (file_data)
+    rather than an external service - the patient's own Postgres database,
+    same one everything else already uses. No new accounts, no external
+    billing risk. Tradeoff: downloads are served through this app's own
+    server rather than bypassing it, unlike an external object store
+    would allow - a reasonable tradeoff at this app's current scale."""
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_data = db.Column(db.LargeBinary, nullable=False)
+    content_type = db.Column(db.String(100), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)  # bytes
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id], backref='documents')
 
 def run_migrations():
     """
@@ -670,6 +696,8 @@ def my_health():
         patient_id=patient_id, status='pending'
     ).order_by(FollowUpRequest.created_at.desc()).all()
 
+    documents = Document.query.filter_by(patient_id=patient_id).order_by(Document.uploaded_at.desc()).all()
+
     return render_template(
         'my_health.html',
         latest_vital=latest_vital,
@@ -677,7 +705,8 @@ def my_health():
         active_medicines=active_medicines,
         next_appointment=next_appointment,
         next_appointment_days_left=next_appointment_days_left,
-        follow_ups=pending_follow_ups
+        follow_ups=pending_follow_ups,
+        documents=documents
     )
 
 def _pdf_safe_text(value, max_run=20):
@@ -1260,6 +1289,109 @@ def doctor_profile():
 
     return render_template('doctor_profile.html', doctor=doctor)
 
+def _validate_document_upload(file_storage, size):
+    """Returns an error message string if the upload is invalid, or None
+    if it's fine. Size is computed once by the caller (seeking the stream)
+    and passed in, rather than re-computed here."""
+    if not file_storage or not file_storage.filename:
+        return 'Please choose a file to upload.'
+
+    ext = file_storage.filename.rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in ALLOWED_DOCUMENT_EXTENSIONS:
+        return 'Only PDF, JPG, and PNG files are allowed.'
+
+    if file_storage.content_type not in ALLOWED_DOCUMENT_CONTENT_TYPES:
+        return 'Only PDF, JPG, and PNG files are allowed.'
+
+    if size == 0:
+        return 'The selected file is empty.'
+
+    if size > MAX_DOCUMENT_SIZE_BYTES:
+        return f'File is too large. Maximum size is {MAX_DOCUMENT_SIZE_BYTES // (1024 * 1024)} MB.'
+
+    return None
+
+@app.route('/documents/upload', methods=['POST'])
+@login_required
+@role_required('patient')
+def upload_document():
+    file_storage = request.files.get('document')
+    if not file_storage or not file_storage.filename:
+        flash('Please choose a file to upload.', 'error')
+        return redirect(url_for('my_health'))
+
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+
+    error = _validate_document_upload(file_storage, size)
+    if error:
+        flash(error, 'error')
+        return redirect(url_for('my_health'))
+
+    try:
+        doc = Document(
+            patient_id=session['user_id'],
+            original_filename=file_storage.filename,
+            file_data=file_storage.read(),
+            content_type=file_storage.content_type,
+            file_size=size
+        )
+        db.session.add(doc)
+        db.session.commit()
+        flash('Document uploaded successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Document upload error: {e}")
+        flash('Error uploading document. Please try again.', 'error')
+
+    return redirect(url_for('my_health'))
+
+@app.route('/documents/<int:doc_id>/download')
+@login_required
+@role_required('patient', 'doctor')
+def download_document(doc_id):
+    doc = db.get_or_404(Document, doc_id)
+    user_id = session.get('user_id')
+    role = session.get('role')
+    fallback_page = 'my_health' if role == 'patient' else 'doctor_dashboard'
+
+    if role == 'patient':
+        if doc.patient_id != user_id:
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for(fallback_page))
+    else:
+        has_appointment = Appointment.query.filter_by(doctor_id=user_id, patient_id=doc.patient_id).first()
+        if not has_appointment:
+            flash('You can only view documents for patients who have booked with you.', 'error')
+            return redirect(url_for(fallback_page))
+
+    return Response(
+        doc.file_data,
+        mimetype=doc.content_type or 'application/octet-stream',
+        headers={'Content-Disposition': f'attachment; filename="{doc.original_filename}"'}
+    )
+
+@app.route('/documents/<int:doc_id>/delete', methods=['POST'])
+@login_required
+@role_required('patient')
+def delete_document(doc_id):
+    doc = db.get_or_404(Document, doc_id)
+    if doc.patient_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('my_health'))
+
+    try:
+        db.session.delete(doc)
+        db.session.commit()
+        flash('Document deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Document delete error: {e}")
+        flash('Error deleting document.', 'error')
+
+    return redirect(url_for('my_health'))
+
 @app.route('/doctor/patient/<int:patient_id>')
 @login_required
 @role_required('doctor')
@@ -1276,6 +1408,7 @@ def view_patient_history(patient_id):
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
     medicine_history = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
     visit_history = Appointment.query.options(joinedload(Appointment.doctor)).filter_by(patient_id=patient_id, status='completed').order_by(Appointment.completed_at.desc()).limit(20).all()
+    documents = Document.query.filter_by(patient_id=patient_id).order_by(Document.uploaded_at.desc()).all()
 
     return render_template(
         'patient_history_view.html',
@@ -1283,7 +1416,8 @@ def view_patient_history(patient_id):
         vitals_history=vitals_history,
         symptom_history=symptom_history,
         medicine_history=medicine_history,
-        visit_history=visit_history
+        visit_history=visit_history,
+        documents=documents
     )
 
 @app.route('/chat')
@@ -1428,6 +1562,7 @@ MIGRATION_CHAIN = [
     ('notifications_v1', '0006_notifications.py'),
     ('optional_time_v1', '0007_optional_time.py'),
     ('fk_indexes_v1', '0008_fk_indexes.py'),
+    ('documents_v1', '0009_documents.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1470,6 +1605,8 @@ def _migration_signature_present(revision_id, inspector):
         for idx in inspector.get_indexes('appointment'):
             index_columns.update(idx.get('column_names', []))
         return 'patient_id' in index_columns and 'doctor_id' in index_columns
+    elif revision_id == 'documents_v1':
+        return 'document' in tables
     return False
 
 def _detect_actual_revision(inspector):
