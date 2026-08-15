@@ -220,6 +220,7 @@ class SymptomLog(db.Model):
     description = db.Column(db.Text, nullable=True)
     guidance = db.Column(db.Text, nullable=True)
     ai_generated = db.Column(db.Boolean, nullable=False, default=False)
+    suggested_specialty = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='symptom_logs')
@@ -1683,6 +1684,7 @@ MIGRATION_CHAIN = [
     ('fk_indexes_v1', '0008_fk_indexes.py'),
     ('documents_v1', '0009_documents.py'),
     ('account_deletion_v1', '0010_account_deletion.py'),
+    ('specialty_match_v1', '0011_specialty_match.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1729,6 +1731,11 @@ def _migration_signature_present(revision_id, inspector):
         return 'document' in tables
     elif revision_id == 'account_deletion_v1':
         return 'account_deletion_request' in tables
+    elif revision_id == 'specialty_match_v1':
+        if 'symptom_log' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('symptom_log')}
+        return 'suggested_specialty' in columns
     return False
 
 def _detect_actual_revision(inspector):
@@ -1991,6 +1998,24 @@ SYMPTOM_OPTIONS = [
 ]
 EMERGENCY_SYMPTOMS = {'Chest pain', 'Shortness of breath'}
 
+# Deterministic fallback for the specialty-matching feature - always
+# available even if the AI enhancement is down or misconfigured. The AI
+# path (get_ai_specialty_suggestion) can use the free-text description
+# for more nuance, but this mapping is what keeps a reasonable suggestion
+# working even without it.
+SYMPTOM_TO_SPECIALTY = {
+    'Fever': 'General Physician',
+    'Cough': 'General Physician',
+    'Chest pain': 'Cardiology',
+    'Shortness of breath': 'Pulmonology',
+    'Headache': 'Neurology',
+    'Nausea or vomiting': 'Gastroenterology',
+    'Dizziness': 'Neurology',
+    'Rash': 'Dermatology',
+    'Abdominal pain': 'Gastroenterology',
+    'Fatigue': 'General Physician',
+}
+
 def build_patient_context_summary(patient_id):
     """Builds a compact summary of a patient's recent health data (latest
     vitals, active medicines, recent symptom logs) to personalize AI
@@ -2124,6 +2149,93 @@ def get_ai_symptom_guidance(selected_symptoms, severity, description, patient_id
         app.logger.warning(f"Gemini symptom guidance failed, falling back to rule-based guidance: {e}")
         return None
 
+def get_ai_specialty_suggestion(selected_symptoms, description, available_specialties):
+    """Suggests a specialty using AI, informed by the free-text description
+    for nuance beyond the fixed symptom checkboxes. Returns None on any
+    failure, unclear response, or if the AI's answer doesn't exactly match
+    one of the real available specialties - callers fall back to the
+    deterministic SYMPTOM_TO_SPECIALTY mapping in that case."""
+    if not gemini_client or not available_specialties:
+        return None
+    try:
+        from google.genai import types
+        symptoms_text = ', '.join(selected_symptoms) if selected_symptoms else 'none selected'
+        specialties_text = ', '.join(available_specialties)
+        user_prompt = (
+            f"Symptoms: {symptoms_text}. Additional details from patient: {description or 'none provided'}.\n\n"
+            f"Available specialties on this platform: {specialties_text}."
+        )
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "You match a patient's described symptoms to the single most relevant "
+                    "medical specialty from a provided list. Respond with ONLY the exact "
+                    "specialty name copied from that list, character for character - no "
+                    "punctuation, no explanation, nothing else. If nothing in the list is "
+                    "clearly relevant, respond with exactly: NONE"
+                ),
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                max_output_tokens=30,
+                temperature=0.2,
+            )
+        )
+
+        candidates = getattr(response, 'candidates', None)
+        if candidates:
+            finish_reason = getattr(candidates[0], 'finish_reason', None)
+            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
+            if finish_reason_str and finish_reason_str != 'STOP':
+                return None
+
+        text = (response.text or '').strip()
+        if not text or text == 'NONE':
+            return None
+
+        # Must exactly match a real, currently-available specialty - guards
+        # against the AI inventing or slightly rewording something that
+        # doesn't actually exist on the platform.
+        if text in available_specialties:
+            return text
+        return None
+    except Exception as e:
+        app.logger.warning(f"AI specialty suggestion failed, falling back to deterministic mapping: {e}")
+        return None
+
+def suggest_specialty_for_symptoms(selected_symptoms, description):
+    """Returns a suggested specialty string, or None. Never suggests
+    anything alongside emergency symptoms - the priority there is
+    seeking care immediately, not browsing for a doctor. Only ever
+    returns a specialty that has at least one real, currently-approved
+    doctor, so the suggestion always leads somewhere bookable rather
+    than a dead end."""
+    if not selected_symptoms:
+        return None
+
+    if any(s in EMERGENCY_SYMPTOMS for s in selected_symptoms):
+        return None
+
+    available_specialties = [
+        row[0] for row in db.session.query(User.specialty).filter(
+            User.role == 'doctor', User.status == 'approved',
+            User.specialty.isnot(None), User.specialty != ''
+        ).distinct().all()
+    ]
+    if not available_specialties:
+        return None
+
+    ai_suggestion = get_ai_specialty_suggestion(selected_symptoms, description, available_specialties)
+    if ai_suggestion:
+        return ai_suggestion
+
+    for symptom in selected_symptoms:
+        mapped = SYMPTOM_TO_SPECIALTY.get(symptom)
+        if mapped and mapped in available_specialties:
+            return mapped
+
+    return None
+
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
 @role_required('patient')
@@ -2162,13 +2274,15 @@ def symptoms():
                 flash_category = 'success'
 
         try:
+            suggested_specialty = suggest_specialty_for_symptoms(selected, description)
             entry = SymptomLog(
                 patient_id=patient_id,
                 symptoms=', '.join(selected) if selected else 'Not specified',
                 severity=severity,
                 description=description,
                 guidance=guidance,
-                ai_generated=ai_generated
+                ai_generated=ai_generated,
+                suggested_specialty=suggested_specialty
             )
             db.session.add(entry)
             db.session.commit()

@@ -90,6 +90,12 @@
                         <td style="padding: 14px 10px; color: var(--text-sub);">
                             {{ log.guidance }}
                             {% if log.ai_generated %}<span style="display: inline-block; margin-left: 6px; background-color: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; vertical-align: middle;">🤖 AI-assisted</span>{% endif %}
+                            {% if log.suggested_specialty %}
+                            <div style="margin-top: 6px; font-size: 0.8rem;">
+                                <span style="color: #64748b;">Consider seeing a:</span>
+                                <a href="{{ url_for('patient_dashboard', specialty=log.suggested_specialty) }}" style="color: #2563eb; font-weight: 700; text-decoration: none;">{{ log.suggested_specialty }} &rarr;</a>
+                            </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
