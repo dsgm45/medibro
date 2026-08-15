@@ -39,12 +39,12 @@
 <body class="bg-[#faf9f6] text-slate-800">
 
     <header class="bg-white border-b border-slate-200/80 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-[#2d76c9] text-white flex items-center justify-center font-extrabold text-xl shadow-md">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between gap-2">
+            <div class="flex items-center space-x-2 md:space-x-3 flex-shrink-0">
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[#2d76c9] text-white flex items-center justify-center font-extrabold text-base md:text-xl shadow-md">
                     M
                 </div>
-                <span class="text-2xl font-bold text-[#1e56a0] tracking-tight">MediBro</span>
+                <span class="text-lg md:text-2xl font-bold text-[#1e56a0] tracking-tight">MediBro</span>
             </div>
 
             <nav class="hidden md:flex items-center space-x-8 text-sm font-semibold text-slate-600">
@@ -53,16 +53,16 @@
                 <a href="#how-it-works" class="hover:text-[#1e56a0] transition">How It Works</a>
             </nav>
 
-            <div class="flex items-center space-x-3">
-                <button type="button" onclick="document.getElementById('mobileNav').classList.toggle('hidden')" class="md:hidden p-2 rounded-lg hover:bg-slate-100 transition" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileNav">
-                    <svg class="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <div class="flex items-center space-x-1.5 md:space-x-3 flex-shrink-0">
+                <button type="button" onclick="document.getElementById('mobileNav').classList.toggle('hidden')" class="md:hidden p-1.5 rounded-lg hover:bg-slate-100 transition" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileNav">
+                    <svg class="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
                 </button>
-                <a href="/login" class="hidden md:inline-block px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition">
+                <a href="/login" class="px-3 py-1.5 text-xs md:px-5 md:py-2.5 md:text-sm rounded-lg md:rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 transition whitespace-nowrap">
                     Log In
                 </a>
-                <a href="/register" class="hidden md:inline-block px-5 py-2.5 rounded-xl bg-[#2d76c9] hover:bg-[#2363ad] text-white font-bold text-sm shadow-md transition">
+                <a href="/register" class="px-3 py-1.5 text-xs md:px-5 md:py-2.5 md:text-sm rounded-lg md:rounded-xl bg-[#2d76c9] hover:bg-[#2363ad] text-white font-bold shadow-md transition whitespace-nowrap">
                     Sign Up
                 </a>
             </div>
@@ -71,10 +71,6 @@
             <a href="#home" onclick="document.getElementById('mobileNav').classList.add('hidden')" class="hover:text-[#1e56a0] transition">Home</a>
             <a href="#features" onclick="document.getElementById('mobileNav').classList.add('hidden')" class="hover:text-[#1e56a0] transition">Features</a>
             <a href="#how-it-works" onclick="document.getElementById('mobileNav').classList.add('hidden')" class="hover:text-[#1e56a0] transition">How It Works</a>
-            <div class="border-t border-slate-200/80 pt-4 flex flex-col gap-3">
-                <a href="/login" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm text-center hover:bg-slate-50 transition">Log In</a>
-                <a href="/register" class="px-5 py-2.5 rounded-xl bg-[#2d76c9] hover:bg-[#2363ad] text-white font-bold text-sm text-center shadow-md transition">Sign Up</a>
-            </div>
         </nav>
     </header>
 

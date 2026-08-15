@@ -141,13 +141,15 @@ class TestFooterLinks:
         assert 'video call' not in step3_section.lower()
 
     def test_landing_page_mobile_header_not_cluttered(self, client):
-        # Log In / Sign Up should be hidden in the header row on mobile
-        # (moved into the hamburger dropdown instead) - only the dropdown
-        # copies should be visible by default.
+        # Log In / Sign Up are directly visible on mobile (not hidden in
+        # the dropdown) but sized compactly so they fit alongside the
+        # brand and hamburger icon without cramping - this replaced the
+        # earlier "hide them entirely on mobile" design.
         resp = client.get('/')
         text = resp.data.decode()
         header_section = text[:text.index('id="mobileNav"')]
-        assert 'hidden md:inline-block' in header_section
+        assert 'px-3 py-1.5 text-xs' in header_section
+        assert 'hidden md:inline-block' not in header_section
 
     def test_landing_page_hero_shows_product_preview(self, client):
         resp = client.get('/')
