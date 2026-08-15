@@ -177,3 +177,8 @@ class TestFooterLinks:
     def test_landing_page_has_ai_safety_section(self, client):
         resp = client.get('/')
         assert b'How MediBro Keeps AI Safe' in resp.data
+
+    def test_landing_page_uses_compiled_css_not_cdn(self, client):
+        resp = client.get('/')
+        assert b'cdn.tailwindcss.com' not in resp.data
+        assert b'static/css/tailwind.css' in resp.data
