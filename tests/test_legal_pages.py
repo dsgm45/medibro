@@ -116,3 +116,28 @@ class TestFooterLinks:
         text = resp.data.decode()
         video_section = text[max(0, text.index('Video Consultation') - 500):text.index('Video Consultation') + 200]
         assert 'Coming Soon' in video_section
+
+    def test_landing_page_has_meta_description_and_favicon(self, client):
+        resp = client.get('/')
+        assert b'name="description"' in resp.data
+        assert b'rel="icon"' in resp.data
+
+    def test_landing_page_has_semantic_main_and_skip_link(self, client):
+        resp = client.get('/')
+        assert b'<main>' in resp.data
+        assert b'Skip to main content' in resp.data
+
+    def test_landing_page_has_mobile_nav_menu(self, client):
+        resp = client.get('/')
+        assert b'mobileNav' in resp.data
+        assert b'Toggle navigation menu' in resp.data
+
+    def test_landing_page_hero_shows_product_preview(self, client):
+        resp = client.get('/')
+        assert b'Blood Pressure' in resp.data
+        assert b'Next Appointment' in resp.data
+
+    def test_landing_page_trust_signals_present(self, client):
+        resp = client.get('/')
+        assert b'Doctor accounts manually verified' in resp.data
+        assert b'You control your data' in resp.data
