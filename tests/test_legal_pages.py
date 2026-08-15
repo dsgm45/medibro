@@ -132,6 +132,23 @@ class TestFooterLinks:
         assert b'mobileNav' in resp.data
         assert b'Toggle navigation menu' in resp.data
 
+    def test_landing_page_how_it_works_does_not_overclaim(self, client):
+        resp = client.get('/')
+        text = resp.data.decode()
+        assert 'highly rated' not in text
+        assert 'automatic digital prescriptions' not in text
+        step3_section = text[max(0, text.index('Consult & Care') - 50):text.index('Consult & Care') + 300]
+        assert 'video call' not in step3_section.lower()
+
+    def test_landing_page_mobile_header_not_cluttered(self, client):
+        # Log In / Sign Up should be hidden in the header row on mobile
+        # (moved into the hamburger dropdown instead) - only the dropdown
+        # copies should be visible by default.
+        resp = client.get('/')
+        text = resp.data.decode()
+        header_section = text[:text.index('id="mobileNav"')]
+        assert 'hidden md:inline-block' in header_section
+
     def test_landing_page_hero_shows_product_preview(self, client):
         resp = client.get('/')
         assert b'Blood Pressure' in resp.data
@@ -141,3 +158,22 @@ class TestFooterLinks:
         resp = client.get('/')
         assert b'Doctor accounts manually verified' in resp.data
         assert b'You control your data' in resp.data
+
+    def test_landing_page_no_demo_dashboard_link(self, client):
+        resp = client.get('/')
+        assert b'Demo Dashboard' not in resp.data
+
+    def test_landing_page_trust_signals_use_grid(self, client):
+        resp = client.get('/')
+        assert b'grid grid-cols-1 sm:grid-cols-2 gap-x-6' in resp.data
+
+    def test_landing_page_has_hero_carousel_with_five_slides(self, client):
+        resp = client.get('/')
+        assert resp.data.count(b'class="carousel-slide') == 5
+        assert resp.data.count(b'carousel-dot') >= 5
+        for title in [b'My Health', b'AI Health Chat', b'Medicine Reminders', b'Book Appointment', b'Vitals Tracking']:
+            assert title in resp.data
+
+    def test_landing_page_has_ai_safety_section(self, client):
+        resp = client.get('/')
+        assert b'How MediBro Keeps AI Safe' in resp.data
