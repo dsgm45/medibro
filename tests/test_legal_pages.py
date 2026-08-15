@@ -92,3 +92,27 @@ class TestFooterLinks:
     def test_landing_page_has_no_placeholder_phone_number(self, client):
         resp = client.get('/')
         assert b'555-0199' not in resp.data
+
+    def test_landing_page_no_dead_footer_links(self, client):
+        resp = client.get('/')
+        assert b'About Us' not in resp.data
+        assert b'Medical Board' not in resp.data
+        assert b'Careers' not in resp.data
+
+    def test_landing_page_shows_built_features_as_available(self, client):
+        # AI Health Chat and Medicine Reminders are fully built - the
+        # landing page must not undersell them as still upcoming.
+        resp = client.get('/')
+        text = resp.data.decode()
+        ai_chat_section = text[max(0, text.index('AI Health Chat') - 500):text.index('AI Health Chat') + 200]
+        assert 'Coming Soon' not in ai_chat_section
+
+        med_section = text[max(0, text.index('Smart Medicine Reminders') - 500):text.index('Smart Medicine Reminders') + 200]
+        assert 'Coming Soon' not in med_section
+
+    def test_landing_page_shows_video_consultation_as_still_upcoming(self, client):
+        # This one genuinely isn't built yet - the page must not overclaim it either.
+        resp = client.get('/')
+        text = resp.data.decode()
+        video_section = text[max(0, text.index('Video Consultation') - 500):text.index('Video Consultation') + 200]
+        assert 'Coming Soon' in video_section
