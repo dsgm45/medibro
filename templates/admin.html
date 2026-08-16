@@ -179,6 +179,7 @@
                         <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: var(--success-light); color: var(--success);">Approved</span>
                     </td>
                     <td style="padding: 12px 10px; text-align: right;">
+                        <a href="{{ url_for('admin_doctor_notes', doctor_id=doc.id) }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 12px;">View Notes</a>
                         <form action="{{ url_for('toggle_user_status', user_id=doc.id) }}" method="POST" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" style="padding: 6px 12px; background: var(--danger-light); color: var(--danger); border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Suspend</button>
@@ -221,6 +222,7 @@
                         </span>
                     </td>
                     <td style="padding: 12px 10px; text-align: right;">
+                        <a href="{{ url_for('admin_patient_notes', patient_id=p.id) }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 12px;">View Notes</a>
                         <form action="{{ url_for('toggle_user_status', user_id=p.id) }}" method="POST" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" style="padding: 6px 12px; background: {{ 'var(--danger-light)' if p.status == 'approved' else 'var(--success-light)' }}; color: {{ 'var(--danger)' if p.status == 'approved' else 'var(--success)' }}; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">

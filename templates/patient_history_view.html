@@ -24,6 +24,12 @@
                 </div>
                 <p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">Dr. {{ v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% if v.reason %} &middot; {{ v.reason }}{% endif %}</p>
                 {% if v.visit_notes %}<p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.85rem; white-space: pre-wrap;">{{ v.visit_notes }}</p>{% endif %}
+                {% if v.patient_note and v.doctor_id == current_doctor_id %}
+                <div style="margin-top: 8px; padding: 8px 10px; background-color: #f8fafc; border-radius: 6px; border-left: 3px solid #94a3b8;">
+                    <p style="margin: 0 0 3px 0; color: #94a3b8; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Patient's Note</p>
+                    <p style="margin: 0; color: #334155; font-size: 0.85rem; white-space: pre-wrap;">{{ v.patient_note }}</p>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

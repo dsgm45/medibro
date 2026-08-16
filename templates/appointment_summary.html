@@ -49,6 +49,16 @@
             <p style="margin: 20px 0 0 0; color: #94a3b8; font-size: 0.78rem;">Visit completed {{ appt.completed_at.strftime('%b %d, %Y %I:%M %p') }}</p>
             {% endif %}
         </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px;">
+            <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Your Note</p>
+            <p style="margin: 0 0 12px 0; color: #94a3b8; font-size: 0.82rem;">Private to you and Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} - not shown to other patients.</p>
+            <form action="{{ url_for('save_appointment_note', app_id=appt.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <textarea name="patient_note" rows="4" placeholder="How did this visit go? Anything you'd like to remember or follow up on..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 0.9rem; color: #0f172a; resize: vertical;">{{ appt.patient_note or '' }}</textarea>
+                <button type="submit" style="margin-top: 10px; padding: 8px 18px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Save Note</button>
+            </form>
+        </div>
     </main>
 </div>
 {% endblock %}

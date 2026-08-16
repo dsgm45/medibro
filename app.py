@@ -154,6 +154,7 @@ class Appointment(db.Model):
     follow_up_requested = db.Column(db.Boolean, nullable=False, default=False)
     diagnosis = db.Column(db.Text, nullable=True)
     visit_notes = db.Column(db.Text, nullable=True)
+    patient_note = db.Column(db.Text, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1235,6 +1236,29 @@ def appointment_summary(app_id):
 
     return render_template('appointment_summary.html', appt=appt)
 
+@app.route('/my-appointment/<int:app_id>/note', methods=['POST'])
+@login_required
+@role_required('patient')
+def save_appointment_note(app_id):
+    appt = db.get_or_404(Appointment, app_id)
+    if appt.patient_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('patient_dashboard'))
+    if appt.status != 'completed':
+        flash('This appointment does not have a visit summary yet.', 'error')
+        return redirect(url_for('patient_dashboard'))
+
+    try:
+        appt.patient_note = request.form.get('patient_note', '').strip() or None
+        db.session.commit()
+        flash('Your note has been saved.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Save appointment note error: {e}")
+        flash('Error saving your note. Please try again.', 'error')
+
+    return redirect(url_for('appointment_summary', app_id=app_id))
+
 @app.route('/appointment/<int:app_id>/request-follow-up', methods=['POST'])
 @login_required
 @role_required('doctor')
@@ -1569,7 +1593,8 @@ def view_patient_history(patient_id):
         symptom_history=symptom_history,
         medicine_history=medicine_history,
         visit_history=visit_history,
-        documents=documents
+        documents=documents,
+        current_doctor_id=doctor_id
     )
 
 @app.route('/chat')
@@ -1729,6 +1754,7 @@ MIGRATION_CHAIN = [
     ('account_deletion_v1', '0010_account_deletion.py'),
     ('specialty_match_v1', '0011_specialty_match.py'),
     ('notification_read_at_v1', '0012_notification_read_at.py'),
+    ('patient_note_v1', '0013_patient_note.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1785,6 +1811,11 @@ def _migration_signature_present(revision_id, inspector):
             return False
         columns = {c['name'] for c in inspector.get_columns('notification')}
         return 'read_at' in columns
+    elif revision_id == 'patient_note_v1':
+        if 'appointment' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('appointment')}
+        return 'patient_note' in columns
     return False
 
 def _detect_actual_revision(inspector):
@@ -1976,6 +2007,30 @@ def toggle_user_status(user_id):
 def admin_audit_log():
     logs = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc()).limit(100).all()
     return render_template('audit_log.html', logs=logs)
+
+@app.route('/admin/doctor/<int:doctor_id>/notes')
+@login_required
+@role_required('hospital', 'admin')
+def admin_doctor_notes(doctor_id):
+    doctor = db.get_or_404(User, doctor_id)
+    appointments = Appointment.query.options(joinedload(Appointment.patient)).filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.status == 'completed',
+        Appointment.patient_note.isnot(None)
+    ).order_by(Appointment.completed_at.desc()).all()
+    return render_template('admin_visit_notes.html', person=doctor, person_role='doctor', appointments=appointments)
+
+@app.route('/admin/patient/<int:patient_id>/notes')
+@login_required
+@role_required('hospital', 'admin')
+def admin_patient_notes(patient_id):
+    patient = db.get_or_404(User, patient_id)
+    appointments = Appointment.query.options(joinedload(Appointment.doctor)).filter(
+        Appointment.patient_id == patient_id,
+        Appointment.status == 'completed',
+        Appointment.patient_note.isnot(None)
+    ).order_by(Appointment.completed_at.desc()).all()
+    return render_template('admin_visit_notes.html', person=patient, person_role='patient', appointments=appointments)
 
 # --- VITALS ---
 @app.route('/vitals', methods=['GET', 'POST'])
