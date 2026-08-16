@@ -10,6 +10,31 @@
         <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">⚙️ Edit Profile</a>
     </div>
 
+    {% if pending_refill_requests %}
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">💊 Refill Requests</h2>
+        {% for req in pending_refill_requests %}
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; {% if not loop.last %}margin-bottom: 12px;{% endif %}">
+            <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ req.patient.full_name }} &middot; {{ req.medicine.name }}</p>
+            {% if req.note %}<p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.85rem;">"{{ req.note }}"</p>{% endif %}
+            <p style="margin: 6px 0 12px 0; color: #94a3b8; font-size: 0.78rem;">Requested {{ req.requested_at.strftime('%b %d, %Y') }}</p>
+            <div style="display: flex; gap: 10px;">
+                <form action="{{ url_for('respond_to_refill_request', request_id=req.id) }}" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="approve">
+                    <button type="submit" style="padding: 6px 14px; background-color: #15803d; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
+                </form>
+                <form action="{{ url_for('respond_to_refill_request', request_id=req.id) }}" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="deny">
+                    <button type="submit" style="padding: 6px 14px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Deny</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Appointments grouped by day -->
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">🩺 Patient Appointment Requests</h2>

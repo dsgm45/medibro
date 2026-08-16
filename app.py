@@ -308,6 +308,27 @@ class Medicine(db.Model):
 
     patient = db.relationship('User', foreign_keys=[patient_id], backref='medicines')
 
+class RefillRequest(db.Model):
+    """A patient requesting a doctor renew/refill an existing medicine.
+    Medicines are patient self-tracked (not linked to a specific
+    prescribing doctor), so the patient picks which doctor to send the
+    request to, from doctors they've actually had appointments with -
+    not any arbitrary doctor on the platform. Approving automatically
+    extends the medicine's end date; denying does not."""
+    id = db.Column(db.Integer, primary_key=True)
+    medicine_id = db.Column(db.Integer, db.ForeignKey('medicine.id'), nullable=False, index=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending / approved / denied
+    note = db.Column(db.Text, nullable=True)
+    doctor_response = db.Column(db.Text, nullable=True)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow)
+    responded_at = db.Column(db.DateTime, nullable=True)
+
+    medicine = db.relationship('Medicine', foreign_keys=[medicine_id])
+    patient = db.relationship('User', foreign_keys=[patient_id])
+    doctor = db.relationship('User', foreign_keys=[doctor_id])
+
 class AIChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
@@ -1186,12 +1207,17 @@ def doctor_dashboard():
         grouped.setdefault(appt.appointment_date, []).append(appt)
     grouped_appointments = sorted(grouped.items(), key=lambda x: x[0], reverse=True)
 
+    pending_refill_requests = RefillRequest.query.options(
+        joinedload(RefillRequest.patient), joinedload(RefillRequest.medicine)
+    ).filter_by(doctor_id=doctor_id, status='pending').order_by(RefillRequest.requested_at.desc()).all()
+
     return render_template(
         'doctor_dashboard.html',
         doctor=doctor,
         grouped_appointments=grouped_appointments,
         pending_followup_appointment_ids=pending_followup_appointment_ids,
-        days_until_by_appointment_id=days_until_by_appointment_id
+        days_until_by_appointment_id=days_until_by_appointment_id,
+        pending_refill_requests=pending_refill_requests
     )
 
 @app.route('/appointment/<int:app_id>/<action>', methods=['POST'])
@@ -1816,6 +1842,7 @@ MIGRATION_CHAIN = [
     ('notification_read_at_v1', '0012_notification_read_at.py'),
     ('patient_note_v1', '0013_patient_note.py'),
     ('access_log_v1', '0014_access_log.py'),
+    ('refill_request_v1', '0015_refill_request.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1879,6 +1906,8 @@ def _migration_signature_present(revision_id, inspector):
         return 'patient_note' in columns
     elif revision_id == 'access_log_v1':
         return 'patient_data_access_log' in tables
+    elif revision_id == 'refill_request_v1':
+        return 'refill_request' in tables
     return False
 
 def _detect_actual_revision(inspector):
@@ -2992,6 +3021,93 @@ def delete_medicine(med_id):
         app.logger.error(f"Delete medicine error: {e}")
         flash('Error removing medicine reminder.', 'error')
     return redirect(url_for('medicines'))
+
+@app.route('/medicines/<int:med_id>/request-refill', methods=['GET', 'POST'])
+@login_required
+@role_required('patient')
+def request_refill(med_id):
+    med = db.get_or_404(Medicine, med_id)
+    if med.patient_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('medicines'))
+
+    patient_id = session.get('user_id')
+    treating_doctor_ids = {row[0] for row in db.session.query(Appointment.doctor_id).filter_by(patient_id=patient_id).distinct().all()}
+    treating_doctors = User.query.filter(User.id.in_(treating_doctor_ids), User.role == 'doctor').all() if treating_doctor_ids else []
+
+    if request.method == 'POST':
+        doctor_id = request.form.get('doctor_id', type=int)
+        note = request.form.get('note', '').strip()
+
+        if not doctor_id or doctor_id not in treating_doctor_ids:
+            flash('Please select a doctor you have an appointment history with.', 'error')
+            return redirect(url_for('request_refill', med_id=med_id))
+
+        try:
+            refill_req = RefillRequest(medicine_id=med.id, patient_id=patient_id, doctor_id=doctor_id, note=note or None)
+            db.session.add(refill_req)
+            db.session.flush()
+
+            notif = Notification(
+                user_id=doctor_id,
+                type='refill_request',
+                message=f'{med.patient.full_name} requested a refill for {med.name}.',
+                related_id=refill_req.id
+            )
+            db.session.add(notif)
+            db.session.commit()
+            flash('Refill request sent.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Request refill error: {e}")
+            flash('Error sending refill request. Please try again.', 'error')
+
+        return redirect(url_for('medicines'))
+
+    return render_template('request_refill.html', med=med, treating_doctors=treating_doctors)
+
+@app.route('/refill-request/<int:request_id>/respond', methods=['POST'])
+@login_required
+@role_required('doctor')
+def respond_to_refill_request(request_id):
+    refill_req = db.get_or_404(RefillRequest, request_id)
+    if refill_req.doctor_id != session.get('user_id'):
+        flash('Unauthorized action.', 'error')
+        return redirect(url_for('doctor_dashboard'))
+    if refill_req.status != 'pending':
+        flash('This request has already been responded to.', 'error')
+        return redirect(url_for('doctor_dashboard'))
+
+    action = request.form.get('action')
+    if action not in ('approve', 'deny'):
+        flash('Invalid action.', 'error')
+        return redirect(url_for('doctor_dashboard'))
+
+    try:
+        refill_req.status = 'approved' if action == 'approve' else 'denied'
+        refill_req.doctor_response = request.form.get('doctor_response', '').strip() or None
+        refill_req.responded_at = datetime.utcnow()
+
+        if action == 'approve':
+            med = refill_req.medicine
+            extend_from = med.end_date if (med.end_date and med.end_date > get_ist_today()) else get_ist_today()
+            med.end_date = extend_from + timedelta(days=30)
+
+        patient_notif = Notification(
+            user_id=refill_req.patient_id,
+            type='refill_response',
+            message=f"Your refill request for {refill_req.medicine.name} was {'approved' if action == 'approve' else 'denied'}.",
+            related_id=refill_req.id
+        )
+        db.session.add(patient_notif)
+        db.session.commit()
+        flash(f'Refill request {"approved" if action == "approve" else "denied"}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Respond to refill request error: {e}")
+        flash('Error responding to refill request.', 'error')
+
+    return redirect(url_for('doctor_dashboard'))
 
 @app.route('/medicines/dose/<int:dose_id>/delete', methods=['POST'])
 @login_required

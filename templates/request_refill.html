@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Request Refill - MediBro{% endblock %}
+{% block content %}
+<div class="patient-layout">
+    <aside class="patient-sidebar">
+        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
+        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
+        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
+        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
+        <a href="{{ url_for('ai_chat') }}">🤖 AI Health Chat</a>
+        <a href="{{ url_for('medicines') }}" class="active">💊 Medicines</a>
+        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
+        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
+        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
+        <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="sidebar-logout">🚪 Log Out</button>
+        </form>
+    </aside>
+
+    <main class="patient-main">
+        <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Request Refill</h1>
+                <p style="margin: 4px 0 0 0; color: #64748b;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+            </div>
+            <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Medicines</a>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            {% if treating_doctors %}
+            <form action="{{ url_for('request_refill', med_id=med.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Send to
+                    <select name="doctor_id" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <option value="">Select a doctor...</option>
+                        {% for doctor in treating_doctors %}
+                        <option value="{{ doctor.id }}">Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% if doctor.specialty %} ({{ doctor.specialty }}){% endif %}</option>
+                        {% endfor %}
+                    </select></label>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Note (optional)
+                    <textarea name="note" rows="3" placeholder="Anything the doctor should know..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff; font-family: inherit; resize: vertical;"></textarea></label>
+                </div>
+                <button type="submit" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Send Request</button>
+            </form>
+            {% else %}
+            <p style="color: #64748b; margin: 0;">You'll need at least one appointment with a doctor before you can request a refill - book an appointment first, then come back here.</p>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}

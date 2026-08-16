@@ -170,6 +170,7 @@
                         {% if med.notes %}<p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">📝 {{ med.notes }}</p>{% endif %}
                     </div>
                     <div style="display: flex; gap: 12px; flex-shrink: 0; align-items: center;">
+                        <a href="{{ url_for('request_refill', med_id=med.id) }}" style="color: #15803d; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Request Refill</a>
                         <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
                         <form action="{{ url_for('delete_medicine', med_id=med.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Remove this medicine reminder?');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
