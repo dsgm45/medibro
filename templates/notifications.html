@@ -2,7 +2,15 @@
 {% block title %}Notifications - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 640px; margin: 30px auto; padding: 0 20px;">
-    <h1 style="margin: 0 0 20px 0; font-size: 1.6rem; color: #0f172a;">🔔 Notifications</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin: 0 0 20px 0;">
+        <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">🔔 Notifications</h1>
+        {% if notifications and notifications | selectattr('is_read') | list %}
+        <form action="{{ url_for('clear_all_notifications') }}" method="POST" onsubmit="return confirm('Clear all read notifications? This removes them permanently.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="background: none; border: none; color: #2563eb; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 0; font-family: inherit;">Clear All</button>
+        </form>
+        {% endif %}
+    </div>
 
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         {% if notifications %}

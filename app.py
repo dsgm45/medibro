@@ -194,6 +194,7 @@ class Notification(db.Model):
     type = db.Column(db.String(30), nullable=False)
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
+    read_at = db.Column(db.DateTime, nullable=True)
     related_id = db.Column(db.Integer, nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -535,7 +536,23 @@ def ensure_medicine_reminder_notifications(patient_id):
         ).with_entities(Notification.related_id).all()
     }
 
-    created_any = False
+    changes_made = False
+
+    # Clear out stale reminders from previous days - you can't meaningfully
+    # "take" yesterday's dose today, so a missed reminder shouldn't linger
+    # forever once a new day has genuinely started for that same dose.
+    stale_reminders = Notification.query.filter(
+        Notification.user_id == patient_id,
+        Notification.type == 'medicine_reminder',
+        Notification.related_id.in_(due_dose_ids),
+        Notification.is_read == False,
+        Notification.created_at < day_start
+    ).all()
+    for stale in stale_reminders:
+        stale.is_read = True
+        stale.read_at = datetime.utcnow()
+        changes_made = True
+
     for dose in due_doses:
         if dose.id in taken_dose_ids or dose.id in already_notified_dose_ids:
             continue
@@ -548,9 +565,9 @@ def ensure_medicine_reminder_notifications(patient_id):
             related_id=dose.id
         )
         db.session.add(notif)
-        created_any = True
+        changes_made = True
 
-    if created_any:
+    if changes_made:
         db.session.commit()
 
 def _permanently_delete_patient_account(patient_id):
@@ -1358,17 +1375,43 @@ def reject_follow_up(followup_id):
 def notifications():
     user_id = session.get('user_id')
 
-    # Mark as read on view - but explicitly excluding medicine_reminder
-    # type (not built yet, but this exclusion is here from day one so
-    # sub-batch 2 doesn't need to touch this logic). Those need to persist
-    # until the dose itself is marked taken, not just until viewed.
+    # Mark as read on view - excluding medicine_reminder type, which needs
+    # to persist until the dose itself is marked taken, not just viewed.
     Notification.query.filter_by(user_id=user_id, is_read=False).filter(
         Notification.type != 'medicine_reminder'
-    ).update({'is_read': True}, synchronize_session=False)
+    ).update({'is_read': True, 'read_at': datetime.utcnow()}, synchronize_session=False)
+    db.session.commit()
+
+    # Purge anything that's been read for over a day - opportunistic,
+    # checked here since there's no background scheduler. Applies to any
+    # read notification regardless of how it became read (viewed, dose
+    # taken, Clear All, or the stale-reminder rollover).
+    purge_cutoff = datetime.utcnow() - timedelta(days=1)
+    Notification.query.filter(
+        Notification.user_id == user_id,
+        Notification.is_read == True,
+        Notification.read_at.isnot(None),
+        Notification.read_at < purge_cutoff
+    ).delete(synchronize_session=False)
     db.session.commit()
 
     all_notifications = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).limit(30).all()
     return render_template('notifications.html', notifications=all_notifications)
+
+@app.route('/notifications/clear-all', methods=['POST'])
+@login_required
+def clear_all_notifications():
+    """Immediately deletes everything currently marked as read, rather
+    than waiting for the automatic day-later purge. Unread medicine
+    reminders are untouched either way, since they're never marked read
+    by anything other than actually taking the dose (or the next-day
+    stale rollover) - this button can't be used to dismiss one without
+    that happening."""
+    user_id = session.get('user_id')
+    Notification.query.filter_by(user_id=user_id, is_read=True).delete(synchronize_session=False)
+    db.session.commit()
+    flash('Notifications cleared.', 'success')
+    return redirect(url_for('notifications'))
 
 @app.route('/doctor/profile', methods=['GET', 'POST'])
 @login_required
@@ -1685,6 +1728,7 @@ MIGRATION_CHAIN = [
     ('documents_v1', '0009_documents.py'),
     ('account_deletion_v1', '0010_account_deletion.py'),
     ('specialty_match_v1', '0011_specialty_match.py'),
+    ('notification_read_at_v1', '0012_notification_read_at.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1736,6 +1780,11 @@ def _migration_signature_present(revision_id, inspector):
             return False
         columns = {c['name'] for c in inspector.get_columns('symptom_log')}
         return 'suggested_specialty' in columns
+    elif revision_id == 'notification_read_at_v1':
+        if 'notification' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('notification')}
+        return 'read_at' in columns
     return False
 
 def _detect_actual_revision(inspector):
@@ -2772,15 +2821,18 @@ def toggle_dose_taken(dose_id):
             log.taken_at = None
             if todays_reminder:
                 todays_reminder.is_read = False
+                todays_reminder.read_at = None
         elif log:
             log.taken_at = datetime.utcnow()
             if todays_reminder:
                 todays_reminder.is_read = True
+                todays_reminder.read_at = datetime.utcnow()
         else:
             log = MedicineDoseLog(dose_id=dose.id, log_date=today, taken_at=datetime.utcnow())
             db.session.add(log)
             if todays_reminder:
                 todays_reminder.is_read = True
+                todays_reminder.read_at = datetime.utcnow()
 
         db.session.commit()
     except Exception as e:
