@@ -7,20 +7,20 @@
     <form method="POST" style="display: grid; gap: 14px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Full Name</label>
-            <input type="text" name="full_name" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Full Name
+            <input type="text" name="full_name" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Email</label>
-            <input type="email" name="email" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Email
+            <input type="email" name="email" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Password</label>
-            <input type="password" name="password" id="passwordInput" required minlength="6" oninput="checkPassword()" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Password
+            <input type="password" name="password" id="passwordInput" required minlength="6" oninput="checkPassword()" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
             <ul id="passwordChecklist" style="margin: 8px 0 0 0; padding: 0; list-style: none; font-size: 0.8rem; display: none;">
-                <li id="checkLength" style="margin-bottom: 3px; color: #94a3b8;">At least 6 characters</li>
-                <li id="checkLetter" style="margin-bottom: 3px; color: #94a3b8;">Contains a letter</li>
-                <li id="checkNumber" style="color: #94a3b8;">Contains a number</li>
+                <li id="checkLength" style="margin-bottom: 3px; color: var(--text-sub);">At least 6 characters</li>
+                <li id="checkLetter" style="margin-bottom: 3px; color: var(--text-sub);">Contains a letter</li>
+                <li id="checkNumber" style="color: var(--text-sub);">Contains a number</li>
             </ul>
         </div>
         <div>
@@ -33,12 +33,12 @@
             </select>
         </div>
         <div id="specialtyField" style="display:none;">
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Specialty</label>
-            <input type="text" name="specialty" placeholder="e.g. Gastroenterology" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Specialty
+            <input type="text" name="specialty" placeholder="e.g. Gastroenterology" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Phone</label>
-            <input type="text" name="phone" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Phone
+            <input type="text" name="phone" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
         </div>
         <button type="submit" style="padding:10px; border:none; border-radius:6px; background:var(--primary); color:white; font-weight:600; cursor:pointer;">Create Account</button>
     </form>

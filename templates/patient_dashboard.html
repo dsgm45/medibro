@@ -80,30 +80,30 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor</label>
-                        <select name="doctor_id" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; font-size: 0.95rem; color: #0f172a;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor
+                        <select name="doctor_id" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; font-size: 0.95rem; color: #0f172a;">
                             <option value="">-- Choose Specialist --</option>
                             {% for doc in doctors %}
                             <option value="{{ doc.id }}" {% if pre_doctor_id and doc.id == pre_doctor_id %}selected{% endif %}>Dr. {{ doc.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doc.specialty or 'General Practice' }})</option>
                             {% endfor %}
-                        </select>
+                        </select></label>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Date</label>
-                        <input type="date" name="appointment_date" required style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Date
+                        <input type="date" name="appointment_date" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time <span style="font-weight: 500; color: #94a3b8;">(optional - leave blank and your doctor will confirm a time)</span></label>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time <span style="font-weight: 500; color: var(--text-sub);">(optional - leave blank and your doctor will confirm a time)</span></label>
                         <input type="time" name="appointment_time" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number</label>
-                        <input type="tel" name="phone_number" required placeholder="For your doctor to reach you" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number
+                        <input type="tel" name="phone_number" required placeholder="For your doctor to reach you" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                     </div>
                 </div>
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reason for Visit</label>
-                    <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reason for Visit
+                    <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                 </div>
                 <div style="text-align: right;">
                     <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Request Appointment</button>
@@ -133,7 +133,7 @@
                         {% for appt in appointments %}
                         <tr style="border-bottom: 1px solid #f1f5f9;">
                             <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
-                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% else %} &middot; <span style="color: #94a3b8; font-style: italic;">time to be confirmed</span>{% endif %}</td>
+                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% else %} &middot; <span style="color: var(--text-sub); font-style: italic;">time to be confirmed</span>{% endif %}</td>
                             <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
                             <td style="padding: 14px 10px;">
                                 {% if appt.status == 'accepted' %}

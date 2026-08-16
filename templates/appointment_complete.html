@@ -17,12 +17,12 @@
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diagnosis</label>
-                <input type="text" name="diagnosis" value="{{ appt.diagnosis or '' }}" placeholder="e.g. Seasonal flu, mild dehydration" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diagnosis
+                <input type="text" name="diagnosis" value="{{ appt.diagnosis or '' }}" placeholder="e.g. Seasonal flu, mild dehydration" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);"></label>
             </div>
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Visit Notes</label>
-                <textarea name="visit_notes" rows="6" placeholder="What happened during this visit, recommendations, anything the patient should know..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ appt.visit_notes or '' }}</textarea>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Visit Notes
+                <textarea name="visit_notes" rows="6" placeholder="What happened during this visit, recommendations, anything the patient should know..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ appt.visit_notes or '' }}</textarea></label>
             </div>
             <p style="margin: 0 0 20px 0; color: var(--text-sub); font-size: 0.8rem;">Both fields are optional, but filling them in gives the patient a real record of the visit.</p>
             <div style="text-align: right;">

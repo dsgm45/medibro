@@ -77,25 +77,25 @@
                 {% if latest_vital %}
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">BLOOD PRESSURE</p>
+                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">BLOOD PRESSURE</p>
                         <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{% if latest_vital.systolic and latest_vital.diastolic %}{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}{% else %}&mdash;{% endif %}</p>
                     </div>
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">HEART RATE</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: #94a3b8;">bpm</span></p>
+                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">HEART RATE</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">bpm</span></p>
                     </div>
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">SPO2</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: #94a3b8;">%</span></p>
+                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">SPO2</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">%</span></p>
                     </div>
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">TEMP</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: #94a3b8;">&deg;F</span></p>
+                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">TEMP</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">&deg;F</span></p>
                     </div>
                 </div>
-                <p style="margin: 12px 0 0 0; color: #94a3b8; font-size: 0.75rem;">Recorded {{ latest_vital.recorded_at.strftime('%b %d, %Y') }}</p>
+                <p style="margin: 12px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">Recorded {{ latest_vital.recorded_at.strftime('%b %d, %Y') }}</p>
                 {% else %}
-                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No vitals logged yet.</p>
+                <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No vitals logged yet.</p>
                 <a href="{{ url_for('vitals') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Log your first reading</a>
                 {% endif %}
             </div>
@@ -109,9 +109,9 @@
                 {% if latest_symptom %}
                 <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ latest_symptom.symptoms }}</p>
                 <p style="margin: 6px 0 0 0; color: #334155; font-size: 0.8rem; text-transform: capitalize;">Severity: {{ latest_symptom.severity }}</p>
-                <p style="margin: 10px 0 0 0; color: #94a3b8; font-size: 0.75rem;">Logged {{ latest_symptom.created_at.strftime('%b %d, %Y') }}</p>
+                <p style="margin: 10px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">Logged {{ latest_symptom.created_at.strftime('%b %d, %Y') }}</p>
                 {% else %}
-                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No symptoms logged yet.</p>
+                <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No symptoms logged yet.</p>
                 <a href="{{ url_for('symptoms') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Check a symptom</a>
                 {% endif %}
             </div>
@@ -126,16 +126,16 @@
                 <div style="display: grid; gap: 8px;">
                     {% for med in active_medicines[:4] %}
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <p style="margin: 0; font-weight: 600; color: #0f172a; font-size: 0.85rem;">{{ med.name }}{% if med.dosage %} <span style="color: #94a3b8; font-weight: 500;">&middot; {{ med.dosage }}</span>{% endif %}</p>
+                        <p style="margin: 0; font-weight: 600; color: #0f172a; font-size: 0.85rem;">{{ med.name }}{% if med.dosage %} <span style="color: var(--text-sub); font-weight: 500;">&middot; {{ med.dosage }}</span>{% endif %}</p>
                         {% if med.doses %}<span style="background-color: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600;">{{ med.doses[0].time }}{% if med.doses|length > 1 %}+{{ med.doses|length - 1 }}{% endif %}</span>{% endif %}
                     </div>
                     {% endfor %}
                     {% if active_medicines|length > 4 %}
-                    <p style="margin: 0; color: #94a3b8; font-size: 0.75rem;">+{{ active_medicines|length - 4 }} more</p>
+                    <p style="margin: 0; color: var(--text-sub); font-size: 0.75rem;">+{{ active_medicines|length - 4 }} more</p>
                     {% endif %}
                 </div>
                 {% else %}
-                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No active medicines.</p>
+                <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No active medicines.</p>
                 <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Add a medicine</a>
                 {% endif %}
             </div>
@@ -150,7 +150,7 @@
                 <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
                 <p style="margin: 6px 0 0 0; color: #334155; font-size: 0.8rem;">{{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}</p>
                 {% else %}
-                <p style="color: #94a3b8; margin: 0 0 10px 0; font-size: 0.85rem;">No upcoming appointments.</p>
+                <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No upcoming appointments.</p>
                 <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Book an appointment</a>
                 {% endif %}
             </div>
@@ -165,7 +165,7 @@
                 <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png" required style="font-size: 0.85rem;">
                 <button type="submit" style="padding: 8px 16px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Upload</button>
             </form>
-            <p style="margin: 0 0 16px 0; color: #94a3b8; font-size: 0.75rem;">PDF, JPG, or PNG only. Maximum 10 MB per file.</p>
+            <p style="margin: 0 0 16px 0; color: var(--text-sub); font-size: 0.75rem;">PDF, JPG, or PNG only. Maximum 10 MB per file.</p>
 
             {% if documents %}
             <div>
@@ -173,7 +173,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">
                     <div>
                         <p style="margin: 0; color: #0f172a; font-size: 0.85rem; font-weight: 600;">{{ doc.original_filename }}</p>
-                        <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 0.75rem;">{{ doc.uploaded_at.strftime('%b %d, %Y') }}{% if doc.file_size %} &middot; {{ (doc.file_size / 1024) | round(0, 'floor') | int }} KB{% endif %}</p>
+                        <p style="margin: 2px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">{{ doc.uploaded_at.strftime('%b %d, %Y') }}{% if doc.file_size %} &middot; {{ (doc.file_size / 1024) | round(0, 'floor') | int }} KB{% endif %}</p>
                     </div>
                     <div style="display: flex; gap: 12px; align-items: center;">
                         <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
@@ -186,7 +186,7 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #94a3b8; margin: 0; font-size: 0.85rem;">No documents uploaded yet.</p>
+            <p style="color: var(--text-sub); margin: 0; font-size: 0.85rem;">No documents uploaded yet.</p>
             {% endif %}
         </div>
     </main>

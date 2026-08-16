@@ -2677,21 +2677,31 @@ def classify_time_period(time_str):
 
 def get_todays_schedule(patient_id):
     today = datetime.utcnow().date()
-    active_meds = Medicine.query.filter(
+    active_meds = Medicine.query.options(joinedload(Medicine.doses)).filter(
         Medicine.patient_id == patient_id,
         db.or_(Medicine.start_date == None, Medicine.start_date <= today),
         db.or_(Medicine.end_date == None, Medicine.end_date >= today)
     ).all()
 
+    all_dose_ids = [dose.id for med in active_meds for dose in med.doses]
+    taken_dose_ids = set()
+    if all_dose_ids:
+        taken_dose_ids = {
+            row.dose_id for row in MedicineDoseLog.query.filter(
+                MedicineDoseLog.dose_id.in_(all_dose_ids),
+                MedicineDoseLog.log_date == today,
+                MedicineDoseLog.taken_at.isnot(None)
+            ).with_entities(MedicineDoseLog.dose_id).all()
+        }
+
     schedule = []
     for med in active_meds:
         for dose in med.doses:
-            log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
             period, icon = classify_time_period(dose.time)
             schedule.append({
                 'medicine': med,
                 'dose': dose,
-                'taken': bool(log and log.taken_at),
+                'taken': dose.id in taken_dose_ids,
                 'period': period,
                 'icon': icon
             })
@@ -2749,7 +2759,7 @@ def medicines():
 
         return redirect(url_for('medicines'))
 
-    my_medicines = Medicine.query.filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
+    my_medicines = Medicine.query.options(joinedload(Medicine.doses)).filter_by(patient_id=patient_id).order_by(Medicine.created_at.desc()).all()
     todays_schedule = get_todays_schedule(patient_id)
     return render_template('medicines.html', medicines=my_medicines, todays_schedule=todays_schedule)
 

@@ -15,16 +15,16 @@
         <form method="POST" style="display: grid; gap: 14px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
-                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Current Password</label>
-                <input type="password" name="current_password" required style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Current Password
+                <input type="password" name="current_password" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
             </div>
             <div>
-                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">New Password</label>
-                <input type="password" name="new_password" required minlength="6" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">New Password
+                <input type="password" name="new_password" required minlength="6" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
             </div>
             <div>
-                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Confirm New Password</label>
-                <input type="password" name="confirm_password" required minlength="6" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Confirm New Password
+                <input type="password" name="confirm_password" required minlength="6" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
             </div>
             <button type="submit" style="padding:10px; border:none; border-radius:6px; background:var(--primary); color:white; font-weight:600; cursor:pointer;">Update Password</button>
         </form>

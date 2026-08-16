@@ -14,20 +14,20 @@
         <form method="POST" style="display: grid; gap: 16px;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Specialty</label>
-                <input type="text" name="specialty" value="{{ doctor.specialty or '' }}" placeholder="e.g. Cardiology" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Specialty
+                <input type="text" name="specialty" value="{{ doctor.specialty or '' }}" placeholder="e.g. Cardiology" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);"></label>
             </div>
             <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone</label>
-                <input type="text" name="phone" value="{{ doctor.phone or '' }}" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone
+                <input type="text" name="phone" value="{{ doctor.phone or '' }}" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);"></label>
             </div>
             <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Working Hours</label>
-                <input type="text" name="hours" value="{{ doctor.hours or '' }}" placeholder="e.g. Mon-Fri, 9:00 AM - 5:00 PM" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Working Hours
+                <input type="text" name="hours" value="{{ doctor.hours or '' }}" placeholder="e.g. Mon-Fri, 9:00 AM - 5:00 PM" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface);"></label>
             </div>
             <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Bio</label>
-                <textarea name="bio" rows="5" placeholder="A short introduction patients will see..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ doctor.bio or '' }}</textarea>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Bio
+                <textarea name="bio" rows="5" placeholder="A short introduction patients will see..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ doctor.bio or '' }}</textarea></label>
             </div>
             <div style="text-align: right;">
                 <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Profile</button>

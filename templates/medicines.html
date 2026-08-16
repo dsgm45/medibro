@@ -83,16 +83,16 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0 16px 0;">
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name</label>
-                            <input type="text" name="name" required placeholder="e.g. Metformin" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name
+                            <input type="text" name="name" required placeholder="e.g. Metformin" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Dosage</label>
-                            <input type="text" name="dosage" placeholder="e.g. 500mg" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Dosage
+                            <input type="text" name="dosage" placeholder="e.g. 500mg" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency Note (optional)</label>
-                            <input type="text" name="frequency" placeholder="e.g. With food" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency Note (optional)
+                            <input type="text" name="frequency" placeholder="e.g. With food" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                         </div>
                     </div>
 
@@ -115,27 +115,27 @@
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
                             <button type="button" onclick="quickSelect(['chip-morning','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">⚡ Twice Daily</button>
                             <button type="button" onclick="quickSelect(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">⚡ Thrice Daily</button>
-                            <button type="button" onclick="clearChips(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #94a3b8; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Clear</button>
+                            <button type="button" onclick="clearChips(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: var(--text-sub); border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Clear</button>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 6px;">Need a different time? Add a custom one:</label>
-                            <input type="time" name="dose_time" style="padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; color: #0f172a; background-color: #ffffff;">
+                            <label style="display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 6px;">Need a different time? Add a custom one:
+                            <input type="time" name="dose_time" style="display: block; margin-top: 4px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; color: #0f172a; background-color: #ffffff;"></label>
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px;">
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Start Date</label>
-                            <input type="date" name="start_date" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Start Date
+                            <input type="date" name="start_date" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">End Date (leave blank if ongoing)</label>
-                            <input type="date" name="end_date" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">End Date (leave blank if ongoing)
+                            <input type="date" name="end_date" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                         </div>
                     </div>
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)</label>
-                        <input type="text" name="notes" placeholder="e.g. Take with a full glass of water" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)
+                        <input type="text" name="notes" placeholder="e.g. Take with a full glass of water" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                     </div>
                     <div style="text-align: right;">
                         <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Add Medicine</button>
@@ -162,12 +162,12 @@
                         <p style="margin: 6px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.time_of_day }}</p>
                         {% endif %}
                         {% if med.start_date or med.end_date %}
-                        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.78rem;">
+                        <p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">
                             {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
                             {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
                         </p>
                         {% endif %}
-                        {% if med.notes %}<p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.78rem;">📝 {{ med.notes }}</p>{% endif %}
+                        {% if med.notes %}<p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">📝 {{ med.notes }}</p>{% endif %}
                     </div>
                     <div style="display: flex; gap: 12px; flex-shrink: 0; align-items: center;">
                         <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>

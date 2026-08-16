@@ -33,28 +33,28 @@
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Blood Pressure</p>
             <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
                 {% if latest and latest.systolic and latest.diastolic %}{{ latest.systolic }}/{{ latest.diastolic }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: #94a3b8;">mmHg</span>
+                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">mmHg</span>
             </p>
         </div>
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Heart Rate</p>
             <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
                 {% if latest and latest.heart_rate %}{{ latest.heart_rate }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: #94a3b8;">bpm</span>
+                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">bpm</span>
             </p>
         </div>
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">SpO2</p>
             <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
                 {% if latest and latest.spo2 %}{{ latest.spo2 }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: #94a3b8;">%</span>
+                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">%</span>
             </p>
         </div>
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Temperature</p>
             <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
                 {% if latest and latest.temperature %}{{ latest.temperature }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: #94a3b8;">&deg;F</span>
+                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">&deg;F</span>
             </p>
         </div>
     </div>
@@ -84,29 +84,29 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 16px;">
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Systolic (mmHg)</label>
-                    <input type="number" name="systolic" min="0" max="300" placeholder="120" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Systolic (mmHg)
+                    <input type="number" name="systolic" min="0" max="300" placeholder="120" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diastolic (mmHg)</label>
-                    <input type="number" name="diastolic" min="0" max="200" placeholder="80" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diastolic (mmHg)
+                    <input type="number" name="diastolic" min="0" max="200" placeholder="80" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Heart Rate (bpm)</label>
-                    <input type="number" name="heart_rate" min="0" max="300" placeholder="72" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Heart Rate (bpm)
+                    <input type="number" name="heart_rate" min="0" max="300" placeholder="72" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">SpO2 (%)</label>
-                    <input type="number" name="spo2" min="0" max="100" placeholder="98" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">SpO2 (%)
+                    <input type="number" name="spo2" min="0" max="100" placeholder="98" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Temperature (&deg;F)</label>
-                    <input type="number" step="0.1" name="temperature" min="80" max="115" placeholder="98.6" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Temperature (&deg;F)
+                    <input type="number" step="0.1" name="temperature" min="80" max="115" placeholder="98.6" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
                 </div>
             </div>
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)</label>
-                <input type="text" name="notes" placeholder="e.g. Measured after morning walk" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)
+                <input type="text" name="notes" placeholder="e.g. Measured after morning walk" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
             </div>
             <div style="text-align: right;">
                 <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Reading</button>
