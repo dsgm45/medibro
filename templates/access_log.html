@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Who's Viewed Your Records - MediBro{% endblock %}
+{% block content %}
+<div style="max-width: 640px; margin: 30px auto; padding: 0 20px;">
+    <a href="{{ url_for('my_health') }}" style="display: inline-flex; align-items: center; gap: 6px; color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px;">&larr; Back to My Health</a>
+
+    <div style="margin-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">🔍 Who's Viewed Your Records</h1>
+        <p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.9rem;">Every time a doctor or admin looks at your health records, it shows up here - full transparency, nothing hidden.</p>
+    </div>
+
+    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        {% if entries %}
+        <div style="display: grid; gap: 10px;">
+            {% for entry in entries %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">
+                <div>
+                    <p style="margin: 0; color: #0f172a; font-size: 0.9rem; font-weight: 600;">
+                        {% if entry.viewer_role == 'doctor' %}
+                        Dr. {{ entry.viewer.full_name.replace('Dr. ', '').replace('Dr ', '') }}
+                        {% else %}
+                        {{ entry.viewer.full_name }} (Admin)
+                        {% endif %}
+                        viewed your health records
+                    </p>
+                    <p style="margin: 2px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">{{ entry.viewed_at.strftime('%b %d, %Y %I:%M %p') }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-sub); margin: 0;">No one has viewed your records yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

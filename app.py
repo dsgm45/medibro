@@ -20,6 +20,19 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 
+# MediBro is built exclusively for the Indian market - a single timezone
+# nationwide (IST, UTC+5:30, no DST, no regional variation). Anywhere
+# "today" affects patient-facing logic (medicine schedules, reminders,
+# dose-taken tracking) must use IST, not server UTC - using UTC would be
+# wrong for roughly 5.5 hours every single day (IST midnight to 5:30am,
+# when it's still "yesterday" in UTC), causing real bugs like a medicine
+# schedule showing the wrong day. Use this helper instead of
+# datetime.utcnow().date() anywhere "today" means "today for the patient".
+IST_OFFSET = timedelta(hours=5, minutes=30)
+
+def get_ist_today():
+    return (datetime.utcnow() + IST_OFFSET).date()
+
 # Render sits in front of this app as a single reverse-proxy hop, so without
 # this, request.remote_addr would always show Render's internal proxy
 # address instead of the real visitor IP - which would silently break any
@@ -253,6 +266,23 @@ class AdminAuditLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     admin = db.relationship('User', foreign_keys=[admin_id])
+
+class PatientDataAccessLog(db.Model):
+    """Patient-visible access transparency - every time a doctor or admin
+    views a patient's health records, one entry is logged here and shown
+    directly to that patient. Deliberately one entry per visit to the
+    records view, not split per data section, since that's what actually
+    happens (a single page load shows vitals/symptoms/medicines/documents
+    together) - splitting it into fake separate events would be
+    misleading, not more transparent."""
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    viewer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    viewer_role = db.Column(db.String(20), nullable=False)  # 'doctor' or 'admin'
+    viewed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('User', foreign_keys=[patient_id])
+    viewer = db.relationship('User', foreign_keys=[viewer_id])
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -492,9 +522,9 @@ def ensure_medicine_reminder_notifications(patient_id):
     Unlike follow-up notifications (which clear the moment they're
     viewed), these are only marked read when the dose itself is marked
     taken - see toggle_dose_taken()."""
-    today = datetime.utcnow().date()
-    now_time = datetime.utcnow().strftime('%H:%M')
-    day_start = datetime.combine(today, datetime.min.time())
+    today = get_ist_today()
+    now_time = (datetime.utcnow() + IST_OFFSET).strftime('%H:%M')
+    day_start = datetime.combine(today, datetime.min.time()) - IST_OFFSET
     day_end = day_start + timedelta(days=1)
 
     active_medicines = Medicine.query.filter(
@@ -790,7 +820,7 @@ def register():
 @role_required('patient')
 def my_health():
     patient_id = session.get('user_id')
-    today = datetime.utcnow().date()
+    today = get_ist_today()
 
     latest_vital = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).first()
     latest_symptom = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).first()
@@ -835,6 +865,28 @@ def my_health():
         follow_ups=pending_follow_ups,
         documents=documents
     )
+
+@app.route('/my-health/access-log')
+@login_required
+@role_required('patient')
+def my_access_log():
+    patient_id = session.get('user_id')
+    entries = PatientDataAccessLog.query.options(joinedload(PatientDataAccessLog.viewer)).filter_by(
+        patient_id=patient_id
+    ).order_by(PatientDataAccessLog.viewed_at.desc()).limit(100).all()
+    return render_template('access_log.html', entries=entries)
+
+@app.route('/my-health/explain-trends', methods=['POST'])
+@login_required
+@role_required('patient')
+def explain_trends():
+    patient_id = session.get('user_id')
+    explanation = get_ai_trend_explanation(patient_id)
+    if explanation:
+        flash(explanation, 'trend_explanation')
+    else:
+        flash("Not enough recent vitals or symptom history yet to spot a meaningful trend - log a few more entries and try again.", 'info')
+    return redirect(url_for('my_health'))
 
 def _pdf_safe_text(value, max_run=20):
     """PDF core fonts only support Latin-1. Replace anything outside that
@@ -1579,6 +1631,14 @@ def view_patient_history(patient_id):
         flash('You can only view history for patients who have booked with you.', 'error')
         return redirect(url_for('doctor_dashboard'))
 
+    try:
+        access_log = PatientDataAccessLog(patient_id=patient_id, viewer_id=doctor_id, viewer_role='doctor')
+        db.session.add(access_log)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Access log error: {e}")
+
     patient = db.get_or_404(User, patient_id)
     vitals_history = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(20).all()
     symptom_history = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(20).all()
@@ -1698,7 +1758,7 @@ def admin_dashboard():
     status_counts = Counter(row.status for row in appointment_rows)
     total_appointments = len(appointment_rows)
 
-    today = datetime.utcnow().date()
+    today = get_ist_today()
     volume_by_day = []
     for i in range(13, -1, -1):
         day = today - timedelta(days=i)
@@ -1755,6 +1815,7 @@ MIGRATION_CHAIN = [
     ('specialty_match_v1', '0011_specialty_match.py'),
     ('notification_read_at_v1', '0012_notification_read_at.py'),
     ('patient_note_v1', '0013_patient_note.py'),
+    ('access_log_v1', '0014_access_log.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1816,6 +1877,8 @@ def _migration_signature_present(revision_id, inspector):
             return False
         columns = {c['name'] for c in inspector.get_columns('appointment')}
         return 'patient_note' in columns
+    elif revision_id == 'access_log_v1':
+        return 'patient_data_access_log' in tables
     return False
 
 def _detect_actual_revision(inspector):
@@ -2025,6 +2088,15 @@ def admin_doctor_notes(doctor_id):
 @role_required('hospital', 'admin')
 def admin_patient_notes(patient_id):
     patient = db.get_or_404(User, patient_id)
+
+    try:
+        access_log = PatientDataAccessLog(patient_id=patient_id, viewer_id=session.get('user_id'), viewer_role='admin')
+        db.session.add(access_log)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Access log error: {e}")
+
     appointments = Appointment.query.options(joinedload(Appointment.doctor)).filter(
         Appointment.patient_id == patient_id,
         Appointment.status == 'completed',
@@ -2129,7 +2201,7 @@ def build_patient_context_summary(patient_id):
     as background context, not a basis for clinical judgments. Returns an
     empty string if the patient has no logged data yet, so prompts degrade
     gracefully rather than including an awkward empty context block."""
-    today = datetime.utcnow().date()
+    today = get_ist_today()
 
     latest_vital = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).first()
     active_medicines = Medicine.query.filter(
@@ -2339,6 +2411,88 @@ def suggest_specialty_for_symptoms(selected_symptoms, description):
             return mapped
 
     return None
+
+def get_ai_trend_explanation(patient_id):
+    """Returns a plain-language explanation of the patient's recent vitals
+    and symptom trends, or None if there's not enough data or the AI call
+    fails - callers must show a graceful fallback in that case. This is
+    an on-demand, read-only feature (patient clicks a button to request
+    it) - not a real-time safety decision, so it doesn't need the
+    deterministic-before-AI pattern the emergency detectors use, but it
+    keeps the same fallback/sanity-check discipline as the other AI
+    features."""
+    recent_vitals = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(10).all()
+    recent_symptoms = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).limit(10).all()
+
+    if not recent_vitals and not recent_symptoms:
+        return None
+
+    if not gemini_client:
+        return None
+
+    try:
+        from google.genai import types
+
+        vitals_text = 'None recorded yet.'
+        if recent_vitals:
+            vitals_lines = []
+            for v in reversed(recent_vitals):  # oldest first, so trend reads chronologically
+                parts = []
+                if v.systolic and v.diastolic:
+                    parts.append(f'BP {v.systolic}/{v.diastolic}')
+                if v.heart_rate:
+                    parts.append(f'HR {v.heart_rate}')
+                if v.spo2:
+                    parts.append(f'SpO2 {v.spo2}%')
+                if v.temperature:
+                    parts.append(f'Temp {v.temperature}F')
+                vitals_lines.append(f"{v.recorded_at.strftime('%b %d')}: {', '.join(parts)}")
+            vitals_text = '\n'.join(vitals_lines)
+
+        symptoms_text = 'None recorded yet.'
+        if recent_symptoms:
+            symptoms_lines = [
+                f"{s.created_at.strftime('%b %d')}: {s.symptoms} (severity: {s.severity})"
+                for s in reversed(recent_symptoms)
+            ]
+            symptoms_text = '\n'.join(symptoms_lines)
+
+        user_prompt = f"Recent vitals (oldest to newest):\n{vitals_text}\n\nRecent symptom logs (oldest to newest):\n{symptoms_text}"
+
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "You explain a patient's own recent vitals and symptom history back to "
+                    "them in plain, reassuring language - point out any genuine patterns "
+                    "(trending up, trending down, staying stable), but never diagnose, never "
+                    "tell them what to do medically, and always end by suggesting they "
+                    "mention anything notable to their doctor. Keep it to 3-4 short "
+                    "sentences. If there isn't enough data to say anything meaningful, say "
+                    "so plainly rather than inventing a pattern."
+                ),
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                max_output_tokens=250,
+                temperature=0.4,
+            )
+        )
+
+        candidates = getattr(response, 'candidates', None)
+        if candidates:
+            finish_reason = getattr(candidates[0], 'finish_reason', None)
+            finish_reason_str = getattr(finish_reason, 'name', None) or (str(finish_reason) if finish_reason else '')
+            if finish_reason_str and finish_reason_str != 'STOP':
+                return None
+
+        text = (response.text or '').strip()
+        if not text or len(text) < 10:
+            return None
+
+        return text
+    except Exception as e:
+        app.logger.warning(f"AI trend explanation failed: {e}")
+        return None
 
 @app.route('/symptoms', methods=['GET', 'POST'])
 @login_required
@@ -2676,7 +2830,7 @@ def classify_time_period(time_str):
         return ('Evening', '🌙')
 
 def get_todays_schedule(patient_id):
-    today = datetime.utcnow().date()
+    today = get_ist_today()
     active_meds = Medicine.query.options(joinedload(Medicine.doses)).filter(
         Medicine.patient_id == patient_id,
         db.or_(Medicine.start_date == None, Medicine.start_date <= today),
@@ -2869,8 +3023,8 @@ def toggle_dose_taken(dose_id):
             flash('Unauthorized action.', 'error')
             return redirect(url_for('medicines'))
 
-        today = datetime.utcnow().date()
-        day_start = datetime.combine(today, datetime.min.time())
+        today = get_ist_today()
+        day_start = datetime.combine(today, datetime.min.time()) - IST_OFFSET
         day_end = day_start + timedelta(days=1)
         log = MedicineDoseLog.query.filter_by(dose_id=dose.id, log_date=today).first()
 

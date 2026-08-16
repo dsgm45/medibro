@@ -27,6 +27,13 @@
             <a href="{{ url_for('export_health_pdf') }}" style="padding: 8px 16px; background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.85rem;">⬇ Download PDF Summary</a>
         </div>
 
+        <div style="margin-bottom: 24px;">
+            <form action="{{ url_for('explain_trends') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" style="padding: 10px 20px; background-color: #6d28d9; color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">🤖 Explain My Recent Trends</button>
+            </form>
+        </div>
+
         <!-- Follow-up banner -->
         {% if follow_ups %}
         <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
@@ -188,6 +195,10 @@
             {% else %}
             <p style="color: var(--text-sub); margin: 0; font-size: 0.85rem;">No documents uploaded yet.</p>
             {% endif %}
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="{{ url_for('my_access_log') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">🔍 See who's viewed your records</a>
         </div>
     </main>
 </div>

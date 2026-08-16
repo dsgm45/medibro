@@ -55,7 +55,7 @@ class TestReminderCreation:
         patient_id = make_user('patient@example.com', 'password123', role='patient')
         med_id, dose_id = _setup_medicine_with_dose(patient_id, '00:01')
         with app_module.app.app_context():
-            today = app_module.datetime.utcnow().date()
+            today = app_module.get_ist_today()
             log = app_module.MedicineDoseLog(dose_id=dose_id, log_date=today, taken_at=app_module.datetime.utcnow())
             app_module.db.session.add(log)
             app_module.db.session.commit()

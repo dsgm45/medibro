@@ -4,7 +4,7 @@ doses and dose logs instead of querying per-medicine and per-dose).
 These confirm the optimization didn't change the actual behavior -
 correct taken/not-taken status, correct exclusion of inactive medicines.
 """
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 import app as app_module
 
 
@@ -32,7 +32,7 @@ class TestTodaysScheduleCorrectness:
             dose = app_module.MedicineDose(medicine_id=med.id, time='08:00')
             app_module.db.session.add(dose)
             app_module.db.session.commit()
-            log = app_module.MedicineDoseLog(dose_id=dose.id, log_date=date.today(), taken_at=datetime.utcnow())
+            log = app_module.MedicineDoseLog(dose_id=dose.id, log_date=app_module.get_ist_today(), taken_at=datetime.utcnow())
             app_module.db.session.add(log)
             app_module.db.session.commit()
 
@@ -60,7 +60,7 @@ class TestTodaysScheduleCorrectness:
             app_module.db.session.commit()
 
             # Only dose_b1 marked taken
-            log = app_module.MedicineDoseLog(dose_id=dose_b1.id, log_date=date.today(), taken_at=datetime.utcnow())
+            log = app_module.MedicineDoseLog(dose_id=dose_b1.id, log_date=app_module.get_ist_today(), taken_at=datetime.utcnow())
             app_module.db.session.add(log)
             app_module.db.session.commit()
 
@@ -79,7 +79,7 @@ class TestTodaysScheduleCorrectness:
             # Ended yesterday - should not appear in today's schedule
             med = app_module.Medicine(
                 patient_id=patient_id, name='Old Med', dosage='1', frequency='daily',
-                end_date=date.today() - timedelta(days=1)
+                end_date=app_module.get_ist_today() - timedelta(days=1)
             )
             app_module.db.session.add(med)
             app_module.db.session.commit()
@@ -101,7 +101,7 @@ class TestTodaysScheduleCorrectness:
             app_module.db.session.commit()
             # Taken yesterday, not today
             log = app_module.MedicineDoseLog(
-                dose_id=dose.id, log_date=date.today() - timedelta(days=1),
+                dose_id=dose.id, log_date=app_module.get_ist_today() - timedelta(days=1),
                 taken_at=datetime.utcnow()
             )
             app_module.db.session.add(log)

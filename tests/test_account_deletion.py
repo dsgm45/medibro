@@ -266,7 +266,7 @@ class TestCascadeDeletion:
             dose = app_module.MedicineDose(medicine_id=med.id, time='08:00')
             app_module.db.session.add(dose)
             app_module.db.session.flush()
-            app_module.db.session.add(app_module.MedicineDoseLog(dose_id=dose.id, log_date=app_module.datetime.utcnow().date()))
+            app_module.db.session.add(app_module.MedicineDoseLog(dose_id=dose.id, log_date=app_module.get_ist_today()))
 
             db_appt_id = appt.id
             db_med_id = med.id
