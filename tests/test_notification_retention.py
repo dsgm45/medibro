@@ -117,3 +117,12 @@ class TestClearAllButton:
     def test_clear_all_requires_login(self, client):
         resp = client.post('/notifications/clear-all', follow_redirects=False)
         assert resp.status_code == 302
+
+
+class TestGoBackLink:
+    def test_notifications_page_has_go_back_link(self, client, make_user):
+        make_user('patient@example.com', 'password123', role='patient')
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/notifications')
+        assert b'Go Back' in resp.data
+        assert b'history.back()' in resp.data
