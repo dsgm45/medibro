@@ -157,6 +157,20 @@
         .patient-sidebar a.sos-link.active {
             color: #ffffff;
         }
+        body.simple-mode .patient-sidebar {
+            width: 260px;
+            padding: 16px;
+            gap: 8px;
+        }
+        body.simple-mode .patient-sidebar a,
+        body.simple-mode .patient-sidebar button.sidebar-logout {
+            font-size: 1.15rem;
+            padding: 16px 14px;
+            gap: 14px;
+        }
+        body.simple-mode h1 {
+            font-size: 2.1rem !important;
+        }
         .patient-main {
             flex: 1;
             min-width: 0;
@@ -228,7 +242,7 @@
         }
     </style>
 </head>
-<body>
+<body{% if simple_mode %} class="simple-mode"{% endif %}>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <nav>
         <div style="display: flex; align-items: center; gap: 10px;">

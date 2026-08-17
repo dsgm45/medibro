@@ -31,6 +31,21 @@
     </div>
 
     {% if session.role == 'patient' %}
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 10px; color: var(--text-dark);">🔍 Simple Mode</h2>
+        <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0 0 16px 0;">
+            Larger text and bigger buttons throughout the app, easier to read and tap. You can turn this on or off anytime.
+        </p>
+        <form action="{{ url_for('toggle_simple_mode') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="padding: 10px 20px; border: 1px solid var(--border); border-radius: 6px; background: {{ '#2563eb' if simple_mode else '#ffffff' }}; color: {{ '#ffffff' if simple_mode else 'var(--text-dark)' }}; font-weight: 600; cursor: pointer;">
+                Simple Mode is {{ 'ON' if simple_mode else 'OFF' }} - Tap to turn {{ 'off' if simple_mode else 'on' }}
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if session.role == 'patient' %}
     <div style="background-color: var(--surface); border: 1px solid #fecaca; border-radius: var(--radius); padding: 24px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 10px; color: #b91c1c;">Delete My Account</h2>
         <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0 0 16px 0;">

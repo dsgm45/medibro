@@ -153,6 +153,7 @@ class User(db.Model):
     status = db.Column(db.String(20), nullable=False, default='approved')
     bio = db.Column(db.Text, nullable=True)
     hours = db.Column(db.String(200), nullable=True)
+    simple_mode = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Appointment(db.Model):
@@ -521,8 +522,13 @@ def inject_notification_count():
         else:
             portal_home_url = url_for('index')
 
-        return {'unread_notification_count': count, 'portal_home_url': portal_home_url}
-    return {'unread_notification_count': 0, 'portal_home_url': None}
+        simple_mode = False
+        if role == 'patient':
+            user = db.session.get(User, session['user_id'])
+            simple_mode = bool(user and user.simple_mode)
+
+        return {'unread_notification_count': count, 'portal_home_url': portal_home_url, 'simple_mode': simple_mode}
+    return {'unread_notification_count': 0, 'portal_home_url': None, 'simple_mode': False}
 
 def ensure_medicine_reminder_notifications(patient_id):
     """Creates a notification for any medicine dose that's due today
@@ -1979,6 +1985,7 @@ MIGRATION_CHAIN = [
     ('access_log_v1', '0014_access_log.py'),
     ('refill_request_v1', '0015_refill_request.py'),
     ('prescribed_medicine_v1', '0016_prescribed_medicine.py'),
+    ('simple_mode_v1', '0017_simple_mode.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -2049,6 +2056,11 @@ def _migration_signature_present(revision_id, inspector):
             return False
         columns = {c['name'] for c in inspector.get_columns('medicine')}
         return 'appointment_id' in columns
+    elif revision_id == 'simple_mode_v1':
+        if 'user' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('user')}
+        return 'simple_mode' in columns
     return False
 
 def _detect_actual_revision(inspector):
@@ -3389,6 +3401,21 @@ def profile():
 
     back_endpoint = dashboard_endpoint_for_role(session.get('role'))
     return render_template('profile.html', back_endpoint=back_endpoint)
+
+@app.route('/profile/toggle-simple-mode', methods=['POST'])
+@login_required
+@role_required('patient')
+def toggle_simple_mode():
+    user = db.session.get(User, session.get('user_id'))
+    try:
+        user.simple_mode = not user.simple_mode
+        db.session.commit()
+        flash(f"Simple Mode turned {'on' if user.simple_mode else 'off'}.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Toggle simple mode error: {e}")
+        flash('Error updating preference.', 'error')
+    return redirect(url_for('profile'))
 
 @app.route('/profile/request-deletion', methods=['POST'])
 @login_required
