@@ -50,6 +50,15 @@ class TestCareTeam:
         resp = client.get('/my-health/care-team', follow_redirects=False)
         assert resp.status_code == 302
 
+    def test_shows_doctor_avatar_with_initials(self, client, make_user):
+        patient_id = make_user('patient@example.com', 'password123', role='patient')
+        doctor_id = make_user('doc@example.com', 'password123', role='doctor', status='approved', full_name='Dr. Anjali Sharma')
+        _make_appointment(patient_id, doctor_id, status='completed')
+
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/my-health/care-team')
+        assert b'>AS<' in resp.data
+
 
 class TestDocumentSearch:
     def test_search_filters_by_filename(self, client, make_user):

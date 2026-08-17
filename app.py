@@ -847,7 +847,9 @@ def my_health():
     patient_id = session.get('user_id')
     today = get_ist_today()
 
-    latest_vital = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).first()
+    recent_vitals = Vital.query.filter_by(patient_id=patient_id).order_by(Vital.recorded_at.desc()).limit(2).all()
+    latest_vital = recent_vitals[0] if recent_vitals else None
+    vital_trends = compute_vital_trends(latest_vital, recent_vitals[1] if len(recent_vitals) > 1 else None)
     latest_symptom = SymptomLog.query.filter_by(patient_id=patient_id).order_by(SymptomLog.created_at.desc()).first()
 
     active_medicines = Medicine.query.filter(
@@ -887,6 +889,7 @@ def my_health():
     return render_template(
         'my_health.html',
         latest_vital=latest_vital,
+        vital_trends=vital_trends,
         latest_symptom=latest_symptom,
         active_medicines=active_medicines,
         next_appointment=next_appointment,
@@ -2995,6 +2998,42 @@ def classify_time_period(time_str):
         return ('Afternoon', '🌤️')
     else:
         return ('Evening', '🌙')
+
+def get_initials(full_name):
+    """Two-letter initials for a simple avatar badge, e.g. 'Dr. Priya
+    Sharma' -> 'PS'. Strips the Dr. prefix first so it doesn't count as
+    a name part. Falls back to '?' for anything unusable."""
+    if not full_name:
+        return '?'
+    cleaned = full_name.replace('Dr.', '').replace('Dr', '').strip()
+    parts = [p for p in cleaned.split() if p]
+    if not parts:
+        return '?'
+    if len(parts) == 1:
+        return parts[0][0].upper()
+    return (parts[0][0] + parts[1][0]).upper()
+
+app.jinja_env.filters['initials'] = get_initials
+
+def compute_vital_trends(latest, previous):
+    """Returns direction ('up'/'down'/'steady') per metric, comparing the
+    latest reading to the one before it, or None where either value is
+    missing. Deliberately does not judge whether a direction is good or
+    bad - MediBro isn't a diagnostic tool, so this only states the fact
+    that a number moved, not what that means."""
+    trends = {}
+    for field in ['systolic', 'heart_rate', 'spo2', 'temperature']:
+        latest_val = getattr(latest, field, None) if latest else None
+        prev_val = getattr(previous, field, None) if previous else None
+        if latest_val is None or prev_val is None:
+            trends[field] = None
+        elif latest_val > prev_val:
+            trends[field] = 'up'
+        elif latest_val < prev_val:
+            trends[field] = 'down'
+        else:
+            trends[field] = 'steady'
+    return trends
 
 def get_todays_schedule(patient_id):
     today = get_ist_today()
