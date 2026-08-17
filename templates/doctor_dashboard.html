@@ -17,7 +17,7 @@
         <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; {% if not loop.last %}margin-bottom: 12px;{% endif %}">
             <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ req.patient.full_name }} &middot; {{ req.medicine.name }}</p>
             {% if req.note %}<p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.85rem;">"{{ req.note }}"</p>{% endif %}
-            <p style="margin: 6px 0 12px 0; color: #94a3b8; font-size: 0.78rem;">Requested {{ req.requested_at.strftime('%b %d, %Y') }}</p>
+            <p style="margin: 6px 0 12px 0; color: #64748b; font-size: 0.78rem;">Requested {{ req.requested_at.strftime('%b %d, %Y') }}</p>
             <div style="display: flex; gap: 10px;">
                 <form action="{{ url_for('respond_to_refill_request', request_id=req.id) }}" method="POST" style="display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

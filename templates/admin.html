@@ -253,7 +253,7 @@ function filterTable(inputId, tableId) {
 function drawBarChart(containerId, data) {
     const container = document.getElementById(containerId);
     if (!data || data.length === 0) {
-        container.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding: 20px 0;">No appointment activity yet.</p>';
+        container.innerHTML = '<p style="color:var(--text-sub); font-size:0.85rem; padding: 20px 0;">No appointment activity yet.</p>';
         return;
     }
     const width = 500;
@@ -279,7 +279,7 @@ function drawBarChart(containerId, data) {
     const labelIndices = data.length <= 7 ? data.map((_, i) => i) : [0, Math.floor((data.length-1)/2), data.length-1];
     labelIndices.forEach(i => {
         const x = padding + i * gap + gap / 2;
-        svg += `<text x="${x}" y="${height - 8}" font-size="9" fill="#94a3b8" text-anchor="middle">${data[i].date}</text>`;
+        svg += `<text x="${x}" y="${height - 8}" font-size="9" fill="#64748b" text-anchor="middle">${data[i].date}</text>`;
     });
 
     svg += `</svg>`;

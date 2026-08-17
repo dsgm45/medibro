@@ -81,10 +81,10 @@
                     {% for v in vitals_history %}
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
-                        <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}&mdash;{% endif %}</td>
-                        <td style="padding: 10px; color: #334155;">{{ v.heart_rate or '—' }}</td>
-                        <td style="padding: 10px; color: #334155;">{{ v.spo2 or '—' }}</td>
-                        <td style="padding: 10px; color: #334155;">{{ v.temperature or '—' }}</td>
+                        <td style="padding: 10px; {% if v.systolic and v.diastolic %}color: var(--text-dark); font-weight: 600;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}Not recorded{% endif %}</td>
+                        <td style="padding: 10px; {% if v.heart_rate %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.heart_rate or 'Not recorded' }}</td>
+                        <td style="padding: 10px; {% if v.spo2 %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.spo2 or 'Not recorded' }}</td>
+                        <td style="padding: 10px; {% if v.temperature %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.temperature or 'Not recorded' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

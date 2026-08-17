@@ -85,19 +85,35 @@
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">BLOOD PRESSURE</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{% if latest_vital.systolic and latest_vital.diastolic %}{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}{% else %}&mdash;{% endif %}</p>
+                        {% if latest_vital.systolic and latest_vital.diastolic %}
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}</p>
+                        {% else %}
+                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        {% endif %}
                     </div>
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">HEART RATE</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">bpm</span></p>
+                        {% if latest_vital.heart_rate %}
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">bpm</span></p>
+                        {% else %}
+                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        {% endif %}
                     </div>
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">SPO2</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">%</span></p>
+                        {% if latest_vital.spo2 %}
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">%</span></p>
+                        {% else %}
+                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        {% endif %}
                     </div>
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">TEMP</p>
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature or '—' }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">&deg;F</span></p>
+                        {% if latest_vital.temperature %}
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">&deg;F</span></p>
+                        {% else %}
+                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        {% endif %}
                     </div>
                 </div>
                 <p style="margin: 12px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">Recorded {{ latest_vital.recorded_at.strftime('%b %d, %Y') }}</p>

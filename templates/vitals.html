@@ -31,31 +31,35 @@
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 32px;">
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Blood Pressure</p>
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
-                {% if latest and latest.systolic and latest.diastolic %}{{ latest.systolic }}/{{ latest.diastolic }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">mmHg</span>
-            </p>
+            {% if latest and latest.systolic and latest.diastolic %}
+            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.systolic }}/{{ latest.diastolic }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">mmHg</span></p>
+            {% else %}
+            <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+            {% endif %}
         </div>
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Heart Rate</p>
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
-                {% if latest and latest.heart_rate %}{{ latest.heart_rate }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">bpm</span>
-            </p>
+            {% if latest and latest.heart_rate %}
+            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.heart_rate }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">bpm</span></p>
+            {% else %}
+            <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+            {% endif %}
         </div>
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">SpO2</p>
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
-                {% if latest and latest.spo2 %}{{ latest.spo2 }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">%</span>
-            </p>
+            {% if latest and latest.spo2 %}
+            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.spo2 }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">%</span></p>
+            {% else %}
+            <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+            {% endif %}
         </div>
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Temperature</p>
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">
-                {% if latest and latest.temperature %}{{ latest.temperature }}{% else %}&mdash;{% endif %}
-                <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">&deg;F</span>
-            </p>
+            {% if latest and latest.temperature %}
+            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.temperature }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">&deg;F</span></p>
+            {% else %}
+            <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+            {% endif %}
         </div>
     </div>
 
@@ -134,10 +138,10 @@
                     {% for v in history %}
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 14px 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
-                        <td style="padding: 14px 10px; color: #0f172a; font-weight: 600;">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}&mdash;{% endif %}</td>
-                        <td style="padding: 14px 10px; color: #334155;">{{ v.heart_rate or '—' }}</td>
-                        <td style="padding: 14px 10px; color: #334155;">{{ v.spo2 or '—' }}</td>
-                        <td style="padding: 14px 10px; color: #334155;">{{ v.temperature or '—' }}</td>
+                        <td style="padding: 14px 10px; {% if v.systolic and v.diastolic %}color: #0f172a; font-weight: 600;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}Not recorded{% endif %}</td>
+                        <td style="padding: 14px 10px; {% if v.heart_rate %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.heart_rate or 'Not recorded' }}</td>
+                        <td style="padding: 14px 10px; {% if v.spo2 %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.spo2 or 'Not recorded' }}</td>
+                        <td style="padding: 14px 10px; {% if v.temperature %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.temperature or 'Not recorded' }}</td>
                         <td style="padding: 14px 10px; color: #64748b;">{{ v.notes or '' }}</td>
                     </tr>
                     {% endfor %}
@@ -155,7 +159,7 @@
 function drawLineChart(containerId, data, keys, colors) {
     const container = document.getElementById(containerId);
     if (!data || data.length < 2) {
-        container.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding: 20px 0;">Log at least 2 readings to see a trend here.</p>';
+        container.innerHTML = '<p style="color:var(--text-sub); font-size:0.85rem; padding: 20px 0;">Log at least 2 readings to see a trend here.</p>';
         return;
     }
     const width = 500;
@@ -187,7 +191,7 @@ function drawLineChart(containerId, data, keys, colors) {
     const labelIndices = data.length <= 5 ? data.map((_, i) => i) : [0, Math.floor((data.length - 1) / 2), data.length - 1];
     labelIndices.forEach(i => {
         const [x] = xy(i, data[i][keys[0]]);
-        svg += `<text x="${x}" y="${height - 8}" font-size="10" fill="#94a3b8" text-anchor="middle">${data[i].date}</text>`;
+        svg += `<text x="${x}" y="${height - 8}" font-size="10" fill="#64748b" text-anchor="middle">${data[i].date}</text>`;
     });
 
     svg += `</svg>`;
