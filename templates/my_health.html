@@ -167,6 +167,12 @@
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px;">
             <p style="margin: 0 0 14px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">📄 Documents</p>
 
+            <form action="{{ url_for('my_health') }}" method="GET" style="margin-bottom: 14px; display: flex; gap: 8px;">
+                <input type="text" name="doc_search" value="{{ doc_search or '' }}" placeholder="Search documents by filename..." style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; color: #0f172a;">
+                <button type="submit" style="padding: 8px 16px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Search</button>
+                {% if doc_search %}<a href="{{ url_for('my_health') }}" style="padding: 8px 12px; color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Clear</a>{% endif %}
+            </form>
+
             <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data" style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png" required style="font-size: 0.85rem;">
@@ -193,11 +199,12 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: var(--text-sub); margin: 0; font-size: 0.85rem;">No documents uploaded yet.</p>
+            <p style="color: var(--text-sub); margin: 0; font-size: 0.85rem;">{% if doc_search %}No documents match "{{ doc_search }}".{% else %}No documents uploaded yet.{% endif %}</p>
             {% endif %}
         </div>
 
-        <div style="text-align: center; margin-top: 20px;">
+        <div style="text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+            <a href="{{ url_for('care_team') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">👥 Your Care Team</a>
             <a href="{{ url_for('my_access_log') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">🔍 See who's viewed your records</a>
         </div>
     </main>

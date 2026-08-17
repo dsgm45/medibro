@@ -297,6 +297,7 @@ class Message(db.Model):
 class Medicine(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=True, index=True)
     name = db.Column(db.String(120), nullable=False)
     dosage = db.Column(db.String(80), nullable=True)
     frequency = db.Column(db.String(80), nullable=True)
@@ -631,9 +632,11 @@ def _permanently_delete_patient_account(patient_id):
     Deletion order matters - children are deleted before the parents they
     reference, to respect foreign key constraints:
       Message (both sides of any thread tied to this patient's appointments)
+      -> Medicine (via ORM delete, not bulk, so its dose/log cascade fires -
+         also references Appointment now via appointment_id, so this must
+         come before Appointment is deleted)
       -> FollowUpRequest -> Appointment
       -> Vital, SymptomLog, EmergencyContact, SosEvent, AIChatMessage, Document
-      -> Medicine (via ORM delete, not bulk, so its dose/log cascade fires)
       -> Notification (this patient's own - a doctor's notification ABOUT
          this patient, e.g. "patient accepted your follow-up", has
          user_id = the doctor, not this patient, so it's preserved)
@@ -650,6 +653,14 @@ def _permanently_delete_patient_account(patient_id):
     if appointment_ids:
         Message.query.filter(Message.appointment_id.in_(appointment_ids)).delete(synchronize_session=False)
 
+    # Medicines need an ORM-level delete (not a bulk .delete() query) so
+    # the dose/log cascade already configured on this relationship
+    # actually fires - a bulk query operates at the raw SQL level and
+    # bypasses relationship cascade behavior entirely. Must happen before
+    # Appointment is deleted, since Medicine.appointment_id references it.
+    for med in Medicine.query.filter_by(patient_id=patient_id).all():
+        db.session.delete(med)
+
     FollowUpRequest.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
     Appointment.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
     Vital.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
@@ -658,13 +669,6 @@ def _permanently_delete_patient_account(patient_id):
     SosEvent.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
     AIChatMessage.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
     Document.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
-
-    # Medicines need an ORM-level delete (not a bulk .delete() query) so
-    # the dose/log cascade already configured on this relationship
-    # actually fires - a bulk query operates at the raw SQL level and
-    # bypasses relationship cascade behavior entirely.
-    for med in Medicine.query.filter_by(patient_id=patient_id).all():
-        db.session.delete(med)
 
     Notification.query.filter_by(user_id=patient_id).delete(synchronize_session=False)
     AccountDeletionRequest.query.filter_by(patient_id=patient_id).delete(synchronize_session=False)
@@ -874,7 +878,11 @@ def my_health():
         patient_id=patient_id, status='pending'
     ).order_by(FollowUpRequest.created_at.desc()).all()
 
-    documents = Document.query.filter_by(patient_id=patient_id).order_by(Document.uploaded_at.desc()).all()
+    doc_search = request.args.get('doc_search', '').strip()
+    documents_query = Document.query.filter_by(patient_id=patient_id)
+    if doc_search:
+        documents_query = documents_query.filter(Document.original_filename.ilike(f'%{doc_search}%'))
+    documents = documents_query.order_by(Document.uploaded_at.desc()).all()
 
     return render_template(
         'my_health.html',
@@ -884,7 +892,8 @@ def my_health():
         next_appointment=next_appointment,
         next_appointment_days_left=next_appointment_days_left,
         follow_ups=pending_follow_ups,
-        documents=documents
+        documents=documents,
+        doc_search=doc_search
     )
 
 @app.route('/my-health/access-log')
@@ -896,6 +905,29 @@ def my_access_log():
         patient_id=patient_id
     ).order_by(PatientDataAccessLog.viewed_at.desc()).limit(100).all()
     return render_template('access_log.html', entries=entries)
+
+@app.route('/my-health/care-team')
+@login_required
+@role_required('patient')
+def care_team():
+    patient_id = session.get('user_id')
+    appointments = Appointment.query.options(joinedload(Appointment.doctor)).filter_by(
+        patient_id=patient_id
+    ).order_by(Appointment.appointment_date.desc()).all()
+
+    doctors_seen = {}
+    for appt in appointments:
+        if appt.doctor_id not in doctors_seen:
+            doctors_seen[appt.doctor_id] = {
+                'doctor': appt.doctor,
+                'last_visit_date': appt.appointment_date,
+                'chat_appointment_id': appt.id if appt.status in ('accepted', 'completed') else None
+            }
+        elif doctors_seen[appt.doctor_id]['chat_appointment_id'] is None and appt.status in ('accepted', 'completed'):
+            doctors_seen[appt.doctor_id]['chat_appointment_id'] = appt.id
+
+    care_team_list = list(doctors_seen.values())
+    return render_template('care_team.html', care_team_list=care_team_list)
 
 @app.route('/my-health/explain-trends', methods=['POST'])
 @login_required
@@ -1043,6 +1075,82 @@ def export_health_pdf():
 
     response = Response(pdf_bytes, mimetype='application/pdf')
     response.headers['Content-Disposition'] = 'attachment; filename=medibro_health_summary.pdf'
+    return response
+
+@app.route('/my-appointment/<int:app_id>/prescription-pdf')
+@login_required
+@role_required('patient', 'doctor')
+def prescription_pdf(app_id):
+    appt = db.get_or_404(Appointment, app_id)
+    user_id = session.get('user_id')
+    role = session.get('role')
+    fallback_page = 'my_health' if role == 'patient' else 'doctor_dashboard'
+
+    if role == 'patient':
+        if appt.patient_id != user_id:
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for(fallback_page))
+    else:
+        if appt.doctor_id != user_id:
+            flash('Unauthorized action.', 'error')
+            return redirect(url_for(fallback_page))
+
+    if appt.status != 'completed':
+        flash('This visit does not have a prescription yet.', 'error')
+        return redirect(url_for(fallback_page))
+
+    medicines = Medicine.query.filter_by(appointment_id=appt.id).order_by(Medicine.id).all()
+    t = _pdf_safe_text
+
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+
+        pdf.set_font('Helvetica', 'B', 18)
+        pdf.cell(0, 12, t('Prescription'))
+        pdf.ln(12)
+
+        pdf.set_font('Helvetica', '', 10)
+        pdf.set_text_color(100, 100, 100)
+        doc_name = appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') if appt.doctor else 'Unknown'
+        pdf.cell(0, 6, t(f'Dr. {doc_name} - {appt.appointment_date}'))
+        pdf.ln(6)
+        pdf.cell(0, 6, t(f'Patient: {appt.patient.full_name}'))
+        pdf.ln(10)
+        pdf.set_text_color(0, 0, 0)
+
+        pdf.set_font('Helvetica', 'B', 13)
+        pdf.cell(0, 8, t('Diagnosis'))
+        pdf.ln(9)
+        pdf.set_font('Helvetica', '', 10)
+        _safe_pdf_multi_cell(pdf, 0, 6, t(appt.diagnosis or 'Not recorded.'))
+        pdf.ln(6)
+
+        pdf.set_font('Helvetica', 'B', 13)
+        pdf.cell(0, 8, t('Medicines'))
+        pdf.ln(9)
+        pdf.set_font('Helvetica', '', 10)
+        if medicines:
+            for m in medicines:
+                line = f'{m.name}  |  {m.dosage or "-"}  |  {m.frequency or "-"}'
+                _safe_pdf_multi_cell(pdf, 0, 6, t(line))
+        else:
+            pdf.cell(0, 6, t('No medicines prescribed at this visit.'))
+            pdf.ln(6)
+
+        pdf.ln(10)
+        pdf.set_font('Helvetica', 'I', 8)
+        pdf.set_text_color(120, 120, 120)
+        _safe_pdf_multi_cell(pdf, 0, 5, t('MediBro is a care coordination platform, not a licensed pharmacy system - confirm with your doctor or pharmacist before acting on this document.'))
+
+        pdf_bytes = bytes(pdf.output())
+    except Exception as e:
+        app.logger.error(f"Prescription PDF error: {e}")
+        flash('There was an error generating the prescription. Please try again.', 'error')
+        return redirect(url_for(fallback_page))
+
+    response = Response(pdf_bytes, mimetype='application/pdf')
+    response.headers['Content-Disposition'] = f'attachment; filename=medibro_prescription_{appt.id}.pdf'
     return response
 
 @app.route('/patient')
@@ -1289,6 +1397,28 @@ def complete_appointment(app_id):
             if appt.status == 'accepted':
                 appt.status = 'completed'
                 appt.completed_at = datetime.utcnow()
+
+            # Replace any previously-saved medicines for this appointment
+            # with whatever's submitted now, rather than trying to
+            # reconcile edits row-by-row - simpler and avoids duplicates
+            # if the doctor re-saves the visit summary later.
+            Medicine.query.filter_by(appointment_id=appt.id).delete(synchronize_session=False)
+            for i in range(1, 5):
+                med_name = request.form.get(f'med_name_{i}', '').strip()
+                if not med_name:
+                    continue
+                med_dosage = request.form.get(f'med_dosage_{i}', '').strip()
+                med_frequency = request.form.get(f'med_frequency_{i}', '').strip()
+                new_med = Medicine(
+                    patient_id=appt.patient_id,
+                    appointment_id=appt.id,
+                    name=med_name,
+                    dosage=med_dosage or None,
+                    frequency=med_frequency or None,
+                    start_date=get_ist_today()
+                )
+                db.session.add(new_med)
+
             db.session.commit()
             flash('Visit summary saved.', 'success')
         except Exception as e:
@@ -1298,7 +1428,8 @@ def complete_appointment(app_id):
 
         return redirect(url_for('doctor_dashboard'))
 
-    return render_template('appointment_complete.html', appt=appt)
+    prescribed_medicines = Medicine.query.filter_by(appointment_id=appt.id).order_by(Medicine.id).all()
+    return render_template('appointment_complete.html', appt=appt, prescribed_medicines=prescribed_medicines)
 
 @app.route('/my-appointment/<int:app_id>/summary')
 @login_required
@@ -1312,7 +1443,8 @@ def appointment_summary(app_id):
         flash('This appointment does not have a visit summary yet.', 'error')
         return redirect(url_for('patient_dashboard'))
 
-    return render_template('appointment_summary.html', appt=appt)
+    prescribed_medicines = Medicine.query.filter_by(appointment_id=appt.id).order_by(Medicine.id).all()
+    return render_template('appointment_summary.html', appt=appt, prescribed_medicines=prescribed_medicines)
 
 @app.route('/my-appointment/<int:app_id>/note', methods=['POST'])
 @login_required
@@ -1843,6 +1975,7 @@ MIGRATION_CHAIN = [
     ('patient_note_v1', '0013_patient_note.py'),
     ('access_log_v1', '0014_access_log.py'),
     ('refill_request_v1', '0015_refill_request.py'),
+    ('prescribed_medicine_v1', '0016_prescribed_medicine.py'),
 ]
 
 def _migration_signature_present(revision_id, inspector):
@@ -1908,6 +2041,11 @@ def _migration_signature_present(revision_id, inspector):
         return 'patient_data_access_log' in tables
     elif revision_id == 'refill_request_v1':
         return 'refill_request' in tables
+    elif revision_id == 'prescribed_medicine_v1':
+        if 'medicine' not in tables:
+            return False
+        columns = {c['name'] for c in inspector.get_columns('medicine')}
+        return 'appointment_id' in columns
     return False
 
 def _detect_actual_revision(inspector):

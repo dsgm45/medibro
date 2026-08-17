@@ -25,6 +25,20 @@
                 <textarea name="visit_notes" rows="6" placeholder="What happened during this visit, recommendations, anything the patient should know..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--surface); font-family: inherit; resize: vertical;">{{ appt.visit_notes or '' }}</textarea></label>
             </div>
             <p style="margin: 0 0 20px 0; color: var(--text-sub); font-size: 0.8rem;">Both fields are optional, but filling them in gives the patient a real record of the visit.</p>
+
+            <div style="margin-bottom: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <p style="margin: 0 0 4px 0; font-size: 0.85rem; font-weight: 600; color: #334155;">Medicines Prescribed</p>
+                <p style="margin: 0 0 14px 0; color: var(--text-sub); font-size: 0.78rem;">These get added to the patient's own medicine list automatically. Leave rows blank if not needed.</p>
+                {% for i in range(1, 5) %}
+                {% set med = prescribed_medicines[i - 1] if prescribed_medicines and i <= prescribed_medicines|length else None %}
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" name="med_name_{{ i }}" value="{{ med.name if med else '' }}" placeholder="Medicine name" style="padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; color: var(--text-dark); background-color: var(--surface);">
+                    <input type="text" name="med_dosage_{{ i }}" value="{{ med.dosage if med else '' }}" placeholder="Dosage" style="padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; color: var(--text-dark); background-color: var(--surface);">
+                    <input type="text" name="med_frequency_{{ i }}" value="{{ med.frequency if med else '' }}" placeholder="Frequency" style="padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; color: var(--text-dark); background-color: var(--surface);">
+                </div>
+                {% endfor %}
+            </div>
+
             <div style="text-align: right;">
                 <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
                     {% if appt.status == 'completed' %}Save Changes{% else %}Mark Completed{% endif %}
