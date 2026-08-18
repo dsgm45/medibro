@@ -6,43 +6,42 @@
     details > summary::marker { content: ""; }
 </style>
         <div style="margin-bottom: 24px;">
-            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Medicine Reminders</h1>
-            <p style="margin: 4px 0 0 0; color: #64748b;">Keep track of what you're taking and when</p>
+            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Medicine Reminders</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Keep track of what you're taking and when</p>
         </div>
 
-        <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 24px; font-size: 0.8rem; color: #1e40af;">
-            ℹ️ This tracker shows an on-page alert while this tab is open near a scheduled time. It cannot send notifications when the app is closed.
+        <div style="background-color: var(--success-light); border-radius: 10px; padding: 10px 14px; margin-bottom: 24px; font-size: 0.8rem; color: var(--primary);">
+            <i class="ti ti-info-circle"></i> This tracker shows an on-page alert while this tab is open near a scheduled time. It cannot send notifications when the app is closed.
         </div>
 
-        <div id="reminder-banner" style="display: none; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; font-weight: 700; color: #92400e;"></div>
+        <div id="reminder-banner" style="display: none; background-color: var(--accent-light); border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; font-weight: 700; color: var(--accent-text);"></div>
 
         <!-- Today's Schedule -->
-        <div style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.2rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-calendar"></i> Today's Schedule</h2>
+        <div style="background: linear-gradient(135deg, var(--success-light) 0%, var(--surface) 100%); border-radius: 16px; padding: 24px; margin-bottom: 28px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <h2 style="font-size: 1.2rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-calendar" style="color: var(--primary);"></i> Today's Schedule</h2>
             {% if todays_schedule %}
             {% set periods = ['Morning', 'Afternoon', 'Evening', 'Other'] %}
-            {% set period_colors = {'Morning': '#f59e0b', 'Afternoon': '#0ea5e9', 'Evening': '#6366f1', 'Other': '#64748b'} %}
             {% for period in periods %}
             {% set period_items = todays_schedule | selectattr('period', 'equalto', period) | list %}
             {% if period_items %}
             <div style="margin-bottom: 18px;">
-                <p style="margin: 0 0 10px 0; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: {{ period_colors[period] }};"><i class="ti ti-{{ period_items[0].icon }}"></i> {{ period }}</p>
+                <p style="margin: 0 0 10px 0; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--primary);"><i class="ti ti-{{ period_items[0].icon }}"></i> {{ period }}</p>
                 <div style="display: grid; gap: 10px;">
                     {% for item in period_items %}
-                    <div style="display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid {{ period_colors[period] }}; border-radius: 10px; padding: 14px 18px; {% if item.taken %}opacity: 0.6;{% endif %} box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 12px; padding: 14px 18px; {% if item.taken %}opacity: 0.6;{% endif %} box-shadow: 0 1px 4px -2px rgba(30,35,51,0.08);">
                         <div style="display: flex; align-items: center; gap: 14px;">
                             <form action="{{ url_for('toggle_dose_taken', dose_id=item.dose.id) }}" method="POST" style="display: inline; flex-shrink: 0;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid {% if item.taken %}#16a34a{% else %}#cbd5e1{% endif %}; background-color: {% if item.taken %}#16a34a{% else %}#ffffff{% endif %}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: all 0.15s;">
-                                    {% if item.taken %}<span style="color: white; font-size: 1rem;"><i class="ti ti-check"></i> </span>{% endif %}
+                                <button type="submit" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid {% if item.taken %}var(--success){% else %}var(--border){% endif %}; background-color: {% if item.taken %}var(--success){% else %}var(--surface){% endif %}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: all 0.15s;">
+                                    {% if item.taken %}<span style="color: white; font-size: 1rem;"><i class="ti ti-check"></i></span>{% endif %}
                                 </button>
                             </form>
                             <div>
-                                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 1rem; {% if item.taken %}text-decoration: line-through;{% endif %}">{{ item.medicine.name }}</p>
-                                {% if item.medicine.dosage %}<p style="margin: 2px 0 0 0; color: #64748b; font-size: 0.8rem;">{{ item.medicine.dosage }}</p>{% endif %}
+                                <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 1rem; {% if item.taken %}text-decoration: line-through;{% endif %}">{{ item.medicine.name }}</p>
+                                {% if item.medicine.dosage %}<p style="margin: 2px 0 0 0; color: var(--text-sub); font-size: 0.8rem;">{{ item.medicine.dosage }}</p>{% endif %}
                             </div>
                         </div>
-                        <span style="background-color: {{ period_colors[period] }}1a; color: {{ period_colors[period] }}; padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; white-space: nowrap;">{{ item.dose.time }}</span>
+                        <span style="background-color: var(--success-light); color: var(--primary); padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; white-space: nowrap;">{{ item.dose.time }}</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -50,98 +49,98 @@
             {% endif %}
             {% endfor %}
             {% else %}
-            <p style="color: #64748b; margin: 0;">No scheduled doses for today. Add a medicine below to get started.</p>
+            <p style="color: var(--text-sub); margin: 0;">No scheduled doses for today. Add a medicine below to get started.</p>
             {% endif %}
         </div>
 
         <!-- Add Medicine (collapsible) -->
-        <details style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
-            <summary style="padding: 18px 24px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: #0f172a; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+        <details style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 28px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1); overflow: hidden;">
+            <summary style="padding: 18px 24px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: var(--text-dark); list-style: none; display: flex; align-items: center; justify-content: space-between;">
                 <span><i class="ti ti-plus"></i> Add a New Medicine</span>
-                <span style="color: #2563eb; font-size: 0.85rem; font-weight: 600;">Tap to expand</span>
+                <span style="color: var(--primary); font-size: 0.85rem; font-weight: 600;">Tap to expand</span>
             </summary>
-            <div style="padding: 4px 24px 24px 24px; border-top: 1px solid #f1f5f9;">
+            <div style="padding: 4px 24px 24px 24px; border-top: 1px solid var(--bg);">
                 <form action="{{ url_for('medicines') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0 16px 0;">
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Medicine Name
-                            <input type="text" name="name" required placeholder="e.g. Metformin" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Medicine Name
+                            <input type="text" name="name" required placeholder="e.g. Metformin" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Dosage
-                            <input type="text" name="dosage" placeholder="e.g. 500mg" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Dosage
+                            <input type="text" name="dosage" placeholder="e.g. 500mg" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Frequency Note (optional)
-                            <input type="text" name="frequency" placeholder="e.g. With food" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Frequency Note (optional)
+                            <input type="text" name="frequency" placeholder="e.g. With food" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                         </div>
                     </div>
 
                     <div style="margin-bottom: 16px;">
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 10px;">When do you take it?</label>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 10px;">When do you take it?</label>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-                            <label id="chip-morning" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
+                            <label id="chip-morning" class="dose-chip" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid var(--border); border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:var(--text-dark); background:var(--surface); transition: all 0.15s;">
                                 <input type="checkbox" name="dose_time" value="08:00" style="display:none;" onchange="updateChip('chip-morning', this.checked)">
                                 <i class="ti ti-sunrise"></i> Morning
                             </label>
-                            <label id="chip-afternoon" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
+                            <label id="chip-afternoon" class="dose-chip" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid var(--border); border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:var(--text-dark); background:var(--surface); transition: all 0.15s;">
                                 <input type="checkbox" name="dose_time" value="14:00" style="display:none;" onchange="updateChip('chip-afternoon', this.checked)">
                                 <i class="ti ti-sun"></i> Afternoon
                             </label>
-                            <label id="chip-evening" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
+                            <label id="chip-evening" class="dose-chip" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid var(--border); border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:var(--text-dark); background:var(--surface); transition: all 0.15s;">
                                 <input type="checkbox" name="dose_time" value="20:00" style="display:none;" onchange="updateChip('chip-evening', this.checked)">
                                 <i class="ti ti-moon"></i> Evening
                             </label>
                         </div>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-                            <button type="button" onclick="quickSelect(['chip-morning','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i class="ti ti-bolt"></i> Twice Daily</button>
-                            <button type="button" onclick="quickSelect(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i class="ti ti-bolt"></i> Thrice Daily</button>
-                            <button type="button" onclick="clearChips(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: var(--text-sub); border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Clear</button>
+                            <button type="button" onclick="quickSelect(['chip-morning','chip-evening'])" style="padding: 6px 14px; background-color: var(--bg); color: var(--text-dark); border: none; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i class="ti ti-bolt"></i> Twice Daily</button>
+                            <button type="button" onclick="quickSelect(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: var(--bg); color: var(--text-dark); border: none; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i class="ti ti-bolt"></i> Thrice Daily</button>
+                            <button type="button" onclick="clearChips(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: var(--bg); color: var(--text-sub); border: none; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Clear</button>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 6px;">Need a different time? Add a custom one:
-                            <input type="time" name="dose_time" style="display: block; margin-top: 4px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; color: #0f172a; background-color: #ffffff;"></label>
+                            <label style="display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 6px;">Need a different time? Add a custom one:
+                            <input type="time" name="dose_time" style="display: block; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; color: var(--text-dark); background-color: var(--bg);"></label>
                         </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px;">
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Start Date
-                            <input type="date" name="start_date" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Start Date
+                            <input type="date" name="start_date" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">End Date (leave blank if ongoing)
-                            <input type="date" name="end_date" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">End Date (leave blank if ongoing)
+                            <input type="date" name="end_date" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                         </div>
                     </div>
                     <div style="margin-bottom: 20px;">
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)
-                        <input type="text" name="notes" placeholder="e.g. Take with a full glass of water" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Notes (optional)
+                        <input type="text" name="notes" placeholder="e.g. Take with a full glass of water" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                     </div>
                     <div style="text-align: right;">
-                        <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Add Medicine</button>
+                        <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Add Medicine</button>
                     </div>
                 </form>
             </div>
         </details>
 
         <!-- Medicine List -->
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-pill"></i> Your Medicines</h2>
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-pill" style="color: #b8790f;"></i> Your Medicines</h2>
             {% if medicines %}
             <div style="display: grid; gap: 12px;">
                 {% for med in medicines %}
-                <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div style="border-left: 4px solid var(--accent); border-radius: 12px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; background-color: var(--bg);">
                     <div>
-                        <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 1.02rem;">{{ med.name }}{% if med.dosage %} <span style="font-weight: 500; color: #64748b;">&middot; {{ med.dosage }}</span>{% endif %}</p>
-                        {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                        <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 1.02rem;">{{ med.name }}{% if med.dosage %} <span style="font-weight: 500; color: var(--text-sub);">&middot; {{ med.dosage }}</span>{% endif %}</p>
+                        {% if med.frequency %}<p style="margin: 4px 0 0 0; color: var(--text-dark); font-size: 0.85rem; opacity: 0.8;">{{ med.frequency }}</p>{% endif %}
                         {% if med.doses %}
                         <p style="margin: 6px 0 0 0;">
-                            {% for dose in med.doses %}<span style="background-color: #eff6ff; color: #1e40af; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; margin-right: 4px; display: inline-block;">{{ dose.time }}</span>{% endfor %}
+                            {% for dose in med.doses %}<span style="background-color: var(--success-light); color: var(--primary); padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; margin-right: 4px; display: inline-block;">{{ dose.time }}</span>{% endfor %}
                         </p>
                         {% elif med.time_of_day %}
-                        <p style="margin: 6px 0 0 0; color: #2563eb; font-size: 0.85rem; font-weight: 600;">⏰ {{ med.time_of_day }}</p>
+                        <p style="margin: 6px 0 0 0; color: var(--primary); font-size: 0.85rem; font-weight: 600;"><i class="ti ti-clock"></i> {{ med.time_of_day }}</p>
                         {% endif %}
                         {% if med.start_date or med.end_date %}
                         <p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">
@@ -152,32 +151,33 @@
                         {% if med.notes %}<p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.78rem;"><i class="ti ti-notes"></i> {{ med.notes }}</p>{% endif %}
                     </div>
                     <div style="display: flex; gap: 12px; flex-shrink: 0; align-items: center;">
-                        <a href="{{ url_for('request_refill', med_id=med.id) }}" style="color: #15803d; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Request Refill</a>
-                        <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
+                        <a href="{{ url_for('request_refill', med_id=med.id) }}" style="color: var(--success); text-decoration: none; font-weight: 600; font-size: 0.85rem;">Request Refill</a>
+                        <a href="{{ url_for('edit_medicine', med_id=med.id) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem;">Edit</a>
                         <form action="{{ url_for('delete_medicine', med_id=med.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Remove this medicine reminder?');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: #dc2626; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Remove</button>
+                            <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: var(--danger); font-weight: 600; font-size: 0.85rem; cursor: pointer;">Remove</button>
                         </form>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #64748b; margin: 0;">No medicines added yet.</p>
+            <p style="color: var(--text-sub); margin: 0;">No medicines added yet.</p>
             {% endif %}
         </div>
 
 <script>
 function updateChip(id, checked) {
     var el = document.getElementById(id);
+    var style = getComputedStyle(document.body);
     if (checked) {
-        el.style.background = '#2563eb';
-        el.style.borderColor = '#2563eb';
+        el.style.background = style.getPropertyValue('--primary').trim();
+        el.style.borderColor = style.getPropertyValue('--primary').trim();
         el.style.color = '#ffffff';
     } else {
-        el.style.background = '#ffffff';
-        el.style.borderColor = '#cbd5e1';
-        el.style.color = '#334155';
+        el.style.background = style.getPropertyValue('--surface').trim();
+        el.style.borderColor = style.getPropertyValue('--border').trim();
+        el.style.color = style.getPropertyValue('--text-dark').trim();
     }
 }
 function quickSelect(ids) {
@@ -215,7 +215,7 @@ function clearChips(ids) {
             if (item.time === current && !alerted[item.time + item.name]) {
                 alerted[item.time + item.name] = true;
                 var banner = document.getElementById('reminder-banner');
-                banner.textContent = '⏰ Time to take ' + item.name + ' (' + item.time + ')';
+                banner.textContent = 'Time to take ' + item.name + ' (' + item.time + ')';
                 banner.style.display = 'block';
             }
         });
