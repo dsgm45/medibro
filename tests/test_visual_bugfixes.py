@@ -81,3 +81,47 @@ class TestTimePeriodIconLogic:
         assert app_module.classify_time_period('14:00') == ('Afternoon', 'sun')
         assert app_module.classify_time_period('20:00') == ('Evening', 'moon')
         assert app_module.classify_time_period('bad-input') == ('Other', 'clock')
+
+
+class TestMyHealthUsesThemeVariables:
+    def test_no_hardcoded_light_mode_colors_on_cards(self, client, make_user):
+        # The whole point of the redesign is that dark mode should
+        # actually work on page content, not just the shared nav - this
+        # only holds if colors use CSS variables, not hardcoded hex.
+        make_user('patient@example.com', 'password123', role='patient')
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/my-health')
+        text = resp.data.decode()
+        assert 'color: #7a4a0f' not in text
+        assert 'var(--primary)' in text
+        assert 'var(--text-dark)' in text
+
+    def test_vitals_numbers_use_fraunces(self, client, make_user):
+        patient_id = make_user('patient@example.com', 'password123', role='patient')
+        with app_module.app.app_context():
+            vital = app_module.Vital(patient_id=patient_id, heart_rate=72, recorded_at=app_module.datetime.utcnow())
+            app_module.db.session.add(vital)
+            app_module.db.session.commit()
+
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/my-health')
+        text = resp.data.decode()
+        idx = text.find('72')
+        assert "font-family: 'Fraunces'" in text[max(0, idx-300):idx]
+
+    def test_hero_card_has_flower_motif(self, client, make_user):
+        patient_id = make_user('patient@example.com', 'password123', role='patient')
+        doctor_id = make_user('doc@example.com', 'password123', role='doctor', status='approved')
+        with app_module.app.app_context():
+            appt = app_module.Appointment(
+                patient_id=patient_id, doctor_id=doctor_id,
+                appointment_date='2026-08-20', appointment_time='16:00',
+                phone_number='555', status='accepted'
+            )
+            app_module.db.session.add(appt)
+            app_module.db.session.commit()
+
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/my-health')
+        assert b'<svg' in resp.data
+        assert b'ellipse' in resp.data

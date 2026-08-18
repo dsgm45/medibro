@@ -3,139 +3,143 @@
 {% block content %}
         <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
-                <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">My Health</h1>
-                <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+                <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">My Health</h1>
+                <p style="margin: 4px 0 0 0; color: var(--text-sub);">Welcome back, {{ session.full_name }}</p>
             </div>
-            <a href="{{ url_for('export_health_pdf') }}" style="padding: 8px 16px; background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.85rem;">⬇ Download PDF Summary</a>
+            <a href="{{ url_for('export_health_pdf') }}" style="padding: 8px 16px; background-color: var(--surface); border: 1px solid var(--border); color: var(--text-dark); border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-download"></i> Download PDF Summary</a>
         </div>
 
         <div style="margin-bottom: 24px;">
             <form action="{{ url_for('explain_trends') }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" style="padding: 10px 20px; background-color: #6d28d9; color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer;"><i class="ti ti-robot"></i> Explain My Recent Trends</button>
+                <button type="submit" style="padding: 10px 20px; background-color: var(--accent); color: #3d2b0a; border: none; border-radius: 10px; font-weight: 700; font-size: 0.9rem; cursor: pointer;"><i class="ti ti-robot"></i> Explain My Recent Trends</button>
             </form>
         </div>
 
         <!-- Follow-up banner -->
         {% if follow_ups %}
-        <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;"><i class="ti ti-repeat"></i> Follow-up Proposed</p>
+        <div style="background-color: var(--accent-light); border: 1px solid var(--accent); border-radius: 14px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: var(--accent-text); font-size: 0.9rem;"><i class="ti ti-repeat"></i> Follow-up Proposed</p>
             {% for followup in follow_ups %}
-            <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #ddd6fe;{% endif %}">
-                <p style="margin: 0 0 8px 0; color: #6d28d9; font-size: 0.85rem;">
+            <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid var(--accent);{% endif %}">
+                <p style="margin: 0 0 8px 0; color: var(--accent-text); font-size: 0.85rem;">
                     Dr. {{ followup.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} proposed a follow-up on <strong>{{ followup.proposed_date }} at {{ followup.proposed_time }}</strong>.
                 </p>
                 <form action="{{ url_for('accept_follow_up', followup_id=followup.id) }}" method="POST" style="display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" style="padding: 6px 16px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; margin-right: 8px;">Accept</button>
+                    <button type="submit" style="padding: 6px 16px; background-color: var(--success); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer; margin-right: 8px;">Accept</button>
                 </form>
                 <form action="{{ url_for('reject_follow_up', followup_id=followup.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Decline this follow-up proposal?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" style="padding: 6px 16px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">Decline</button>
+                    <button type="submit" style="padding: 6px 16px; background-color: var(--surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">Decline</button>
                 </form>
             </div>
             {% endfor %}
         </div>
         {% endif %}
 
-        <!-- Next appointment -->
+        <!-- Next appointment - hero card -->
         {% if next_appointment %}
-        <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; color: #ffffff; display: flex; align-items: center; gap: 16px;">
-            <div style="width: 44px; height: 44px; border-radius: 50%; background-color: rgba(255,255,255,0.2); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0;">{{ next_appointment.doctor.full_name | initials }}</div>
-            <div>
-                <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em;">Next Appointment</p>
-                <p style="margin: 0; font-size: 1.15rem; font-weight: 700;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
-                <p style="margin: 4px 0 0 0; font-size: 0.9rem; opacity: 0.9;">
-                    {{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}{% if next_appointment.reason %} &middot; {{ next_appointment.reason }}{% endif %}
-                    {% if next_appointment_days_left is not none %}
-                    <span style="background-color: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; margin-left: 6px;">
-                        {% if next_appointment_days_left == 0 %}Today{% else %}{{ next_appointment_days_left }} day{{ 's' if next_appointment_days_left != 1 else '' }} left{% endif %}
-                    </span>
-                    {% endif %}
-                </p>
+        <div style="position: relative; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); border-radius: 18px; padding: 22px 24px; margin-bottom: 24px; color: #ffffff; overflow: hidden; box-shadow: 0 8px 24px -8px rgba(42,59,124,0.45);">
+            <svg width="150" height="150" viewBox="0 0 140 140" style="position: absolute; right: -30px; top: -30px; opacity: 0.12;"><g fill="white"><ellipse cx="70" cy="30" rx="16" ry="26"/><ellipse cx="70" cy="110" rx="16" ry="26"/><ellipse cx="30" cy="70" rx="26" ry="16"/><ellipse cx="110" cy="70" rx="26" ry="16"/><ellipse cx="41" cy="41" rx="16" ry="26" transform="rotate(45 41 41)"/><ellipse cx="99" cy="99" rx="16" ry="26" transform="rotate(45 99 99)"/><ellipse cx="99" cy="41" rx="16" ry="26" transform="rotate(-45 99 41)"/><ellipse cx="41" cy="99" rx="16" ry="26" transform="rotate(-45 41 99)"/><circle cx="70" cy="70" r="14"/></g></svg>
+            <div style="position: relative; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background-color: var(--accent); color: #3d2b0a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.05rem; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(232,163,61,0.4);">{{ next_appointment.doctor.full_name | initials }}</div>
+                <div>
+                    <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.06em;">Next Appointment</p>
+                    <p style="margin: 0; font-size: 1.2rem; font-weight: 700;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 0.9rem; opacity: 0.9;">
+                        {{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}{% if next_appointment.reason %} &middot; {{ next_appointment.reason }}{% endif %}
+                        {% if next_appointment_days_left is not none %}
+                        <span style="background-color: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; margin-left: 6px;">
+                            {% if next_appointment_days_left == 0 %}Today{% else %}{{ next_appointment_days_left }} day{{ 's' if next_appointment_days_left != 1 else '' }} left{% endif %}
+                        </span>
+                        {% endif %}
+                    </p>
+                </div>
             </div>
         </div>
         {% endif %}
 
         <!-- Overview cards -->
+        <p style="font-size: 0.7rem; font-weight: 700; color: var(--text-sub); letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 10px 2px;">Overview</p>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px;">
 
             <!-- Vitals card -->
-            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-heartbeat"></i> Latest Vitals</p>
-                    <a href="{{ url_for('vitals') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-heartbeat" style="color: var(--primary);"></i> Latest Vitals</p>
+                    <a href="{{ url_for('vitals') }}" style="color: var(--primary); text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all &rarr;</a>
                 </div>
                 {% if latest_vital %}
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">BLOOD PRESSURE</p>
+                        <p style="margin: 0; font-size: 0.68rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">BLOOD PRESSURE</p>
                         {% if latest_vital.systolic and latest_vital.diastolic %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}{% if vital_trends and vital_trends.systolic == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.systolic == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.systolic == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
+                        <p style="margin: 2px 0 0 0; font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.3rem; color: var(--primary);">{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}{% if vital_trends and vital_trends.systolic == 'up' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.systolic == 'down' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.systolic == 'steady' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
-                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        <p style="margin: 4px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub); font-size: 0.9rem;">Not recorded</p>
                         {% endif %}
                     </div>
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">HEART RATE</p>
+                        <p style="margin: 0; font-size: 0.68rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">HEART RATE</p>
                         {% if latest_vital.heart_rate %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">bpm</span>{% if vital_trends and vital_trends.heart_rate == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.heart_rate == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.heart_rate == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
+                        <p style="margin: 2px 0 0 0; font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.3rem; color: var(--primary);">{{ latest_vital.heart_rate }}<span style="font-size: 0.65rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;"> bpm</span>{% if vital_trends and vital_trends.heart_rate == 'up' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.heart_rate == 'down' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.heart_rate == 'steady' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
-                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        <p style="margin: 4px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub); font-size: 0.9rem;">Not recorded</p>
                         {% endif %}
                     </div>
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">SPO2</p>
+                        <p style="margin: 0; font-size: 0.68rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">SPO2</p>
                         {% if latest_vital.spo2 %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">%</span>{% if vital_trends and vital_trends.spo2 == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.spo2 == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.spo2 == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
+                        <p style="margin: 2px 0 0 0; font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.3rem; color: var(--primary);">{{ latest_vital.spo2 }}<span style="font-size: 0.65rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;"> %</span>{% if vital_trends and vital_trends.spo2 == 'up' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.spo2 == 'down' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.spo2 == 'steady' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
-                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        <p style="margin: 4px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub); font-size: 0.9rem;">Not recorded</p>
                         {% endif %}
                     </div>
                     <div>
-                        <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">TEMP</p>
+                        <p style="margin: 0; font-size: 0.68rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">TEMP</p>
                         {% if latest_vital.temperature %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">&deg;F</span>{% if vital_trends and vital_trends.temperature == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.temperature == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.temperature == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
+                        <p style="margin: 2px 0 0 0; font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.3rem; color: var(--primary);">{{ latest_vital.temperature }}<span style="font-size: 0.65rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;"> &deg;F</span>{% if vital_trends and vital_trends.temperature == 'up' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.temperature == 'down' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.temperature == 'steady' %} <span style="color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.9rem;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
-                        <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
+                        <p style="margin: 4px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub); font-size: 0.9rem;">Not recorded</p>
                         {% endif %}
                     </div>
                 </div>
-                <p style="margin: 12px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">Recorded {{ latest_vital.recorded_at.strftime('%b %d, %Y') }}</p>
+                <p style="margin: 14px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">Recorded {{ latest_vital.recorded_at.strftime('%b %d, %Y') }}</p>
                 {% else %}
                 <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No vitals logged yet.</p>
-                <a href="{{ url_for('vitals') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Log your first reading</a>
+                <a href="{{ url_for('vitals') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Log your first reading</a>
                 {% endif %}
             </div>
 
             <!-- Symptoms card -->
-            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-stethoscope"></i> Recent Symptoms</p>
-                    <a href="{{ url_for('symptoms') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-stethoscope" style="color: var(--primary);"></i> Recent Symptoms</p>
+                    <a href="{{ url_for('symptoms') }}" style="color: var(--primary); text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all &rarr;</a>
                 </div>
                 {% if latest_symptom %}
-                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ latest_symptom.symptoms }}</p>
-                <p style="margin: 6px 0 0 0; color: #334155; font-size: 0.8rem; text-transform: capitalize;">Severity: {{ latest_symptom.severity }}</p>
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">{{ latest_symptom.symptoms }}</p>
+                <p style="margin: 6px 0 0 0; color: var(--text-dark); font-size: 0.8rem; text-transform: capitalize; opacity: 0.75;">Severity: {{ latest_symptom.severity }}</p>
                 <p style="margin: 10px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">Logged {{ latest_symptom.created_at.strftime('%b %d, %Y') }}</p>
                 {% else %}
                 <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No symptoms logged yet.</p>
-                <a href="{{ url_for('symptoms') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Check a symptom</a>
+                <a href="{{ url_for('symptoms') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Check a symptom</a>
                 {% endif %}
             </div>
 
             <!-- Medicines card -->
-            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="background-color: var(--surface); border-left: 4px solid var(--accent); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-pill"></i> Active Medicines</p>
-                    <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-pill" style="color: #b8790f;"></i> Active Medicines</p>
+                    <a href="{{ url_for('medicines') }}" style="color: var(--primary); text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all &rarr;</a>
                 </div>
                 {% if active_medicines %}
-                <div style="display: grid; gap: 8px;">
+                <div style="display: grid; gap: 10px;">
                     {% for med in active_medicines[:4] %}
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <p style="margin: 0; font-weight: 600; color: #0f172a; font-size: 0.85rem;">{{ med.name }}{% if med.dosage %} <span style="color: var(--text-sub); font-weight: 500;">&middot; {{ med.dosage }}</span>{% endif %}</p>
-                        {% if med.doses %}<span style="background-color: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600;">{{ med.doses[0].time }}{% if med.doses|length > 1 %}+{{ med.doses|length - 1 }}{% endif %}</span>{% endif %}
+                        <p style="margin: 0; font-weight: 600; color: var(--text-dark); font-size: 0.85rem;">{{ med.name }}{% if med.dosage %} <span style="color: var(--text-sub); font-weight: 500;">&middot; {{ med.dosage }}</span>{% endif %}</p>
+                        {% if med.doses %}<span style="background-color: var(--accent-light); color: var(--accent-text); padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600;">{{ med.doses[0].time }}{% if med.doses|length > 1 %}+{{ med.doses|length - 1 }}{% endif %}</span>{% endif %}
                     </div>
                     {% endfor %}
                     {% if active_medicines|length > 4 %}
@@ -144,56 +148,56 @@
                 </div>
                 {% else %}
                 <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No active medicines.</p>
-                <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Add a medicine</a>
+                <a href="{{ url_for('medicines') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Add a medicine</a>
                 {% endif %}
             </div>
 
             <!-- Appointments card -->
-            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="background-color: var(--surface); border-left: 4px solid var(--success); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-calendar"></i> Appointments</p>
-                    <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Manage →</a>
+                    <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-calendar" style="color: var(--success);"></i> Appointments</p>
+                    <a href="{{ url_for('patient_dashboard') }}" style="color: var(--primary); text-decoration: none; font-size: 0.8rem; font-weight: 600;">Manage &rarr;</a>
                 </div>
                 {% if next_appointment %}
-                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
-                <p style="margin: 6px 0 0 0; color: #334155; font-size: 0.8rem;">{{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}</p>
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+                <p style="margin: 6px 0 0 0; color: var(--text-dark); font-size: 0.8rem; opacity: 0.75;">{{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}</p>
                 {% else %}
                 <p style="color: var(--text-sub); margin: 0 0 10px 0; font-size: 0.85rem;">No upcoming appointments.</p>
-                <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Book an appointment</a>
+                <a href="{{ url_for('patient_dashboard') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">+ Book an appointment</a>
                 {% endif %}
             </div>
         </div>
 
         <!-- Documents -->
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px;">
-            <p style="margin: 0 0 14px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-file-text"></i> Documents</p>
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1); margin-top: 20px;">
+            <p style="margin: 0 0 14px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-file-text" style="color: var(--primary);"></i> Documents</p>
 
             <form action="{{ url_for('my_health') }}" method="GET" style="margin-bottom: 14px; display: flex; gap: 8px;">
-                <input type="text" name="doc_search" value="{{ doc_search or '' }}" placeholder="Search documents by filename..." style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; color: #0f172a;">
-                <button type="submit" style="padding: 8px 16px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Search</button>
-                {% if doc_search %}<a href="{{ url_for('my_health') }}" style="padding: 8px 12px; color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">Clear</a>{% endif %}
+                <input type="text" name="doc_search" value="{{ doc_search or '' }}" placeholder="Search documents by filename..." style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; color: var(--text-dark); background-color: var(--bg);">
+                <button type="submit" style="padding: 8px 16px; background-color: var(--bg); color: var(--text-dark); border: 1px solid var(--border); border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Search</button>
+                {% if doc_search %}<a href="{{ url_for('my_health') }}" style="padding: 8px 12px; color: var(--text-sub); text-decoration: none; font-size: 0.85rem; font-weight: 600;">Clear</a>{% endif %}
             </form>
 
             <form action="{{ url_for('upload_document') }}" method="POST" enctype="multipart/form-data" style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png" required style="font-size: 0.85rem;">
-                <button type="submit" style="padding: 8px 16px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Upload</button>
+                <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png" required style="font-size: 0.85rem; color: var(--text-dark);">
+                <button type="submit" style="padding: 8px 16px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Upload</button>
             </form>
             <p style="margin: 0 0 16px 0; color: var(--text-sub); font-size: 0.75rem;">PDF, JPG, or PNG only. Maximum 10 MB per file.</p>
 
             {% if documents %}
             <div>
                 {% for doc in documents %}
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid var(--border);{% endif %}">
                     <div>
-                        <p style="margin: 0; color: #0f172a; font-size: 0.85rem; font-weight: 600;">{{ doc.original_filename }}</p>
+                        <p style="margin: 0; color: var(--text-dark); font-size: 0.85rem; font-weight: 600;">{{ doc.original_filename }}</p>
                         <p style="margin: 2px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">{{ doc.uploaded_at.strftime('%b %d, %Y') }}{% if doc.file_size %} &middot; {{ (doc.file_size / 1024) | round(0, 'floor') | int }} KB{% endif %}</p>
                     </div>
                     <div style="display: flex; gap: 12px; align-items: center;">
-                        <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
+                        <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: var(--primary); text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
                         <form action="{{ url_for('delete_document', doc_id=doc.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Delete this document? This cannot be undone.');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" style="background: none; border: none; color: #b91c1c; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0; font-family: inherit;">Delete</button>
+                            <button type="submit" style="background: none; border: none; color: var(--danger); font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0; font-family: inherit;">Delete</button>
                         </form>
                     </div>
                 </div>
@@ -205,6 +209,7 @@
         </div>
 
         <div style="text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-            <a href="{{ url_for('care_team') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-users"></i> Your Care Team</a>
-            <a href="{{ url_for('my_access_log') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-search"></i> See who's viewed your records</a>
-        </div>{% endblock %}
+            <a href="{{ url_for('care_team') }}" style="color: var(--text-sub); text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-users"></i> Your Care Team</a>
+            <a href="{{ url_for('my_access_log') }}" style="color: var(--text-sub); text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-search"></i> See who's viewed your records</a>
+        </div>
+{% endblock %}
