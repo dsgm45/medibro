@@ -3027,6 +3027,31 @@ def get_initials(full_name):
 
 app.jinja_env.filters['initials'] = get_initials
 
+# Maps a route's endpoint to the sidebar section it should highlight as
+# active - most pages match their own endpoint, but sub-pages (editing a
+# medicine, viewing one appointment's summary) belong to a parent
+# section instead. Used by the shared patient nav partial so each of
+# the many pages that include it doesn't need to hardcode its own
+# active state.
+SIDEBAR_SECTION_MAP = {
+    'my_health': 'my_health',
+    'patient_dashboard': 'patient_dashboard',
+    'appointment_summary': 'patient_dashboard',
+    'vitals': 'vitals',
+    'symptoms': 'symptoms',
+    'ai_chat': 'ai_chat',
+    'medicines': 'medicines',
+    'edit_medicine': 'medicines',
+    'request_refill': 'medicines',
+    'chat_list': 'chat_list',
+    'chat_thread': 'chat_list',
+    'sos': 'sos',
+    'profile': 'profile',
+    'care_team': 'my_health',
+    'my_access_log': 'my_health',
+}
+app.jinja_env.globals['SIDEBAR_SECTION_MAP'] = SIDEBAR_SECTION_MAP
+
 def compute_vital_trends(latest, previous):
     """Returns direction ('up'/'down'/'steady') per metric, comparing the
     latest reading to the one before it, or None where either value is

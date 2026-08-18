@@ -1,24 +1,6 @@
 {% extends "base.html" %}
 {% block title %}My Health - MediBro{% endblock %}
 {% block content %}
-<div class="patient-layout">
-    <aside class="patient-sidebar">
-        <a href="{{ url_for('my_health') }}" class="active">🏠 My Health</a>
-        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
-        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
-        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
-        <a href="{{ url_for('ai_chat') }}">🤖 AI Health Chat</a>
-        <a href="{{ url_for('medicines') }}">💊 Medicines</a>
-        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
-        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
-        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
-        <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="sidebar-logout">🚪 Log Out</button>
-        </form>
-    </aside>
-
-    <main class="patient-main">
         <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
                 <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">My Health</h1>
@@ -58,17 +40,20 @@
 
         <!-- Next appointment -->
         {% if next_appointment %}
-        <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; color: #ffffff;">
-            <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em;">Next Appointment</p>
-            <p style="margin: 0; font-size: 1.15rem; font-weight: 700;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
-            <p style="margin: 4px 0 0 0; font-size: 0.9rem; opacity: 0.9;">
-                {{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}{% if next_appointment.reason %} &middot; {{ next_appointment.reason }}{% endif %}
-                {% if next_appointment_days_left is not none %}
-                <span style="background-color: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; margin-left: 6px;">
-                    {% if next_appointment_days_left == 0 %}Today{% else %}{{ next_appointment_days_left }} day{{ 's' if next_appointment_days_left != 1 else '' }} left{% endif %}
-                </span>
-                {% endif %}
-            </p>
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; color: #ffffff; display: flex; align-items: center; gap: 16px;">
+            <div style="width: 44px; height: 44px; border-radius: 50%; background-color: rgba(255,255,255,0.2); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0;">{{ next_appointment.doctor.full_name | initials }}</div>
+            <div>
+                <p style="margin: 0 0 4px 0; font-size: 0.8rem; font-weight: 600; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.05em;">Next Appointment</p>
+                <p style="margin: 0; font-size: 1.15rem; font-weight: 700;">Dr. {{ next_appointment.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+                <p style="margin: 4px 0 0 0; font-size: 0.9rem; opacity: 0.9;">
+                    {{ next_appointment.appointment_date }}{% if next_appointment.appointment_time %} at {{ next_appointment.appointment_time }}{% endif %}{% if next_appointment.reason %} &middot; {{ next_appointment.reason }}{% endif %}
+                    {% if next_appointment_days_left is not none %}
+                    <span style="background-color: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; margin-left: 6px;">
+                        {% if next_appointment_days_left == 0 %}Today{% else %}{{ next_appointment_days_left }} day{{ 's' if next_appointment_days_left != 1 else '' }} left{% endif %}
+                    </span>
+                    {% endif %}
+                </p>
+            </div>
         </div>
         {% endif %}
 
@@ -86,7 +71,7 @@
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">BLOOD PRESSURE</p>
                         {% if latest_vital.systolic and latest_vital.diastolic %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}</p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.systolic }}/{{ latest_vital.diastolic }}{% if vital_trends and vital_trends.systolic == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.systolic == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.systolic == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
                         <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
                         {% endif %}
@@ -94,7 +79,7 @@
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">HEART RATE</p>
                         {% if latest_vital.heart_rate %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">bpm</span></p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.heart_rate }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">bpm</span>{% if vital_trends and vital_trends.heart_rate == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.heart_rate == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.heart_rate == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
                         <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
                         {% endif %}
@@ -102,7 +87,7 @@
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">SPO2</p>
                         {% if latest_vital.spo2 %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">%</span></p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.spo2 }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">%</span>{% if vital_trends and vital_trends.spo2 == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.spo2 == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.spo2 == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
                         <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
                         {% endif %}
@@ -110,7 +95,7 @@
                     <div>
                         <p style="margin: 0; font-size: 0.7rem; color: var(--text-sub); font-weight: 600;">TEMP</p>
                         {% if latest_vital.temperature %}
-                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">&deg;F</span></p>
+                        <p style="margin: 2px 0 0 0; font-weight: 700; color: #0f172a;">{{ latest_vital.temperature }} <span style="font-size: 0.7rem; font-weight: 500; color: var(--text-sub);">&deg;F</span>{% if vital_trends and vital_trends.temperature == 'up' %} <span style="color: #64748b; font-weight: 600;" title="Higher than your previous reading">↑</span>{% elif vital_trends and vital_trends.temperature == 'down' %} <span style="color: #64748b; font-weight: 600;" title="Lower than your previous reading">↓</span>{% elif vital_trends and vital_trends.temperature == 'steady' %} <span style="color: #64748b; font-weight: 600;" title="Same as your previous reading">→</span>{% endif %}</p>
                         {% else %}
                         <p style="margin: 2px 0 0 0; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
                         {% endif %}
@@ -222,7 +207,4 @@
         <div style="text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
             <a href="{{ url_for('care_team') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">👥 Your Care Team</a>
             <a href="{{ url_for('my_access_log') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">🔍 See who's viewed your records</a>
-        </div>
-    </main>
-</div>
-{% endblock %}
+        </div>{% endblock %}

@@ -1,24 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Request Refill - MediBro{% endblock %}
 {% block content %}
-<div class="patient-layout">
-    <aside class="patient-sidebar">
-        <a href="{{ url_for('my_health') }}">🏠 My Health</a>
-        <a href="{{ url_for('patient_dashboard') }}">📅 Appointments</a>
-        <a href="{{ url_for('vitals') }}">💓 Vitals</a>
-        <a href="{{ url_for('symptoms') }}">🩺 Symptom Checker</a>
-        <a href="{{ url_for('ai_chat') }}">🤖 AI Health Chat</a>
-        <a href="{{ url_for('medicines') }}" class="active">💊 Medicines</a>
-        <a href="{{ url_for('chat_list') }}">💬 Chat</a>
-        <a href="{{ url_for('sos') }}" class="sos-link">🚨 SOS</a>
-        <a href="{{ url_for('profile') }}">⚙️ Profile</a>
-        <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="sidebar-logout">🚪 Log Out</button>
-        </form>
-    </aside>
-
-    <main class="patient-main">
         <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
                 <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Request Refill</h1>
@@ -49,7 +31,4 @@
             {% else %}
             <p style="color: #64748b; margin: 0;">You'll need at least one appointment with a doctor before you can request a refill - book an appointment first, then come back here.</p>
             {% endif %}
-        </div>
-    </main>
-</div>
-{% endblock %}
+        </div>{% endblock %}

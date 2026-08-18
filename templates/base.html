@@ -6,29 +6,51 @@
     <title>{% block title %}MediBro Healthcare{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
     <style>
         :root {
             --surface: #ffffff;
-            --border: #cbd5e1;
-            --radius: 8px;
-            --primary: #2563eb;
-            --text-dark: #0f172a;
-            --text-sub: #64748b;
-            --success: #15803d;
-            --success-light: #dcfce7;
-            --danger: #b91c1c;
-            --danger-light: #fee2e2;
+            --border: #e5e0d5;
+            --radius: 16px;
+            --primary: #2A3B7C;
+            --primary-light: #3d4f9e;
+            --accent: #E8A33D;
+            --accent-light: #FBEBD3;
+            --text-dark: #1E2333;
+            --text-sub: #6b6f60;
+            --success: #4F7942;
+            --success-light: #E3EEDF;
+            --danger: #B85450;
+            --danger-light: #F6E2E1;
             --warning: #b45309;
+            --bg: #FBF8F2;
+        }
+        body.dark-mode {
+            --surface: #1E212C;
+            --border: #2c3040;
+            --primary: #8B9AE8;
+            --primary-light: #a3b0ee;
+            --accent: #E8A33D;
+            --accent-light: #4a3a1f;
+            --text-dark: #F0EDE5;
+            --text-sub: #9a9e94;
+            --success: #6FA96D;
+            --success-light: #253a26;
+            --danger: #d98784;
+            --danger-light: #3d2523;
+            --bg: #14161F;
         }
         * { box-sizing: border-box; }
         body {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #faf9f6;
-            color: #0f172a;
+            background-color: var(--bg);
+            color: var(--text-dark);
             margin: 0;
             padding: 0;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
+        h1 { font-family: 'Fraunces', serif; }
         a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
             outline: 2px solid var(--primary);
             outline-offset: 2px;
@@ -46,7 +68,7 @@
             top: -100px;
             left: 8px;
             z-index: 1000;
-            background: #ffffff;
+            background: var(--surface);
             color: var(--primary);
             font-weight: 700;
             padding: 10px 16px;
@@ -58,18 +80,35 @@
             top: 8px;
         }
         nav {
-            background-color: #ffffff;
-            border-bottom: 1px solid #cbd5e1;
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
             padding: 14px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .nav-brand {
+            font-family: 'Fraunces', serif;
             font-size: 1.3rem;
-            font-weight: 700;
-            color: #2563eb;
+            font-weight: 600;
+            color: var(--primary);
             text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .theme-toggle-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-sub);
+            font-size: 1rem;
         }
         .flash-messages {
             max-width: 1100px;
@@ -78,28 +117,29 @@
         }
         .flash {
             padding: 12px 16px 12px 40px;
-            border-radius: 6px;
+            border-radius: 10px;
             margin-bottom: 12px;
             font-weight: 600;
             font-size: 0.95rem;
             position: relative;
         }
         .flash::before {
+            font-family: "tabler-icons" !important;
             position: absolute;
             left: 14px;
             top: 50%;
             transform: translateY(-50%);
         }
-        .flash.success { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-        .flash.success::before { content: "✅"; }
-        .flash.error { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-        .flash.error::before { content: "⚠️"; }
-        .flash.warning { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-        .flash.warning::before { content: "⚠️"; }
-        .flash.info { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-        .flash.info::before { content: "ℹ️"; }
-        .flash.trend_explanation { background-color: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; text-align: left; font-weight: 400; line-height: 1.6; }
-        .flash.trend_explanation::before { content: "🤖"; }
+        .flash.success { background-color: var(--success-light); color: var(--success); border: 1px solid var(--success); }
+        .flash.success::before { content: "\ea5e"; }
+        .flash.error { background-color: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+        .flash.error::before { content: "\ea06"; }
+        .flash.warning { background-color: var(--accent-light); color: #8a5a13; border: 1px solid var(--accent); }
+        .flash.warning::before { content: "\ea06"; }
+        .flash.info { background-color: var(--success-light); color: var(--primary); border: 1px solid var(--border); }
+        .flash.info::before { content: "\eafd"; }
+        .flash.trend_explanation { background-color: var(--accent-light); color: #7a4a0f; border: 1px solid var(--accent); text-align: left; font-weight: 400; line-height: 1.6; }
+        .flash.trend_explanation::before { content: "\eb60"; }
 
         .patient-layout {
             display: flex;
@@ -115,9 +155,9 @@
             gap: 4px;
             width: 220px;
             flex-shrink: 0;
-            background-color: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             padding: 12px;
             position: sticky;
             top: 16px;
@@ -128,9 +168,9 @@
             align-items: center;
             gap: 10px;
             padding: 10px 12px;
-            border-radius: 6px;
+            border-radius: 10px;
             text-decoration: none;
-            color: #334155;
+            color: var(--text-sub);
             font-weight: 600;
             font-size: 0.9rem;
             width: 100%;
@@ -140,19 +180,24 @@
             font-family: inherit;
             cursor: pointer;
         }
+        .patient-sidebar i {
+            font-size: 1.05rem;
+            width: 20px;
+            text-align: center;
+        }
         .patient-sidebar a:hover,
         .patient-sidebar button.sidebar-logout:hover {
-            background-color: #f1f5f9;
+            background-color: var(--bg);
         }
         .patient-sidebar a.active {
-            background-color: #2563eb;
+            background-color: var(--primary);
             color: #ffffff;
         }
         .patient-sidebar a.sos-link {
-            color: #dc2626;
+            color: var(--danger);
         }
         .patient-sidebar a.sos-link:hover {
-            background-color: #fee2e2;
+            background-color: var(--danger-light);
         }
         .patient-sidebar a.sos-link.active {
             color: #ffffff;
@@ -175,25 +220,8 @@
             flex: 1;
             min-width: 0;
         }
-        .hamburger-btn {
+        .mobile-tabbar {
             display: none;
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            line-height: 1;
-            cursor: pointer;
-            padding: 4px 8px;
-            color: #0f172a;
-        }
-        .mobile-menu-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.4);
-            z-index: 999;
-        }
-        .mobile-menu-overlay.active {
-            display: block;
         }
 
         @media (max-width: 640px) {
@@ -214,30 +242,89 @@
             }
             .patient-layout {
                 flex-direction: column;
-                padding: 0 12px;
+                padding: 0 12px 90px;
                 margin: 16px auto;
             }
-            .hamburger-btn.has-sidebar {
+            .patient-sidebar {
+                display: none;
+            }
+            .mobile-tabbar {
+                display: flex;
+                position: fixed;
+                bottom: 14px;
+                left: 14px;
+                right: 14px;
+                background-color: var(--surface);
+                border-radius: 22px;
+                padding: 8px 4px;
+                justify-content: space-around;
+                box-shadow: 0 8px 24px -6px rgba(30,35,51,0.25);
+                z-index: 900;
+            }
+            .mobile-tabbar a, .mobile-tabbar button {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                min-width: 44px;
+                min-height: 44px;
+                justify-content: center;
+                text-decoration: none;
+                color: var(--text-sub);
+                background: none;
+                border: none;
+                font-family: inherit;
+                cursor: pointer;
+                padding: 0;
+            }
+            .mobile-tabbar a i, .mobile-tabbar button i {
+                font-size: 1.3rem;
+            }
+            .mobile-tabbar a span, .mobile-tabbar button span {
+                font-size: 0.62rem;
+                font-weight: 700;
+            }
+            .mobile-tabbar a.active {
+                color: var(--primary);
+            }
+            .mobile-more-sheet {
+                display: none;
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                background: var(--surface);
+                border-radius: 20px 20px 0 0;
+                padding: 16px;
+                z-index: 950;
+                box-shadow: 0 -8px 24px rgba(0,0,0,0.2);
+            }
+            .mobile-more-sheet.open {
                 display: block;
             }
-            .patient-sidebar {
-                position: fixed;
-                top: 0;
-                left: 0;
-                height: 100vh;
-                width: 260px;
-                max-width: 80vw;
-                flex-direction: column;
-                overflow-y: auto;
-                overflow-x: hidden;
-                z-index: 1000;
-                border-radius: 0;
-                transform: translateX(-100%);
-                transition: transform 0.25s ease;
-                box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+            .mobile-more-sheet a, .mobile-more-sheet button {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 8px;
+                text-decoration: none;
+                color: var(--text-dark);
+                font-weight: 600;
+                font-size: 0.95rem;
+                width: 100%;
+                text-align: left;
+                background: none;
+                border: none;
+                font-family: inherit;
+                cursor: pointer;
             }
-            .patient-sidebar.mobile-open {
-                transform: translateX(0);
+            .mobile-more-overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.4);
+                z-index: 940;
+            }
+            .mobile-more-overlay.open {
+                display: block;
             }
         }
     </style>
@@ -245,58 +332,63 @@
 <body{% if simple_mode %} class="simple-mode"{% endif %}>
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <nav>
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <button type="button" class="hamburger-btn" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Open menu">&#9776;</button>
-            <a href="{{ portal_home_url or url_for('index') }}" class="nav-brand">🩺 MediBro</a>
-        </div>
+        <a href="{{ portal_home_url or url_for('index') }}" class="nav-brand"><i class="ti ti-stethoscope"></i> MediBro</a>
         <div style="display: flex; align-items: center; gap: 16px;">
+            <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle dark mode">
+                <i class="ti ti-moon" id="themeToggleIcon"></i>
+            </button>
             {% if session.get('user_id') %}
-                <a href="{{ url_for('notifications') }}" style="position: relative; color: #64748b; text-decoration: none; font-size: 1.2rem; display: inline-flex; align-items: center;" aria-label="Notifications">
-                    🔔
+                <a href="{{ url_for('notifications') }}" style="position: relative; color: var(--text-sub); text-decoration: none; font-size: 1.2rem; display: inline-flex; align-items: center;" aria-label="Notifications">
+                    <i class="ti ti-bell"></i>
                     {% if unread_notification_count and unread_notification_count > 0 %}
-                    <span style="position: absolute; top: -4px; right: -8px; background-color: #dc2626; color: #ffffff; border-radius: 10px; font-size: 0.65rem; font-weight: 700; padding: 1px 5px; min-width: 16px; text-align: center; line-height: 1.3;">{{ unread_notification_count if unread_notification_count < 10 else '9+' }}</span>
+                    <span style="position: absolute; top: -4px; right: -8px; background-color: var(--danger); color: #ffffff; border-radius: 10px; font-size: 0.65rem; font-weight: 700; padding: 1px 5px; min-width: 16px; text-align: center; line-height: 1.3;">{{ unread_notification_count if unread_notification_count < 10 else '9+' }}</span>
                     {% endif %}
                 </a>
-                <a href="{{ url_for('profile') }}" style="color: #64748b; text-decoration: none; font-weight: 500;">{{ session.get('full_name') }}</a>
+                <a href="{{ url_for('profile') }}" style="color: var(--text-sub); text-decoration: none; font-weight: 500;">{{ session.get('full_name') }}</a>
                 <form action="{{ url_for('logout') }}" method="POST" style="margin: 0; display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" style="color: #dc2626; text-decoration: none; font-weight: 600; background-color: #fee2e2; padding: 6px 12px; border-radius: 6px; border: none; font-family: inherit; font-size: inherit; cursor: pointer;">Log Out</button>
+                    <button type="submit" style="color: var(--danger); text-decoration: none; font-weight: 600; background-color: var(--danger-light); padding: 6px 12px; border-radius: 8px; border: none; font-family: inherit; font-size: inherit; cursor: pointer;">Log Out</button>
                 </form>
             {% else %}
-                <a href="{{ url_for('login') }}" style="color: #2563eb; text-decoration: none; font-weight: 600;">Log In</a>
-                <a href="{{ url_for('register') }}" style="background-color: #2563eb; color: #ffffff; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: 600;">Register</a>
+                <a href="{{ url_for('login') }}" style="color: var(--primary); text-decoration: none; font-weight: 600;">Log In</a>
+                <a href="{{ url_for('register') }}" style="background-color: var(--primary); color: #ffffff; padding: 6px 14px; border-radius: 8px; text-decoration: none; font-weight: 600;">Register</a>
             {% endif %}
         </div>
     </nav>
 
-    <div class="mobile-menu-overlay" id="mobileMenuOverlay" onclick="closeMobileMenu()"></div>
-
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var sidebar = document.querySelector('.patient-sidebar');
-            var hamburgerBtn = document.getElementById('hamburgerBtn');
-            if (sidebar && hamburgerBtn) {
-                hamburgerBtn.classList.add('has-sidebar');
+        (function() {
+            var stored = localStorage.getItem('medibro-theme');
+            if (stored === 'dark') {
+                document.body.classList.add('dark-mode');
             }
-        });
+            document.addEventListener('DOMContentLoaded', function() {
+                var icon = document.getElementById('themeToggleIcon');
+                if (icon) icon.className = document.body.classList.contains('dark-mode') ? 'ti ti-sun' : 'ti ti-moon';
+                var btn = document.getElementById('themeToggleBtn');
+                if (btn) {
+                    btn.addEventListener('click', function() {
+                        document.body.classList.toggle('dark-mode');
+                        var isDark = document.body.classList.contains('dark-mode');
+                        localStorage.setItem('medibro-theme', isDark ? 'dark' : 'light');
+                        if (icon) icon.className = isDark ? 'ti ti-sun' : 'ti ti-moon';
+                    });
+                }
+            });
+        })();
 
-        function toggleMobileMenu() {
-            var sidebar = document.querySelector('.patient-sidebar');
-            var overlay = document.getElementById('mobileMenuOverlay');
-            if (!sidebar) return;
-            if (sidebar.classList.contains('mobile-open')) {
-                closeMobileMenu();
-            } else {
-                sidebar.classList.add('mobile-open');
-                overlay.classList.add('active');
-            }
+        function toggleMoreSheet() {
+            var sheet = document.getElementById('mobileMoreSheet');
+            var overlay = document.getElementById('mobileMoreOverlay');
+            if (!sheet) return;
+            sheet.classList.toggle('open');
+            overlay.classList.toggle('open');
         }
-
-        function closeMobileMenu() {
-            var sidebar = document.querySelector('.patient-sidebar');
-            var overlay = document.getElementById('mobileMenuOverlay');
-            if (sidebar) sidebar.classList.remove('mobile-open');
-            if (overlay) overlay.classList.remove('active');
+        function closeMoreSheet() {
+            var sheet = document.getElementById('mobileMoreSheet');
+            var overlay = document.getElementById('mobileMoreOverlay');
+            if (sheet) sheet.classList.remove('open');
+            if (overlay) overlay.classList.remove('open');
         }
     </script>
 
@@ -310,15 +402,61 @@
         {% endwith %}
     </div>
 
+    {% if session.get('role') == 'patient' %}
+    {% set active_section = SIDEBAR_SECTION_MAP.get(request.endpoint) %}
+    <div class="patient-layout">
+        <aside class="patient-sidebar">
+            <a href="{{ url_for('my_health') }}" class="{{ 'active' if active_section == 'my_health' }}"><i class="ti ti-home"></i> My Health</a>
+            <a href="{{ url_for('patient_dashboard') }}" class="{{ 'active' if active_section == 'patient_dashboard' }}"><i class="ti ti-calendar"></i> Appointments</a>
+            <a href="{{ url_for('vitals') }}" class="{{ 'active' if active_section == 'vitals' }}"><i class="ti ti-heartbeat"></i> Vitals</a>
+            <a href="{{ url_for('symptoms') }}" class="{{ 'active' if active_section == 'symptoms' }}"><i class="ti ti-stethoscope"></i> Symptom Checker</a>
+            <a href="{{ url_for('ai_chat') }}" class="{{ 'active' if active_section == 'ai_chat' }}"><i class="ti ti-robot"></i> AI Health Chat</a>
+            <a href="{{ url_for('medicines') }}" class="{{ 'active' if active_section == 'medicines' }}"><i class="ti ti-pill"></i> Medicines</a>
+            <a href="{{ url_for('chat_list') }}" class="{{ 'active' if active_section == 'chat_list' }}"><i class="ti ti-message-circle"></i> Chat</a>
+            <a href="{{ url_for('sos') }}" class="sos-link {{ 'active' if active_section == 'sos' }}"><i class="ti ti-alert-triangle"></i> SOS</a>
+            <a href="{{ url_for('profile') }}" class="{{ 'active' if active_section == 'profile' }}"><i class="ti ti-user"></i> Profile</a>
+            <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="sidebar-logout"><i class="ti ti-logout"></i> Log Out</button>
+            </form>
+        </aside>
+        <main id="main-content" class="patient-main">
+    {% else %}
     <main id="main-content">
+    {% endif %}
         {% block content %}{% endblock %}
-    </main>
+    {% if session.get('role') == 'patient' %}
+        </main>
+    </div>
 
-    <footer style="margin-top: 48px; padding: 24px 20px; border-top: 1px solid var(--border, #cbd5e1); text-align: center; background-color: #ffffff;">
+    <nav class="mobile-tabbar">
+        <a href="{{ url_for('my_health') }}" class="{{ 'active' if active_section == 'my_health' }}"><i class="ti ti-home{{ '-filled' if active_section == 'my_health' }}"></i><span>Home</span></a>
+        <a href="{{ url_for('patient_dashboard') }}" class="{{ 'active' if active_section == 'patient_dashboard' }}"><i class="ti ti-calendar"></i><span>Visits</span></a>
+        <a href="{{ url_for('vitals') }}" class="{{ 'active' if active_section == 'vitals' }}"><i class="ti ti-heartbeat"></i><span>Vitals</span></a>
+        <a href="{{ url_for('chat_list') }}" class="{{ 'active' if active_section == 'chat_list' }}"><i class="ti ti-message-circle"></i><span>Chat</span></a>
+        <button type="button" onclick="toggleMoreSheet()"><i class="ti ti-menu-2"></i><span>More</span></button>
+    </nav>
+    <div class="mobile-more-overlay" id="mobileMoreOverlay" onclick="closeMoreSheet()"></div>
+    <div class="mobile-more-sheet" id="mobileMoreSheet">
+        <a href="{{ url_for('symptoms') }}"><i class="ti ti-stethoscope"></i> Symptom Checker</a>
+        <a href="{{ url_for('ai_chat') }}"><i class="ti ti-robot"></i> AI Health Chat</a>
+        <a href="{{ url_for('medicines') }}"><i class="ti ti-pill"></i> Medicines</a>
+        <a href="{{ url_for('sos') }}" style="color: var(--danger);"><i class="ti ti-alert-triangle"></i> SOS</a>
+        <a href="{{ url_for('profile') }}"><i class="ti ti-user"></i> Profile</a>
+        <form action="{{ url_for('logout') }}" method="POST" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"><i class="ti ti-logout"></i> Log Out</button>
+        </form>
+    </div>
+    {% else %}
+    </main>
+    {% endif %}
+
+    <footer style="margin-top: 48px; padding: 24px 20px; border-top: 1px solid var(--border); text-align: center; background-color: var(--surface);">
         <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 10px;">
-            <a href="{{ url_for('legal_terms') }}" style="color: var(--text-sub, #64748b); text-decoration: none; font-size: 0.85rem;">Terms of Service</a>
-            <a href="{{ url_for('legal_privacy') }}" style="color: var(--text-sub, #64748b); text-decoration: none; font-size: 0.85rem;">Privacy Policy</a>
-            <a href="{{ url_for('legal_disclaimer') }}" style="color: var(--text-sub, #64748b); text-decoration: none; font-size: 0.85rem;">Medical Disclaimer</a>
+            <a href="{{ url_for('legal_terms') }}" style="color: var(--text-sub); text-decoration: none; font-size: 0.85rem;">Terms of Service</a>
+            <a href="{{ url_for('legal_privacy') }}" style="color: var(--text-sub); text-decoration: none; font-size: 0.85rem;">Privacy Policy</a>
+            <a href="{{ url_for('legal_disclaimer') }}" style="color: var(--text-sub); text-decoration: none; font-size: 0.85rem;">Medical Disclaimer</a>
         </div>
         <p style="margin: 0; color: var(--text-sub); font-size: 0.78rem;">&copy; {{ current_year }} MediBro. This is a prototype-stage platform, not attorney-reviewed.</p>
     </footer>
