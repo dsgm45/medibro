@@ -3,42 +3,42 @@
 {% block content %}
     <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
         <div>
-            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Vitals Tracking</h1>
-            <p style="margin: 4px 0 0 0; color: #64748b;">Log and review your health readings</p>
+            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Vitals Tracking</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Log and review your health readings</p>
         </div>
-        <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Portal</a>
+        <a href="{{ url_for('patient_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Portal</a>
     </div>
 
     <!-- Latest Snapshot -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 32px;">
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Blood Pressure</p>
+        <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <p style="margin: 0 0 6px 0; font-size: 0.75rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">BLOOD PRESSURE</p>
             {% if latest and latest.systolic and latest.diastolic %}
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.systolic }}/{{ latest.diastolic }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">mmHg</span></p>
+            <p style="margin: 0; font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 600; color: var(--primary);">{{ latest.systolic }}/{{ latest.diastolic }} <span style="font-size: 0.68rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;">mmHg</span></p>
             {% else %}
             <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
             {% endif %}
         </div>
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Heart Rate</p>
+        <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <p style="margin: 0 0 6px 0; font-size: 0.75rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">HEART RATE</p>
             {% if latest and latest.heart_rate %}
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.heart_rate }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">bpm</span></p>
+            <p style="margin: 0; font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 600; color: var(--primary);">{{ latest.heart_rate }} <span style="font-size: 0.68rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;">bpm</span></p>
             {% else %}
             <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
             {% endif %}
         </div>
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">SpO2</p>
+        <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <p style="margin: 0 0 6px 0; font-size: 0.75rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">SPO2</p>
             {% if latest and latest.spo2 %}
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.spo2 }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">%</span></p>
+            <p style="margin: 0; font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 600; color: var(--primary);">{{ latest.spo2 }} <span style="font-size: 0.68rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;">%</span></p>
             {% else %}
             <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
             {% endif %}
         </div>
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <p style="margin: 0 0 6px 0; font-size: 0.8rem; color: #64748b; font-weight: 600;">Temperature</p>
+        <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 14px; padding: 18px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <p style="margin: 0 0 6px 0; font-size: 0.75rem; color: var(--text-sub); font-weight: 600; letter-spacing: 0.03em;">TEMPERATURE</p>
             {% if latest and latest.temperature %}
-            <p style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f172a;">{{ latest.temperature }} <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-sub);">&deg;F</span></p>
+            <p style="margin: 0; font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 600; color: var(--primary);">{{ latest.temperature }} <span style="font-size: 0.68rem; font-weight: 500; color: var(--text-sub); font-family: 'Plus Jakarta Sans', sans-serif;">&deg;F</span></p>
             {% else %}
             <p style="margin: 0; font-size: 1.1rem; font-weight: 500; font-style: italic; color: var(--text-sub);">Not recorded</p>
             {% endif %}
@@ -47,67 +47,67 @@
 
     <!-- Trend Charts -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px;">
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Blood Pressure Trend</p>
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Blood Pressure Trend</p>
                 <div style="display: flex; gap: 12px; font-size: 0.75rem;">
-                    <span style="color: #2563eb; font-weight: 600;">● Systolic</span>
-                    <span style="color: #f59e0b; font-weight: 600;">● Diastolic</span>
+                    <span style="color: var(--primary); font-weight: 600;">&#9679; Systolic</span>
+                    <span style="color: var(--accent); font-weight: 600;">&#9679; Diastolic</span>
                 </div>
             </div>
             <div id="bp-chart"></div>
         </div>
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <p style="margin: 0 0 12px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Heart Rate Trend</p>
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Heart Rate Trend</p>
             <div id="hr-chart"></div>
         </div>
     </div>
 
     <!-- Log New Reading -->
-    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-heartbeat"></i> Log New Reading</h2>
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 32px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-heartbeat" style="color: var(--primary);"></i> Log New Reading</h2>
         <form action="{{ url_for('vitals') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 16px;">
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Systolic (mmHg)
-                    <input type="number" name="systolic" min="0" max="300" placeholder="120" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Systolic (mmHg)
+                    <input type="number" name="systolic" min="0" max="300" placeholder="120" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Diastolic (mmHg)
-                    <input type="number" name="diastolic" min="0" max="200" placeholder="80" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Diastolic (mmHg)
+                    <input type="number" name="diastolic" min="0" max="200" placeholder="80" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Heart Rate (bpm)
-                    <input type="number" name="heart_rate" min="0" max="300" placeholder="72" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Heart Rate (bpm)
+                    <input type="number" name="heart_rate" min="0" max="300" placeholder="72" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">SpO2 (%)
-                    <input type="number" name="spo2" min="0" max="100" placeholder="98" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">SpO2 (%)
+                    <input type="number" name="spo2" min="0" max="100" placeholder="98" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Temperature (&deg;F)
-                    <input type="number" step="0.1" name="temperature" min="80" max="115" placeholder="98.6" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Temperature (&deg;F)
+                    <input type="number" step="0.1" name="temperature" min="80" max="115" placeholder="98.6" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                 </div>
             </div>
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Notes (optional)
-                <input type="text" name="notes" placeholder="e.g. Measured after morning walk" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Notes (optional)
+                <input type="text" name="notes" placeholder="e.g. Measured after morning walk" style="width: 100%; display: block; margin-top: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
             </div>
             <div style="text-align: right;">
-                <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Reading</button>
+                <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Save Reading</button>
             </div>
         </form>
     </div>
 
     <!-- History -->
-    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-chart-line"></i> Recent History</h2>
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-chart-line" style="color: var(--primary);"></i> Recent History</h2>
         {% if history %}
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.85rem;">
+                    <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                         <th style="padding: 12px 10px;">Date</th>
                         <th style="padding: 12px 10px;">BP</th>
                         <th style="padding: 12px 10px;">HR</th>
@@ -118,26 +118,31 @@
                 </thead>
                 <tbody>
                     {% for v in history %}
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 14px 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
-                        <td style="padding: 14px 10px; {% if v.systolic and v.diastolic %}color: #0f172a; font-weight: 600;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}Not recorded{% endif %}</td>
-                        <td style="padding: 14px 10px; {% if v.heart_rate %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.heart_rate or 'Not recorded' }}</td>
-                        <td style="padding: 14px 10px; {% if v.spo2 %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.spo2 or 'Not recorded' }}</td>
-                        <td style="padding: 14px 10px; {% if v.temperature %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.temperature or 'Not recorded' }}</td>
-                        <td style="padding: 14px 10px; color: #64748b;">{{ v.notes or '' }}</td>
+                    <tr style="border-bottom: 1px solid var(--bg);">
+                        <td style="padding: 14px 10px; color: var(--text-dark); white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                        <td style="padding: 14px 10px; {% if v.systolic and v.diastolic %}color: var(--text-dark); font-weight: 600;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}Not recorded{% endif %}</td>
+                        <td style="padding: 14px 10px; {% if v.heart_rate %}color: var(--text-dark);{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.heart_rate or 'Not recorded' }}</td>
+                        <td style="padding: 14px 10px; {% if v.spo2 %}color: var(--text-dark);{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.spo2 or 'Not recorded' }}</td>
+                        <td style="padding: 14px 10px; {% if v.temperature %}color: var(--text-dark);{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.temperature or 'Not recorded' }}</td>
+                        <td style="padding: 14px 10px; color: var(--text-sub);">{{ v.notes or '' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% else %}
-        <p style="color: #64748b; margin: 0;">No vitals logged yet. Add your first reading above.</p>
+        <p style="color: var(--text-sub); margin: 0;">No vitals logged yet. Add your first reading above.</p>
         {% endif %}
     </div>
 
 <script>
-function drawLineChart(containerId, data, keys, colors) {
+function drawLineChart(containerId, data, keys, colorVars) {
     const container = document.getElementById(containerId);
+    const style = getComputedStyle(document.body);
+    const colors = colorVars.map(v => style.getPropertyValue(v).trim());
+    const axisColor = style.getPropertyValue('--text-sub').trim();
+    const gridColor = style.getPropertyValue('--border').trim();
+
     if (!data || data.length < 2) {
         container.innerHTML = '<p style="color:var(--text-sub); font-size:0.85rem; padding: 20px 0;">Log at least 2 readings to see a trend here.</p>';
         return;
@@ -157,7 +162,7 @@ function drawLineChart(containerId, data, keys, colors) {
     }
 
     let svg = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">`;
-    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="#e2e8f0" stroke-width="1"/>`;
+    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="${gridColor}" stroke-width="1"/>`;
 
     keys.forEach((key, ki) => {
         const points = data.map((d, i) => xy(i, d[key]).join(',')).join(' ');
@@ -171,7 +176,7 @@ function drawLineChart(containerId, data, keys, colors) {
     const labelIndices = data.length <= 5 ? data.map((_, i) => i) : [0, Math.floor((data.length - 1) / 2), data.length - 1];
     labelIndices.forEach(i => {
         const [x] = xy(i, data[i][keys[0]]);
-        svg += `<text x="${x}" y="${height - 8}" font-size="10" fill="#64748b" text-anchor="middle">${data[i].date}</text>`;
+        svg += `<text x="${x}" y="${height - 8}" font-size="10" fill="${axisColor}" text-anchor="middle">${data[i].date}</text>`;
     });
 
     svg += `</svg>`;
@@ -180,7 +185,7 @@ function drawLineChart(containerId, data, keys, colors) {
 
 const bpData = {{ bp_chart_data | tojson }};
 const hrData = {{ hr_chart_data | tojson }};
-drawLineChart('bp-chart', bpData, ['systolic', 'diastolic'], ['#2563eb', '#f59e0b']);
-drawLineChart('hr-chart', hrData, ['heart_rate'], ['#dc2626']);
+drawLineChart('bp-chart', bpData, ['systolic', 'diastolic'], ['--primary', '--accent']);
+drawLineChart('hr-chart', hrData, ['heart_rate'], ['--danger']);
 </script>
 {% endblock %}
