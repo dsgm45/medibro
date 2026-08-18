@@ -2,32 +2,32 @@
 {% block title %}Doctor Workspace - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
-    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <div>
-            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Doctor Workspace</h1>
-            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome, Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doctor.specialty or 'General Medicine' }})</p>
-        </div>
-        <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="ti ti-settings"></i> Edit Profile</a>
+    <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 4px;">
+        <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</h1>
+        <a href="{{ url_for('doctor_profile') }}" style="color: var(--text-sub); text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-settings"></i> Edit Profile</a>
     </div>
+    <p style="margin: 0 0 18px 0; color: var(--text-sub); font-size: 0.85rem;">{{ doctor.specialty or 'General Medicine' }}</p>
 
     {% if pending_refill_requests %}
-    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-pill"></i> Refill Requests</h2>
+    <div style="background-color: var(--accent-light); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px;">
+        <p style="margin: 0 0 10px 0; font-size: 0.78rem; font-weight: 700; color: var(--accent-text); text-transform: uppercase; letter-spacing: 0.05em;"><i class="ti ti-pill"></i> {{ pending_refill_requests|length }} refill request{{ 's' if pending_refill_requests|length != 1 }} waiting</p>
         {% for req in pending_refill_requests %}
-        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; {% if not loop.last %}margin-bottom: 12px;{% endif %}">
-            <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ req.patient.full_name }} &middot; {{ req.medicine.name }}</p>
-            {% if req.note %}<p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.85rem;">"{{ req.note }}"</p>{% endif %}
-            <p style="margin: 6px 0 12px 0; color: #64748b; font-size: 0.78rem;">Requested {{ req.requested_at.strftime('%b %d, %Y') }}</p>
-            <div style="display: flex; gap: 10px;">
+        <div style="background-color: var(--surface); border-radius: 8px; padding: 10px 12px; {% if not loop.last %}margin-bottom: 8px;{% endif %} display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.85rem;">{{ req.patient.full_name }} &middot; {{ req.medicine.name }}</p>
+                {% if req.note %}<p style="margin: 3px 0 0 0; color: var(--text-sub); font-size: 0.78rem; font-style: italic;">"{{ req.note }}"</p>{% endif %}
+                <p style="margin: 3px 0 0 0; color: var(--text-sub); font-size: 0.72rem;">Requested {{ req.requested_at.strftime('%b %d, %Y') }}</p>
+            </div>
+            <div style="display: flex; gap: 8px; flex-shrink: 0;">
                 <form action="{{ url_for('respond_to_refill_request', request_id=req.id) }}" method="POST" style="display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="approve">
-                    <button type="submit" style="padding: 6px 14px; background-color: #15803d; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
+                    <button type="submit" style="padding: 6px 14px; background-color: var(--success); color: #ffffff; border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
                 </form>
                 <form action="{{ url_for('respond_to_refill_request', request_id=req.id) }}" method="POST" style="display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="deny">
-                    <button type="submit" style="padding: 6px 14px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Deny</button>
+                    <button type="submit" style="padding: 6px 14px; background-color: var(--danger-light); color: var(--danger); border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; font-family: inherit; cursor: pointer;">Deny</button>
                 </form>
             </div>
         </div>
@@ -35,100 +35,90 @@
     </div>
     {% endif %}
 
-    <!-- Appointments grouped by day -->
-    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-stethoscope"></i> Patient Appointment Requests</h2>
-        {% if grouped_appointments %}
-        {% for date_label, day_appointments in grouped_appointments %}
-        <div style="margin-bottom: 24px;">
-            <h3 style="font-size: 0.95rem; font-weight: 700; color: #2563eb; margin: 0 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0;">{{ date_label }}</h3>
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.8rem;">
-                            <th style="padding: 10px;">Patient Name</th>
-                            <th style="padding: 10px;">Phone</th>
-                            <th style="padding: 10px;">Time</th>
-                            <th style="padding: 10px;">Reason</th>
-                            <th style="padding: 10px;">Status</th>
-                            <th style="padding: 10px; text-align: right;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for appt in day_appointments %}
-                        <tr style="border-bottom: 1px solid #f1f5f9;">
-                            <td style="padding: 12px 10px; font-weight: 600; color: #0f172a;">
-                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #0f172a; text-decoration: none;">{{ appt.patient.full_name }}</a>
-                            </td>
-                            <td style="padding: 12px 10px; color: #334155;">{{ appt.phone_number or appt.patient.phone or 'N/A' }}</td>
-                            <td style="padding: 12px 10px; color: #334155;">{{ appt.appointment_time or 'To be confirmed' }}</td>
-                            <td style="padding: 12px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
-                            <td style="padding: 12px 10px;">
-                                {% if appt.status == 'accepted' %}
-                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
-                                {% if appt.id in days_until_by_appointment_id %}
-                                <span style="background-color: #eff6ff; color: #1e40af; padding: 2px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 4px;">{{ days_until_by_appointment_id[appt.id] }} day{{ 's' if days_until_by_appointment_id[appt.id] != 1 else '' }} left</span>
-                                {% endif %}
-                                {% elif appt.status == 'declined' %}
-                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
-                                {% elif appt.status == 'cancelled' %}
-                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
-                                {% elif appt.status == 'completed' %}
-                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed{% if appt.id in pending_followup_appointment_ids %} &middot; Follow-up pending{% endif %}</span>
-                                {% else %}
-                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
-                                {% endif %}
-                            </td>
-                            <td style="padding: 12px 10px; text-align: right;">
-                                {% if appt.status == 'pending' %}
-                                {% if not appt.appointment_time %}
-                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline-flex; gap: 6px; align-items: center;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <input type="time" name="assigned_time" required style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
-                                    <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Accept &amp; Set Time</button>
-                                </form>
-                                {% else %}
-                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer; margin-right: 6px;">Accept</button>
-                                </form>
-                                {% endif %}
-                                <form action="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" method="POST" style="display: inline;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Decline</button>
-                                </form>
-                                {% elif appt.status == 'accepted' %}
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;"><i class="ti ti-message-circle"></i> Chat</a>
-                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
-                                {% elif appt.status == 'completed' %}
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;"><i class="ti ti-message-circle"></i> Chat</a>
-                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: #6d28d9; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;"><i class="ti ti-notes"></i> Edit Summary</a>
-                                {% if appt.id not in pending_followup_appointment_ids %}
-                                <button type="button" onclick="toggleFollowUpForm({{ appt.id }})" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
-                                <form id="followUpForm{{ appt.id }}" action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: none; margin-top: 8px; text-align: left;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                        <input type="date" name="proposed_date" required style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
-                                        <input type="time" name="proposed_time" required style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
-                                        <button type="submit" style="padding: 6px 12px; background-color: #16a34a; color: #ffffff; border-radius: 6px; border: none; font-size: 0.8rem; font-weight: 600; font-family: inherit; cursor: pointer;">Send</button>
-                                    </div>
-                                </form>
-                                {% endif %}
-                                {% else %}
-                                <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none;">View History</a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    {% if grouped_appointments %}
+    {% for date_label, day_appointments in grouped_appointments %}
+    <p style="font-size: 0.7rem; font-weight: 700; color: var(--text-sub); letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 8px 2px;">{{ date_label }} &middot; {{ day_appointments|length }}</p>
+
+    <div style="background-color: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px -2px rgba(30,35,51,0.08); margin-bottom: 18px;">
+        {% for appt in day_appointments %}
+        {% if appt.status == 'declined' or appt.status == 'cancelled' %}
+            {% set border_color = 'var(--border)' %}
+        {% elif appt.status == 'completed' %}
+            {% set border_color = 'var(--success)' %}
+        {% elif appt.status == 'accepted' %}
+            {% set border_color = 'var(--primary)' %}
+        {% else %}
+            {% set border_color = 'var(--accent)' %}
+        {% endif %}
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; {% if not loop.last %}border-bottom: 1px solid var(--bg);{% endif %}">
+            <div style="width: 4px; align-self: stretch; background: {{ border_color }}; border-radius: 2px; flex-shrink: 0;"></div>
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #3d2b0a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.75rem; flex-shrink: 0;">{{ appt.patient.full_name | initials }}</div>
+            <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: var(--text-dark); text-decoration: none; font-weight: 700; font-size: 0.9rem;">{{ appt.patient.full_name }}</a>
+                    {% if appt.status == 'accepted' %}
+                    <span style="background-color: var(--success-light); color: var(--success); padding: 2px 9px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">Accepted{% if appt.id in days_until_by_appointment_id %} &middot; {{ days_until_by_appointment_id[appt.id] }}d{% endif %}</span>
+                    {% elif appt.status == 'declined' %}
+                    <span style="background-color: var(--danger-light); color: var(--danger); padding: 2px 9px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">Declined</span>
+                    {% elif appt.status == 'cancelled' %}
+                    <span style="background-color: var(--bg); color: var(--text-sub); padding: 2px 9px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">Cancelled</span>
+                    {% elif appt.status == 'completed' %}
+                    <span style="background-color: var(--success-light); color: var(--success); padding: 2px 9px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">Completed{% if appt.id in pending_followup_appointment_ids %} &middot; Follow-up pending{% endif %}</span>
+                    {% else %}
+                    <span style="background-color: var(--accent-light); color: var(--accent-text); padding: 2px 9px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">Pending</span>
+                    {% endif %}
+                </div>
+                <p style="margin: 3px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">{{ appt.reason or 'General Consultation' }} &middot; {{ appt.phone_number or appt.patient.phone or 'N/A' }}{% if appt.appointment_time %} &middot; {{ appt.appointment_time }}{% endif %}</p>
+
+                <div style="margin-top: 8px;">
+                    {% if appt.status == 'pending' %}
+                    {% if not appt.appointment_time %}
+                    <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline-flex; gap: 6px; align-items: center;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="time" name="assigned_time" required style="padding: 5px 7px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.78rem; background-color: var(--surface); color: var(--text-dark);">
+                        <button type="submit" style="padding: 5px 12px; background-color: var(--success); color: #ffffff; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;">Accept &amp; Set Time</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('handle_appointment', app_id=appt.id, action='accept') }}" method="POST" style="display: inline; margin-right: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" style="padding: 5px 12px; background-color: var(--success); color: #ffffff; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;">Accept</button>
+                    </form>
+                    {% endif %}
+                    <form action="{{ url_for('handle_appointment', app_id=appt.id, action='decline') }}" method="POST" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" style="padding: 5px 12px; background-color: var(--danger-light); color: var(--danger); border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;">Decline</button>
+                    </form>
+                    {% elif appt.status == 'accepted' %}
+                    <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: var(--primary); font-size: 0.78rem; font-weight: 600; text-decoration: none; margin-right: 12px;"><i class="ti ti-message-circle"></i> Chat</a>
+                    <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="padding: 5px 12px; background-color: var(--primary); color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.78rem; font-weight: 600; display: inline-block;">Mark Completed</a>
+                    {% elif appt.status == 'completed' %}
+                    <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: var(--primary); font-size: 0.78rem; font-weight: 600; text-decoration: none; margin-right: 12px;"><i class="ti ti-message-circle"></i> Chat</a>
+                    <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: var(--primary); font-size: 0.78rem; font-weight: 600; text-decoration: none; margin-right: 12px;"><i class="ti ti-notes"></i> Edit Summary</a>
+                    {% if appt.id not in pending_followup_appointment_ids %}
+                    <button type="button" onclick="toggleFollowUpForm({{ appt.id }})" style="padding: 5px 12px; background-color: var(--primary); color: #ffffff; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
+                    <form id="followUpForm{{ appt.id }}" action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: none; margin-top: 8px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                            <input type="date" name="proposed_date" required style="padding: 5px 7px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.78rem; background-color: var(--surface); color: var(--text-dark);">
+                            <input type="time" name="proposed_time" required style="padding: 5px 7px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.78rem; background-color: var(--surface); color: var(--text-dark);">
+                            <button type="submit" style="padding: 5px 10px; background-color: var(--success); color: #ffffff; border-radius: 6px; border: none; font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;">Send</button>
+                        </div>
+                    </form>
+                    {% endif %}
+                    {% else %}
+                    <a href="{{ url_for('view_patient_history', patient_id=appt.patient.id) }}" style="color: var(--primary); font-size: 0.78rem; font-weight: 600; text-decoration: none;">View History</a>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
-        {% else %}
-        <p style="color: #64748b; margin: 0;">No appointment requests received yet.</p>
-        {% endif %}
     </div>
+    {% endfor %}
+    {% else %}
+    <div style="background-color: var(--surface); border-radius: 10px; padding: 24px; text-align: center;">
+        <p style="color: var(--text-sub); margin: 0; font-size: 0.9rem;">No appointment requests received yet.</p>
+    </div>
+    {% endif %}
 </div>
 <script>
 function toggleFollowUpForm(appId) {
