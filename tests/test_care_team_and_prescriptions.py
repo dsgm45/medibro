@@ -38,7 +38,13 @@ class TestCareTeam:
 
         login(client, 'patient@example.com', 'password123')
         resp = client.get('/my-health/care-team')
-        assert b'>Chat<' not in resp.data
+        text = resp.data.decode()
+        # Scope to just this page's own content, not the shared nav -
+        # the mobile tab bar has its own unrelated "Chat" destination
+        # that legitimately appears on every page regardless of this
+        # specific per-doctor chat link's eligibility.
+        content_section = text[text.index('Your Care Team'):text.index('<nav class="mobile-tabbar"')]
+        assert '>Chat<' not in content_section
 
     def test_empty_state_with_no_appointments(self, client, make_user):
         make_user('patient@example.com', 'password123', role='patient')
