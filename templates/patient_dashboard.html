@@ -21,7 +21,7 @@
         <!-- Follow-up Requests -->
         {% if follow_ups %}
         <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Proposed</p>
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;"><i class="ti ti-repeat"></i> Follow-up Proposed</p>
             {% for followup in follow_ups %}
             <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #ddd6fe;{% endif %}">
                 <p style="margin: 0 0 8px 0; color: #6d28d9; font-size: 0.85rem;">
@@ -42,7 +42,7 @@
 
         <!-- Section 1: Book Appointment Card -->
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Book an Appointment</h2>
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-calendar"></i> Book an Appointment</h2>
 
             {% if all_specialties %}
             <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -56,7 +56,7 @@
 
             {% if doctors %}
             <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #1e40af;">
-                📞 Video consultation isn't available yet — please share a phone number so your doctor can reach you directly.
+                <i class="ti ti-phone"></i> Video consultation isn't available yet — please share a phone number so your doctor can reach you directly.
             </div>
             <form action="{{ url_for('book_appointment') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -98,7 +98,7 @@
 
         <!-- Section 2: My Scheduled Appointments Card -->
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📋 My Appointments</h2>
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-clipboard-list"></i> My Appointments</h2>
             {% if appointments %}
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -137,10 +137,10 @@
                                     <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: #dc2626; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
                                 </form>
                                 {% elif appt.status == 'accepted' %}
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-message-circle"></i> Chat</a>
                                 {% elif appt.status == 'completed' %}
-                                <a href="{{ url_for('appointment_summary', app_id=appt.id) }}" style="color: #6d28d9; text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-right: 10px;">📝 Summary</a>
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">💬 Chat</a>
+                                <a href="{{ url_for('appointment_summary', app_id=appt.id) }}" style="color: #6d28d9; text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-right: 10px;"><i class="ti ti-notes"></i> Summary</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-message-circle"></i> Chat</a>
                                 {% endif %}
                             </td>
                         </tr>

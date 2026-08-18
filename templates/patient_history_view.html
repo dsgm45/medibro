@@ -12,7 +12,7 @@
 
     <!-- Visit History -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">📋 Visit History</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);"><i class="ti ti-clipboard-list"></i> Visit History</h2>
         <p style="margin: 0 0 16px 0; color: var(--text-sub); font-size: 0.78rem;">Shows completed visits with any doctor on MediBro, for continuity of care.</p>
         {% if visit_history %}
         <div style="display: grid; gap: 10px;">
@@ -40,7 +40,7 @@
 
     <!-- Medicines -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💊 Current Medicines</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);"><i class="ti ti-pill"></i> Current Medicines</h2>
         {% if medicine_history %}
         <div style="display: grid; gap: 10px;">
             {% for med in medicine_history %}
@@ -64,7 +64,7 @@
 
     <!-- Vitals History -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">💓 Vitals History</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);"><i class="ti ti-heartbeat"></i> Vitals History</h2>
         {% if vitals_history %}
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -97,7 +97,7 @@
 
     <!-- Symptom History -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">🩺 Symptom History</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);"><i class="ti ti-stethoscope"></i> Symptom History</h2>
         {% if symptom_history %}
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -127,7 +127,7 @@
     </div>
 
     <div style="background-color: var(--surface, #ffffff); border: 1px solid var(--border, #cbd5e1); border-radius: 12px; padding: 20px; margin-top: 20px;">
-        <p style="margin: 0 0 14px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">📄 Documents</p>
+        <p style="margin: 0 0 14px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-file-text"></i> Documents</p>
         {% if documents %}
         {% for doc in documents %}
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">

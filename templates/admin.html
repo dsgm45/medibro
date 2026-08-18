@@ -4,13 +4,13 @@
 <div style="max-width: 1100px; margin: 30px auto; padding: 0 20px;">
 
     <div style="margin-bottom: 20px; text-align: right;">
-        <a href="{{ url_for('admin_audit_log') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">📜 View Audit Log</a>
+        <a href="{{ url_for('admin_audit_log') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="ti ti-file-text"></i> View Audit Log</a>
     </div>
     
     <!-- Emergency SOS High-Priority Banner -->
     {% if emergency_alerts %}
     <div style="background: var(--danger-light); border: 2px solid var(--danger); border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
-        <h2 style="color: var(--danger); margin-top: 0; display: flex; align-items: center; gap: 8px;">🚨 ACTIVE EMERGENCY SOS ALERTS ({{ emergency_alerts | length }})</h2>
+        <h2 style="color: var(--danger); margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ti ti-alert-triangle"></i> ACTIVE EMERGENCY SOS ALERTS ({{ emergency_alerts | length }})</h2>
         <div style="display: grid; gap: 12px; margin-top: 12px;">
             {% for sos in emergency_alerts %}
             <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
@@ -29,7 +29,7 @@
     <!-- Account Deletion Requests -->
     {% if pending_deletion_requests or approved_deletion_requests %}
     <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
-        <h2 style="font-size: 1.15rem; margin-top: 0; color: #9a3412;">🗑️ Account Deletion Requests</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; color: #9a3412;"><i class="ti ti-trash"></i> Account Deletion Requests</h2>
         <div style="display: grid; gap: 10px; margin-top: 12px;">
             {% for req in pending_deletion_requests %}
             <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -154,7 +154,7 @@
     <!-- Active Doctors Directory -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;">👨‍⚕️ Active Doctors</h2>
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;"><i class="ti ti-stethoscope"></i> Active Doctors</h2>
             <a href="{{ url_for('export_doctors_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">⬇ Export CSV</a>
         </div>
         {% if approved_doctors %}
@@ -197,7 +197,7 @@
     <!-- Patient Directory -->
     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;">👥 Patient Directory</h2>
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;"><i class="ti ti-users"></i> Patient Directory</h2>
             <a href="{{ url_for('export_patients_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">⬇ Export CSV</a>
         </div>
         {% if patients %}

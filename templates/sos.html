@@ -17,7 +17,7 @@
         <form action="{{ url_for('sos') }}" method="POST" style="display: inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="trigger_sos">
-            <button type="submit" style="padding: 16px 40px; background-color: var(--danger); color: #ffffff; border: none; border-radius: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer;">🚨 Trigger SOS Alert</button>
+            <button type="submit" style="padding: 16px 40px; background-color: var(--danger); color: #ffffff; border: none; border-radius: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer;"><i class="ti ti-alert-triangle"></i> Trigger SOS Alert</button>
         </form>
         {% if contacts %}
         <div style="margin: 16px 0 0 0;">
@@ -37,7 +37,7 @@
 
     <!-- Emergency contacts -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">📇 Emergency Contacts</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);"><i class="ti ti-address-book"></i> Emergency Contacts</h2>
 
         {% if contacts %}
         <div style="display: grid; gap: 10px; margin-bottom: 20px;">
@@ -85,7 +85,7 @@
 
     <!-- SOS History -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);">🕐 SOS History</h2>
+        <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 16px; color: var(--text-dark);"><i class="ti ti-clock"></i> SOS History</h2>
         {% if recent_events %}
         <div style="display: grid; gap: 8px;">
             {% for event in recent_events %}

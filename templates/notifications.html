@@ -4,7 +4,7 @@
 <div style="max-width: 640px; margin: 30px auto; padding: 0 20px;">
     <a href="{{ portal_home_url or url_for('index') }}" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { history.back(); return false; }" style="display: inline-flex; align-items: center; gap: 6px; color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px;">&larr; Go Back</a>
     <div style="display: flex; justify-content: space-between; align-items: center; margin: 0 0 20px 0;">
-        <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">🔔 Notifications</h1>
+        <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;"><i class="ti ti-bell"></i> Notifications</h1>
         {% if notifications and notifications | selectattr('is_read') | list %}
         <form action="{{ url_for('clear_all_notifications') }}" method="POST" onsubmit="return confirm('Clear all read notifications? This removes them permanently.');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

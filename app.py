@@ -3003,13 +3003,13 @@ def classify_time_period(time_str):
     try:
         hour = int(time_str.split(':')[0])
     except (ValueError, IndexError, AttributeError):
-        return ('Other', '⏰')
+        return ('Other', 'clock')
     if hour < 12:
-        return ('Morning', '☀️')
+        return ('Morning', 'sunrise')
     elif hour < 17:
-        return ('Afternoon', '🌤️')
+        return ('Afternoon', 'sun')
     else:
-        return ('Evening', '🌙')
+        return ('Evening', 'moon')
 
 def get_initials(full_name):
     """Two-letter initials for a simple avatar badge, e.g. 'Dr. Priya

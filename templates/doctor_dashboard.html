@@ -7,12 +7,12 @@
             <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Doctor Workspace</h1>
             <p style="margin: 4px 0 0 0; color: #64748b;">Welcome, Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doctor.specialty or 'General Medicine' }})</p>
         </div>
-        <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">⚙️ Edit Profile</a>
+        <a href="{{ url_for('doctor_profile') }}" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="ti ti-settings"></i> Edit Profile</a>
     </div>
 
     {% if pending_refill_requests %}
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">💊 Refill Requests</h2>
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-pill"></i> Refill Requests</h2>
         {% for req in pending_refill_requests %}
         <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; {% if not loop.last %}margin-bottom: 12px;{% endif %}">
             <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ req.patient.full_name }} &middot; {{ req.medicine.name }}</p>
@@ -37,7 +37,7 @@
 
     <!-- Appointments grouped by day -->
     <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">🩺 Patient Appointment Requests</h2>
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-stethoscope"></i> Patient Appointment Requests</h2>
         {% if grouped_appointments %}
         {% for date_label, day_appointments in grouped_appointments %}
         <div style="margin-bottom: 24px;">
@@ -98,11 +98,11 @@
                                     <button type="submit" style="padding: 6px 14px; background-color: #dc2626; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Decline</button>
                                 </form>
                                 {% elif appt.status == 'accepted' %}
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;"><i class="ti ti-message-circle"></i> Chat</a>
                                 <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="padding: 6px 14px; background-color: #6d28d9; color: #ffffff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-block;">Mark Completed</a>
                                 {% elif appt.status == 'completed' %}
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">💬 Chat</a>
-                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: #6d28d9; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;">📝 Edit Summary</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;"><i class="ti ti-message-circle"></i> Chat</a>
+                                <a href="{{ url_for('complete_appointment', app_id=appt.id) }}" style="color: #6d28d9; font-size: 0.85rem; font-weight: 600; text-decoration: none; margin-right: 10px;"><i class="ti ti-notes"></i> Edit Summary</a>
                                 {% if appt.id not in pending_followup_appointment_ids %}
                                 <button type="button" onclick="toggleFollowUpForm({{ appt.id }})" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Request Follow-up</button>
                                 <form id="followUpForm{{ appt.id }}" action="{{ url_for('request_follow_up', app_id=appt.id) }}" method="POST" style="display: none; margin-top: 8px; text-align: left;">

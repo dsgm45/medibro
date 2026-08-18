@@ -18,7 +18,7 @@
 
         <!-- Today's Schedule -->
         <div style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.2rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">📅 Today's Schedule</h2>
+            <h2 style="font-size: 1.2rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-calendar"></i> Today's Schedule</h2>
             {% if todays_schedule %}
             {% set periods = ['Morning', 'Afternoon', 'Evening', 'Other'] %}
             {% set period_colors = {'Morning': '#f59e0b', 'Afternoon': '#0ea5e9', 'Evening': '#6366f1', 'Other': '#64748b'} %}
@@ -26,7 +26,7 @@
             {% set period_items = todays_schedule | selectattr('period', 'equalto', period) | list %}
             {% if period_items %}
             <div style="margin-bottom: 18px;">
-                <p style="margin: 0 0 10px 0; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: {{ period_colors[period] }};">{{ period_items[0].icon }} {{ period }}</p>
+                <p style="margin: 0 0 10px 0; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: {{ period_colors[period] }};"><i class="ti ti-{{ period_items[0].icon }}"></i> {{ period }}</p>
                 <div style="display: grid; gap: 10px;">
                     {% for item in period_items %}
                     <div style="display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid {{ period_colors[period] }}; border-radius: 10px; padding: 14px 18px; {% if item.taken %}opacity: 0.6;{% endif %} box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
@@ -34,7 +34,7 @@
                             <form action="{{ url_for('toggle_dose_taken', dose_id=item.dose.id) }}" method="POST" style="display: inline; flex-shrink: 0;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" style="width: 30px; height: 30px; border-radius: 50%; border: 2px solid {% if item.taken %}#16a34a{% else %}#cbd5e1{% endif %}; background-color: {% if item.taken %}#16a34a{% else %}#ffffff{% endif %}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: all 0.15s;">
-                                    {% if item.taken %}<span style="color: white; font-size: 1rem;">✓</span>{% endif %}
+                                    {% if item.taken %}<span style="color: white; font-size: 1rem;"><i class="ti ti-check"></i> </span>{% endif %}
                                 </button>
                             </form>
                             <div>
@@ -57,7 +57,7 @@
         <!-- Add Medicine (collapsible) -->
         <details style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
             <summary style="padding: 18px 24px; cursor: pointer; font-weight: 700; font-size: 1.05rem; color: #0f172a; list-style: none; display: flex; align-items: center; justify-content: space-between;">
-                <span>➕ Add a New Medicine</span>
+                <span><i class="ti ti-plus"></i> Add a New Medicine</span>
                 <span style="color: #2563eb; font-size: 0.85rem; font-weight: 600;">Tap to expand</span>
             </summary>
             <div style="padding: 4px 24px 24px 24px; border-top: 1px solid #f1f5f9;">
@@ -83,20 +83,20 @@
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
                             <label id="chip-morning" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
                                 <input type="checkbox" name="dose_time" value="08:00" style="display:none;" onchange="updateChip('chip-morning', this.checked)">
-                                ☀️ Morning
+                                <i class="ti ti-sunrise"></i> Morning
                             </label>
                             <label id="chip-afternoon" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
                                 <input type="checkbox" name="dose_time" value="14:00" style="display:none;" onchange="updateChip('chip-afternoon', this.checked)">
-                                🌤️ Afternoon
+                                <i class="ti ti-sun"></i> Afternoon
                             </label>
                             <label id="chip-evening" style="display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border:2px solid #cbd5e1; border-radius:24px; cursor:pointer; font-weight:600; font-size:0.9rem; color:#334155; background:#ffffff; transition: all 0.15s;">
                                 <input type="checkbox" name="dose_time" value="20:00" style="display:none;" onchange="updateChip('chip-evening', this.checked)">
-                                🌙 Evening
+                                <i class="ti ti-moon"></i> Evening
                             </label>
                         </div>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-                            <button type="button" onclick="quickSelect(['chip-morning','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">⚡ Twice Daily</button>
-                            <button type="button" onclick="quickSelect(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">⚡ Thrice Daily</button>
+                            <button type="button" onclick="quickSelect(['chip-morning','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i class="ti ti-bolt"></i> Twice Daily</button>
+                            <button type="button" onclick="quickSelect(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: #334155; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i class="ti ti-bolt"></i> Thrice Daily</button>
                             <button type="button" onclick="clearChips(['chip-morning','chip-afternoon','chip-evening'])" style="padding: 6px 14px; background-color: #f1f5f9; color: var(--text-sub); border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">Clear</button>
                         </div>
                         <div>
@@ -128,7 +128,7 @@
 
         <!-- Medicine List -->
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;">💊 Your Medicines</h2>
+            <h2 style="font-size: 1.15rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-pill"></i> Your Medicines</h2>
             {% if medicines %}
             <div style="display: grid; gap: 12px;">
                 {% for med in medicines %}
@@ -149,7 +149,7 @@
                             {% if med.end_date %} to {{ med.end_date.strftime('%b %d, %Y') }}{% else %}{% if med.start_date %} (ongoing){% endif %}{% endif %}
                         </p>
                         {% endif %}
-                        {% if med.notes %}<p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.78rem;">📝 {{ med.notes }}</p>{% endif %}
+                        {% if med.notes %}<p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.78rem;"><i class="ti ti-notes"></i> {{ med.notes }}</p>{% endif %}
                     </div>
                     <div style="display: flex; gap: 12px; flex-shrink: 0; align-items: center;">
                         <a href="{{ url_for('request_refill', med_id=med.id) }}" style="color: #15803d; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Request Refill</a>

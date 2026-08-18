@@ -12,14 +12,14 @@
         <div style="margin-bottom: 24px;">
             <form action="{{ url_for('explain_trends') }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" style="padding: 10px 20px; background-color: #6d28d9; color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">🤖 Explain My Recent Trends</button>
+                <button type="submit" style="padding: 10px 20px; background-color: #6d28d9; color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer;"><i class="ti ti-robot"></i> Explain My Recent Trends</button>
             </form>
         </div>
 
         <!-- Follow-up banner -->
         {% if follow_ups %}
         <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;">🔁 Follow-up Proposed</p>
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;"><i class="ti ti-repeat"></i> Follow-up Proposed</p>
             {% for followup in follow_ups %}
             <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #ddd6fe;{% endif %}">
                 <p style="margin: 0 0 8px 0; color: #6d28d9; font-size: 0.85rem;">
@@ -63,7 +63,7 @@
             <!-- Vitals card -->
             <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">💓 Latest Vitals</p>
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-heartbeat"></i> Latest Vitals</p>
                     <a href="{{ url_for('vitals') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
                 </div>
                 {% if latest_vital %}
@@ -111,7 +111,7 @@
             <!-- Symptoms card -->
             <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">🩺 Recent Symptoms</p>
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-stethoscope"></i> Recent Symptoms</p>
                     <a href="{{ url_for('symptoms') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
                 </div>
                 {% if latest_symptom %}
@@ -127,7 +127,7 @@
             <!-- Medicines card -->
             <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">💊 Active Medicines</p>
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-pill"></i> Active Medicines</p>
                     <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">View all →</a>
                 </div>
                 {% if active_medicines %}
@@ -151,7 +151,7 @@
             <!-- Appointments card -->
             <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">📅 Appointments</p>
+                    <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-calendar"></i> Appointments</p>
                     <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Manage →</a>
                 </div>
                 {% if next_appointment %}
@@ -166,7 +166,7 @@
 
         <!-- Documents -->
         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px;">
-            <p style="margin: 0 0 14px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">📄 Documents</p>
+            <p style="margin: 0 0 14px 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;"><i class="ti ti-file-text"></i> Documents</p>
 
             <form action="{{ url_for('my_health') }}" method="GET" style="margin-bottom: 14px; display: flex; gap: 8px;">
                 <input type="text" name="doc_search" value="{{ doc_search or '' }}" placeholder="Search documents by filename..." style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; color: #0f172a;">
@@ -205,6 +205,6 @@
         </div>
 
         <div style="text-align: center; margin-top: 20px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-            <a href="{{ url_for('care_team') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">👥 Your Care Team</a>
-            <a href="{{ url_for('my_access_log') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;">🔍 See who's viewed your records</a>
+            <a href="{{ url_for('care_team') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-users"></i> Your Care Team</a>
+            <a href="{{ url_for('my_access_log') }}" style="color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-search"></i> See who's viewed your records</a>
         </div>{% endblock %}

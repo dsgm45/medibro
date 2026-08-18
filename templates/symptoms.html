@@ -15,7 +15,7 @@
 
     <!-- Log Symptoms -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">🩺 What are you experiencing?</h2>
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-stethoscope"></i> What are you experiencing?</h2>
         <form action="{{ url_for('symptoms') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="margin-bottom: 20px;">
@@ -51,7 +51,7 @@
 
     <!-- History -->
     <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);">📋 Recent Logs</h2>
+        <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-clipboard-list"></i> Recent Logs</h2>
         {% if history %}
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
@@ -71,7 +71,7 @@
                         <td style="padding: 14px 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
                         <td style="padding: 14px 10px; color: var(--text-sub);">
                             {{ log.guidance }}
-                            {% if log.ai_generated %}<span style="display: inline-block; margin-left: 6px; background-color: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; vertical-align: middle;">🤖 AI-assisted</span>{% endif %}
+                            {% if log.ai_generated %}<span style="display: inline-block; margin-left: 6px; background-color: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; vertical-align: middle;"><i class="ti ti-robot"></i> AI-assisted</span>{% endif %}
                             {% if log.suggested_specialty %}
                             <div style="margin-top: 6px; font-size: 0.8rem;">
                                 <span style="color: #64748b;">Consider seeing a:</span>

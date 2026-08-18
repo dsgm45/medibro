@@ -2,7 +2,7 @@
 {% block title %}AI Health Chat - MediBro{% endblock %}
 {% block content %}
         <div style="margin-bottom: 16px;">
-            <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">🤖 AI Health Chat</h1>
+            <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;"><i class="ti ti-robot"></i> AI Health Chat</h1>
             <p style="margin: 4px 0 0 0; color: #64748b;">Ask general health questions or talk through a non-urgent concern.</p>
         </div>
 
@@ -23,9 +23,9 @@
                         background-color: #f1f5f9; color: #0f172a;
                     {% endif %}">
                     {% if msg.sender == 'ai' and msg.is_crisis_response %}
-                    <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">⚠️ Please seek help</p>
+                    <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;"><i class="ti ti-alert-triangle"></i> ️ Please seek help</p>
                     {% elif msg.sender == 'ai' %}
-                    <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 0.7rem; color: #6d28d9;">🤖 AI Assistant</p>
+                    <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 0.7rem; color: #6d28d9;"><i class="ti ti-robot"></i> AI Assistant</p>
                     {% endif %}
                     <p style="margin: 0; font-size: 0.9rem; white-space: pre-wrap;">{{ msg.content }}</p>
                     <p style="margin: 4px 0 0 0; font-size: 0.68rem; opacity: 0.7;">{{ msg.created_at.strftime('%b %d, %I:%M %p') }}</p>
