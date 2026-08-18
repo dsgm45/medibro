@@ -95,6 +95,20 @@ class TestDarkModeInfrastructure:
         assert b'id="themeToggleBtn"' in resp.data
         assert b'medibro-theme' in resp.data
 
+    def test_theme_toggle_uses_inline_svg_not_icon_font(self, client, make_user):
+        # The icon font depends on an external CDN being up. After
+        # jsDelivr returned a live 503 in the browser, switched this
+        # specific icon to inline SVG so it can never depend on any
+        # CDN or font loading succeeding, regardless of which CDN is
+        # used elsewhere in the app.
+        make_user('patient@example.com', 'password123', role='patient')
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/my-health')
+        text = resp.data.decode()
+        assert 'id="moonIcon"' in text
+        assert 'id="sunIcon"' in text
+        assert '<svg' in text
+
     def test_dark_mode_css_variables_present(self, client, make_user):
         make_user('patient@example.com', 'password123', role='patient')
         login(client, 'patient@example.com', 'password123')
