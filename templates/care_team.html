@@ -1,31 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Your Care Team - MediBro{% endblock %}
 {% block content %}
-<div style="max-width: 640px; margin: 30px auto; padding: 0 20px;">
-    <a href="{{ url_for('my_health') }}" style="display: inline-flex; align-items: center; gap: 6px; color: #64748b; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px;">&larr; Back to My Health</a>
+<div style="max-width: 640px;">
+    <a href="{{ url_for('my_health') }}" style="display: inline-flex; align-items: center; gap: 6px; color: var(--text-sub); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px;">&larr; Back to My Health</a>
 
     <div style="margin-bottom: 20px;">
-        <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;"><i class="ti ti-users"></i> Your Care Team</h1>
+        <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);"><i class="ti ti-users" style="color: var(--primary);"></i> Your Care Team</h1>
         <p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.9rem;">Every doctor you've had an appointment with, all in one place.</p>
     </div>
 
-    <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
         {% if care_team_list %}
         <div style="display: grid; gap: 12px;">
             {% for entry in care_team_list %}
-            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0;">{{ entry.doctor.full_name | initials }}</div>
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent); color: #3d2b0a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(232,163,61,0.3);">{{ entry.doctor.full_name | initials }}</div>
                     <div>
-                        <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 0.95rem;">Dr. {{ entry.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
+                        <p style="margin: 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Dr. {{ entry.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</p>
                         <p style="margin: 3px 0 0 0; color: var(--text-sub); font-size: 0.82rem;">{{ entry.doctor.specialty or 'General Medicine' }} &middot; Last visit {{ entry.last_visit_date }}</p>
                     </div>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     {% if entry.chat_appointment_id %}
-                    <a href="{{ url_for('chat_thread', appointment_id=entry.chat_appointment_id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Chat</a>
+                    <a href="{{ url_for('chat_thread', appointment_id=entry.chat_appointment_id) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem;">Chat</a>
                     {% endif %}
-                    <a href="{{ url_for('patient_dashboard', book_with=entry.doctor.id) }}" style="padding: 6px 14px; background-color: #2563eb; color: #ffffff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.82rem;">Book Again</a>
+                    <a href="{{ url_for('patient_dashboard', book_with=entry.doctor.id) }}" style="padding: 6px 14px; background-color: var(--primary); color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.82rem;">Book Again</a>
                 </div>
             </div>
             {% endfor %}
