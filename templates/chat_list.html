@@ -13,10 +13,10 @@
             <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Messages</h1>
         </div>
 
-        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1); overflow: hidden;">
             {% if conversations %}
             {% for convo in conversations %}
-            <a href="{{ url_for('chat_thread', appointment_id=convo.appointment.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; text-decoration: none; border-bottom: 1px solid #f1f5f9; color: inherit;">
+            <a href="{{ url_for('chat_thread', appointment_id=convo.appointment.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; text-decoration: none; border-bottom: 1px solid var(--bg); color: inherit;">
                 <div>
                     <p style="margin: 0; font-weight: 700; color: var(--text-dark);">
                         {% if session.role == 'patient' %}Dr. {{ convo.partner.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% else %}{{ convo.partner.full_name }}{% endif %}
