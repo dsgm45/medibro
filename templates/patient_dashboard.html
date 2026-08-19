@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Patient Portal - MediBro{% endblock %}
+{% block title %}Appointments - MediBro{% endblock %}
 {% block content %}
         <div style="margin-bottom: 24px;">
-            <h1 style="margin: 0; font-size: 1.8rem; color: #0f172a;">Patient Portal</h1>
-            <p style="margin: 4px 0 0 0; color: #64748b;">Welcome back, {{ session.full_name }}</p>
+            <h1 style="margin: 0; font-size: 1.8rem; color: var(--text-dark);">Appointments</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Welcome back, {{ session.full_name }}</p>
         </div>
 
         <!-- Upcoming Appointment Reminders -->
         {% if upcoming %}
-        <div style="background-color: var(--warning-light, #fef3c7); border: 1px solid #fde68a; border-radius: var(--radius, 8px); padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: 700; color: #92400e; font-size: 0.9rem;">⏰ Upcoming Appointments</p>
+        <div style="background-color: var(--accent-light); border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: var(--accent-text); font-size: 0.9rem;"><i class="ti ti-clock"></i> Upcoming Appointments</p>
             {% for appt in upcoming %}
-            <p style="margin: 4px 0; color: #92400e; font-size: 0.85rem;">
+            <p style="margin: 4px 0; color: var(--accent-text); font-size: 0.85rem;">
                 Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &mdash; {{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% endif %}
             </p>
             {% endfor %}
@@ -20,50 +20,50 @@
 
         <!-- Follow-up Requests -->
         {% if follow_ups %}
-        <div style="background-color: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: 700; color: #6d28d9; font-size: 0.9rem;"><i class="ti ti-repeat"></i> Follow-up Proposed</p>
+        <div style="background-color: var(--accent-light); border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: 700; color: var(--accent-text); font-size: 0.9rem;"><i class="ti ti-repeat"></i> Follow-up Proposed</p>
             {% for followup in follow_ups %}
-            <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #ddd6fe;{% endif %}">
-                <p style="margin: 0 0 8px 0; color: #6d28d9; font-size: 0.85rem;">
+            <div style="margin: 10px 0; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid var(--accent);{% endif %}">
+                <p style="margin: 0 0 8px 0; color: var(--accent-text); font-size: 0.85rem;">
                     Dr. {{ followup.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} proposed a follow-up on <strong>{{ followup.proposed_date }} at {{ followup.proposed_time }}</strong>.
                 </p>
                 <form action="{{ url_for('accept_follow_up', followup_id=followup.id) }}" method="POST" style="display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" style="padding: 6px 16px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; margin-right: 8px;">Accept</button>
+                    <button type="submit" style="padding: 6px 16px; background-color: var(--success); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer; margin-right: 8px;">Accept</button>
                 </form>
                 <form action="{{ url_for('reject_follow_up', followup_id=followup.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Decline this follow-up proposal?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" style="padding: 6px 16px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">Decline</button>
+                    <button type="submit" style="padding: 6px 16px; background-color: var(--surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">Decline</button>
                 </form>
             </div>
             {% endfor %}
         </div>
         {% endif %}
 
-        <!-- Section 1: Book Appointment Card -->
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-calendar"></i> Book an Appointment</h2>
+        <!-- Book Appointment -->
+        <div style="background-color: var(--surface); border-left: 4px solid var(--primary); border-radius: 16px; padding: 24px; margin-bottom: 32px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-calendar" style="color: var(--primary);"></i> Book an Appointment</h2>
 
             {% if all_specialties %}
             <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Filter by specialty:</span>
-                <a href="{{ url_for('patient_dashboard') }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if not specialty_filter %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">All</a>
+                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-dark);">Filter by specialty:</span>
+                <a href="{{ url_for('patient_dashboard') }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if not specialty_filter %}background-color: var(--primary); color: #ffffff;{% else %}background-color: var(--bg); color: var(--text-dark);{% endif %}">All</a>
                 {% for spec in all_specialties %}
-                <a href="{{ url_for('patient_dashboard', specialty=spec) }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if specialty_filter == spec %}background-color: #2563eb; color: #ffffff;{% else %}background-color: #f1f5f9; color: #334155;{% endif %}">{{ spec }}</a>
+                <a href="{{ url_for('patient_dashboard', specialty=spec) }}" style="padding: 5px 12px; border-radius: 14px; text-decoration: none; font-size: 0.8rem; font-weight: 600; {% if specialty_filter == spec %}background-color: var(--primary); color: #ffffff;{% else %}background-color: var(--bg); color: var(--text-dark);{% endif %}">{{ spec }}</a>
                 {% endfor %}
             </div>
             {% endif %}
 
             {% if doctors %}
-            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #1e40af;">
+            <div style="background-color: var(--success-light); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: var(--primary);">
                 <i class="ti ti-phone"></i> Video consultation isn't available yet — please share a phone number so your doctor can reach you directly.
             </div>
             <form action="{{ url_for('book_appointment') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Select Doctor
-                        <select name="doctor_id" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; font-size: 0.95rem; color: #0f172a;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Select Doctor
+                        <select name="doctor_id" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background-color: var(--bg); font-size: 0.95rem; color: var(--text-dark);">
                             <option value="">-- Choose Specialist --</option>
                             {% for doc in doctors %}
                             <option value="{{ doc.id }}" {% if pre_doctor_id and doc.id == pre_doctor_id %}selected{% endif %}>Dr. {{ doc.full_name.replace('Dr. ', '').replace('Dr ', '') }} ({{ doc.specialty or 'General Practice' }})</option>
@@ -71,39 +71,39 @@
                         </select></label>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Date
-                        <input type="date" name="appointment_date" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Date
+                        <input type="date" name="appointment_date" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Time <span style="font-weight: 500; color: var(--text-sub);">(optional - leave blank and your doctor will confirm a time)</span></label>
-                        <input type="time" name="appointment_time" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Time <span style="font-weight: 500; color: var(--text-sub);">(optional - leave blank and your doctor will confirm a time)</span></label>
+                        <input type="time" name="appointment_time" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);">
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Phone Number
-                        <input type="tel" name="phone_number" required placeholder="For your doctor to reach you" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Phone Number
+                        <input type="tel" name="phone_number" required placeholder="For your doctor to reach you" style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                     </div>
                 </div>
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Reason for Visit
-                    <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;"></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Reason for Visit
+                    <input type="text" name="reason" placeholder="e.g. Annual checkup, flu symptoms, consultation..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);"></label>
                 </div>
                 <div style="text-align: right;">
-                    <button type="submit" style="padding: 10px 24px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Request Appointment</button>
+                    <button type="submit" style="padding: 10px 24px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Request Appointment</button>
                 </div>
             </form>
             {% else %}
-            <p style="color: #64748b; margin: 0;">No verified doctors are currently available for booking{% if specialty_filter %} in this specialty{% endif %}.</p>
+            <p style="color: var(--text-sub); margin: 0;">No verified doctors are currently available for booking{% if specialty_filter %} in this specialty{% endif %}.</p>
             {% endif %}
         </div>
 
-        <!-- Section 2: My Scheduled Appointments Card -->
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: #0f172a;"><i class="ti ti-clipboard-list"></i> My Appointments</h2>
+        <!-- My Scheduled Appointments -->
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; color: var(--text-dark);"><i class="ti ti-clipboard-list" style="color: var(--primary);"></i> My Appointments</h2>
             {% if appointments %}
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; text-align: left;">
                     <thead>
-                        <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.85rem;">
+                        <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                             <th style="padding: 12px 10px;">Doctor</th>
                             <th style="padding: 12px 10px;">Date & Time</th>
                             <th style="padding: 12px 10px;">Reason</th>
@@ -113,34 +113,34 @@
                     </thead>
                     <tbody>
                         {% for appt in appointments %}
-                        <tr style="border-bottom: 1px solid #f1f5f9;">
-                            <td style="padding: 14px 10px; font-weight: 600; color: #0f172a;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
-                            <td style="padding: 14px 10px; color: #334155;">{{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% else %} &middot; <span style="color: var(--text-sub); font-style: italic;">time to be confirmed</span>{% endif %}</td>
-                            <td style="padding: 14px 10px; color: #334155;">{{ appt.reason or 'General Consultation' }}</td>
+                        <tr style="border-bottom: 1px solid var(--bg);">
+                            <td style="padding: 14px 10px; font-weight: 600; color: var(--text-dark);">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}</td>
+                            <td style="padding: 14px 10px; color: var(--text-dark);">{{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% else %} &middot; <span style="color: var(--text-sub); font-style: italic;">time to be confirmed</span>{% endif %}</td>
+                            <td style="padding: 14px 10px; color: var(--text-dark);">{{ appt.reason or 'General Consultation' }}</td>
                             <td style="padding: 14px 10px;">
                                 {% if appt.status == 'accepted' %}
-                                <span style="background-color: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
+                                <span style="background-color: var(--success-light); color: var(--success); padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Accepted</span>
                                 {% elif appt.status == 'declined' %}
-                                <span style="background-color: #fee2e2; color: #b91c1c; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
+                                <span style="background-color: var(--danger-light); color: var(--danger); padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Declined</span>
                                 {% elif appt.status == 'cancelled' %}
-                                <span style="background-color: #f1f5f9; color: #64748b; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
+                                <span style="background-color: var(--bg); color: var(--text-sub); padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Cancelled</span>
                                 {% elif appt.status == 'completed' %}
-                                <span style="background-color: #ede9fe; color: #6d28d9; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed</span>
+                                <span style="background-color: var(--success-light); color: var(--success); padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Completed</span>
                                 {% else %}
-                                <span style="background-color: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
+                                <span style="background-color: var(--accent-light); color: var(--accent-text); padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Pending</span>
                                 {% endif %}
                             </td>
                             <td style="padding: 14px 10px; text-align: right;">
                                 {% if appt.status == 'pending' %}
                                 <form action="{{ url_for('cancel_appointment', app_id=appt.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Cancel this appointment request?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: #dc2626; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                                    <button type="submit" style="background: none; border: none; padding: 0; font-family: inherit; color: var(--danger); font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
                                 </form>
                                 {% elif appt.status == 'accepted' %}
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-message-circle"></i> Chat</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-message-circle"></i> Chat</a>
                                 {% elif appt.status == 'completed' %}
-                                <a href="{{ url_for('appointment_summary', app_id=appt.id) }}" style="color: #6d28d9; text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-right: 10px;"><i class="ti ti-notes"></i> Summary</a>
-                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-message-circle"></i> Chat</a>
+                                <a href="{{ url_for('appointment_summary', app_id=appt.id) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem; margin-right: 10px;"><i class="ti ti-notes"></i> Summary</a>
+                                <a href="{{ url_for('chat_thread', appointment_id=appt.id) }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-message-circle"></i> Chat</a>
                                 {% endif %}
                             </td>
                         </tr>
@@ -149,6 +149,7 @@
                 </table>
             </div>
             {% else %}
-            <p style="color: #64748b; margin: 0;">You have not booked any appointments yet.</p>
+            <p style="color: var(--text-sub); margin: 0;">You have not booked any appointments yet.</p>
             {% endif %}
-        </div>{% endblock %}
+        </div>
+{% endblock %}
