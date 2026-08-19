@@ -16,11 +16,11 @@
         <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Admin</a>
     </div>
 
-    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
         {% if appointments %}
         <div style="display: grid; gap: 12px;">
             {% for appt in appointments %}
-            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <div style="border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px;">
                     <p style="margin: 0; font-weight: 700; color: var(--text-dark);">
                         {% if person_role == 'doctor' %}
@@ -31,7 +31,7 @@
                     </p>
                     <p style="margin: 0; color: var(--text-sub); font-size: 0.78rem;">{{ appt.appointment_date }}</p>
                 </div>
-                <p style="margin: 8px 0 0 0; color: #334155; font-size: 0.9rem; white-space: pre-wrap;">{{ appt.patient_note }}</p>
+                <p style="margin: 8px 0 0 0; color: var(--text-dark); font-size: 0.9rem; white-space: pre-wrap;">{{ appt.patient_note }}</p>
             </div>
             {% endfor %}
         </div>

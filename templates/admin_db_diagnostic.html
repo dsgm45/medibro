@@ -5,27 +5,27 @@
     <h1 style="font-size: 1.6rem; color: var(--text-dark); margin: 0 0 6px 0;">Database Migration Diagnostic</h1>
     <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0 0 28px 0;">Read-only. Nothing on this page changes anything in the database.</p>
 
-    <div style="background-color: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
         <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">What Alembic thinks the current state is</h2>
-        <p style="font-family: monospace; font-size: 0.95rem; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin: 0 0 12px 0;">{{ tracked_revision }}</p>
+        <p style="font-family: monospace; font-size: 0.95rem; background-color: var(--bg); padding: 10px 14px; border-radius: 6px; margin: 0 0 12px 0;">{{ tracked_revision }}</p>
 
         <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">What the schema actually shows (detected independently)</h2>
-        <p style="font-family: monospace; font-size: 0.95rem; background-color: #f1f5f9; padding: 10px 14px; border-radius: 6px; margin: 0;">{{ detected_revision or '(could not detect any known state)' }}</p>
+        <p style="font-family: monospace; font-size: 0.95rem; background-color: var(--bg); padding: 10px 14px; border-radius: 6px; margin: 0;">{{ detected_revision or '(could not detect any known state)' }}</p>
 
         {% if fix_available %}
         <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-            <p style="color: #92400e; font-size: 0.88rem; margin: 0 0 10px 0;">
+            <p style="color: var(--accent-text); font-size: 0.88rem; margin: 0 0 10px 0;">
                 Mismatch detected: the schema shows <code>{{ detected_revision }}</code> is genuinely complete, but tracking says <code>{{ tracked_revision }}</code>. This will correct the tracking record and then apply any migrations still pending beyond that point. No existing data is changed.
             </p>
             <form action="{{ url_for('admin_db_diagnostic_fix') }}" method="POST" onsubmit="return confirm('This will correct the tracking record to {{ detected_revision }} and apply any remaining pending migrations. No existing tables or data will be changed. Continue?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" style="padding: 10px 20px; background-color: var(--warning, #b45309); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Fix: Correct tracking and apply pending migrations</button>
+                <button type="submit" style="padding: 10px 20px; background-color: var(--accent); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Fix: Correct tracking and apply pending migrations</button>
             </form>
         </div>
         {% endif %}
     </div>
 
-    <div style="background-color: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
         <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">Full migration chain (in order)</h2>
         <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
             <thead>
@@ -38,7 +38,7 @@
             </thead>
             <tbody>
                 {% for revision_id, filename in migration_chain %}
-                <tr style="border-bottom: 1px solid #f1f5f9;">
+                <tr style="border-bottom: 1px solid var(--bg);">
                     <td style="padding: 8px 4px; font-family: monospace;">{{ revision_id }}</td>
                     <td style="padding: 8px 4px; color: var(--text-sub);">{{ filename }}</td>
                     <td style="padding: 8px 4px;">
@@ -61,11 +61,11 @@
         </table>
     </div>
 
-    <div style="background-color: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
         <h2 style="font-size: 1.05rem; margin: 0 0 12px 0; color: var(--text-dark);">Tables that actually exist in the database</h2>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
             {% for table in existing_tables %}
-            <div style="background-color: #f1f5f9; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.85rem;">{{ table }}</div>
+            <div style="background-color: var(--bg); padding: 8px 12px; border-radius: 6px; font-family: monospace; font-size: 0.85rem;">{{ table }}</div>
             {% endfor %}
         </div>
     </div>

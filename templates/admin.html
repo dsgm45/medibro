@@ -6,20 +6,20 @@
     <div style="margin-bottom: 20px; text-align: right;">
         <a href="{{ url_for('admin_audit_log') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="ti ti-file-text"></i> View Audit Log</a>
     </div>
-    
+
     <!-- Emergency SOS High-Priority Banner -->
     {% if emergency_alerts %}
-    <div style="background: var(--danger-light); border: 2px solid var(--danger); border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
+    <div style="background: var(--danger-light); border: 2px solid var(--danger); border-radius: 16px; padding: 20px; margin-bottom: 32px;">
         <h2 style="color: var(--danger); margin-top: 0; display: flex; align-items: center; gap: 8px;"><i class="ti ti-alert-triangle"></i> ACTIVE EMERGENCY SOS ALERTS ({{ emergency_alerts | length }})</h2>
         <div style="display: grid; gap: 12px; margin-top: 12px;">
             {% for sos in emergency_alerts %}
-            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="background: var(--surface); padding: 14px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <strong style="color: var(--danger); font-size: 1.1rem;">{{ sos.patient_name }}</strong>
                     <div style="font-size: 0.9rem; color: var(--text-dark);">Contact Phone: <strong>{{ sos.phone }}</strong></div>
                     <div style="font-size: 0.8rem; color: var(--text-sub);">Alert Time: {{ sos.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
                 </div>
-                <a href="{{ url_for('resolve_sos', sos_id=sos.id) }}" style="padding: 8px 16px; background: var(--success); color: white; text-decoration: none; border-radius: 6px; font-weight: 700;">Mark Resolved</a>
+                <a href="{{ url_for('resolve_sos', sos_id=sos.id) }}" style="padding: 8px 16px; background: var(--success); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;">Mark Resolved</a>
             </div>
             {% endfor %}
         </div>
@@ -28,36 +28,36 @@
 
     <!-- Account Deletion Requests -->
     {% if pending_deletion_requests or approved_deletion_requests %}
-    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); padding: 20px; margin-bottom: 32px;">
-        <h2 style="font-size: 1.15rem; margin-top: 0; color: #9a3412;"><i class="ti ti-trash"></i> Account Deletion Requests</h2>
+    <div style="background: var(--accent-light); border-radius: 16px; padding: 20px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.15rem; margin-top: 0; color: var(--accent-text);"><i class="ti ti-trash"></i> Account Deletion Requests</h2>
         <div style="display: grid; gap: 10px; margin-top: 12px;">
             {% for req in pending_deletion_requests %}
-            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="background: var(--surface); padding: 14px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div>
                     <strong style="color: var(--text-dark);">{{ req.patient.full_name }}</strong> ({{ req.patient.email }})
-                    <div style="font-size: 0.8rem; color: var(--text-sub);">Requested {{ req.requested_at.strftime('%b %d, %Y') }} &middot; Scheduled for {{ req.scheduled_for.strftime('%b %d, %Y') }} &middot; <span style="color: #b45309; font-weight: 600;">Awaiting approval</span></div>
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">Requested {{ req.requested_at.strftime('%b %d, %Y') }} &middot; Scheduled for {{ req.scheduled_for.strftime('%b %d, %Y') }} &middot; <span style="color: var(--accent-text); font-weight: 600;">Awaiting approval</span></div>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <form action="{{ url_for('approve_account_deletion', req_id=req.id) }}" method="POST" onsubmit="return confirm('Approve this account deletion? It will proceed automatically once the scheduled date passes.');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" style="padding: 6px 14px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Approve</button>
+                        <button type="submit" style="padding: 6px 14px; background-color: var(--success); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Approve</button>
                     </form>
                     <form action="{{ url_for('cancel_account_deletion', req_id=req.id) }}" method="POST" onsubmit="return confirm('Cancel this deletion request? The patient\'s account will be unlocked.');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" style="padding: 6px 14px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                        <button type="submit" style="padding: 6px 14px; background-color: var(--surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
                     </form>
                 </div>
             </div>
             {% endfor %}
             {% for req in approved_deletion_requests %}
-            <div style="background: white; padding: 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="background: var(--surface); padding: 14px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div>
                     <strong style="color: var(--text-dark);">{{ req.patient.full_name }}</strong> ({{ req.patient.email }})
-                    <div style="font-size: 0.8rem; color: var(--text-sub);">Approved {{ req.approved_at.strftime('%b %d, %Y') if req.approved_at else '' }} &middot; Will be deleted {{ req.scheduled_for.strftime('%b %d, %Y') }} &middot; <span style="color: #15803d; font-weight: 600;">Approved</span></div>
+                    <div style="font-size: 0.8rem; color: var(--text-sub);">Approved {{ req.approved_at.strftime('%b %d, %Y') if req.approved_at else '' }} &middot; Will be deleted {{ req.scheduled_for.strftime('%b %d, %Y') }} &middot; <span style="color: var(--success); font-weight: 600;">Approved</span></div>
                 </div>
                 <form action="{{ url_for('cancel_account_deletion', req_id=req.id) }}" method="POST" onsubmit="return confirm('Cancel this deletion request? The patient\'s account will be unlocked.');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" style="padding: 6px 14px; background-color: #ffffff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                    <button type="submit" style="padding: 6px 14px; background-color: var(--surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Cancel</button>
                 </form>
             </div>
             {% endfor %}
@@ -67,42 +67,42 @@
 
     <!-- Analytics Stats Cards -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
-        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 14px;">
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Total Patients</div>
-            <div style="font-size: 2rem; font-weight: 700; color: var(--primary); margin-top: 4px;">{{ stats.total_patients }}</div>
+            <div style="font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600; color: var(--primary); margin-top: 4px;">{{ stats.total_patients }}</div>
         </div>
-        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 14px;">
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Active Doctors</div>
-            <div style="font-size: 2rem; font-weight: 700; color: var(--success); margin-top: 4px;">{{ stats.active_doctors }}</div>
+            <div style="font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600; color: var(--success); margin-top: 4px;">{{ stats.active_doctors }}</div>
         </div>
-        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 14px;">
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Pending Approvals</div>
-            <div style="font-size: 2rem; font-weight: 700; color: var(--warning); margin-top: 4px;">{{ stats.pending_approvals }}</div>
+            <div style="font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600; color: var(--accent-text); margin-top: 4px;">{{ stats.pending_approvals }}</div>
         </div>
-        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 14px;">
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Total Appointments</div>
-            <div style="font-size: 2rem; font-weight: 700; color: #6d28d9; margin-top: 4px;">{{ stats.total_appointments }}</div>
+            <div style="font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600; color: var(--primary); margin-top: 4px;">{{ stats.total_appointments }}</div>
         </div>
-        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: var(--radius);">
+        <div style="background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 14px;">
             <div style="color: var(--text-sub); font-size: 0.875rem; font-weight: 600;">Completed Visits</div>
-            <div style="font-size: 2rem; font-weight: 700; color: #0ea5e9; margin-top: 4px;">{{ stats.completed_visits }}</div>
+            <div style="font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600; color: var(--success); margin-top: 4px;">{{ stats.completed_visits }}</div>
         </div>
     </div>
 
     <!-- Appointment Volume + Doctor Utilization -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px;">
-        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;">
             <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Appointment Volume (Last 14 Days)</p>
             <div id="volume-chart"></div>
         </div>
-        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;">
             <p style="margin: 0 0 12px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;">Busiest Doctors</p>
             {% if top_doctors %}
             <div style="display: grid; gap: 10px;">
                 {% for doc in top_doctors %}
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <p style="margin: 0; font-weight: 600; color: var(--text-dark); font-size: 0.9rem;">Dr. {{ doc.name }}</p>
-                    <span style="background-color: #eff6ff; color: #1e40af; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">{{ doc.count }} appt{{ 's' if doc.count != 1 else '' }}</span>
+                    <span style="background-color: var(--success-light); color: var(--primary); padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">{{ doc.count }} appt{{ 's' if doc.count != 1 else '' }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -113,10 +113,10 @@
     </div>
 
     <!-- Doctor Verification Queue -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
-        <h2 style="font-size: 1.25rem; margin-top: 0;">⏳ Pending Doctor Approvals</h2>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-top: 0; color: var(--text-dark);"><i class="ti ti-clock" style="color: var(--primary);"></i> Pending Doctor Approvals</h2>
         {% if pending_doctors %}
-        <input type="text" id="doctorSearch" onkeyup="filterTable('doctorSearch', 'doctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <input type="text" id="doctorSearch" onkeyup="filterTable('doctorSearch', 'doctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background-color: var(--bg); color: var(--text-dark); font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
         <table id="doctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
@@ -129,17 +129,17 @@
             <tbody>
                 {% for doc in pending_doctors %}
                 <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
-                    <td style="padding: 12px 10px;">{{ doc.email }}</td>
-                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
+                    <td style="padding: 12px 10px; font-weight: 600; color: var(--text-dark);">Dr. {{ doc.full_name }}</td>
+                    <td style="padding: 12px 10px; color: var(--text-dark);">{{ doc.email }}</td>
+                    <td style="padding: 12px 10px; color: var(--text-dark);">{{ doc.specialty or 'General' }}</td>
                     <td style="padding: 12px 10px; text-align: right;">
                         <form action="{{ url_for('verify_doctor', doctor_id=doc.id, action='approve') }}" method="POST" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" style="padding: 6px 12px; background: var(--success); color: white; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
+                            <button type="submit" style="padding: 6px 12px; background: var(--success); color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Approve</button>
                         </form>
                         <form action="{{ url_for('verify_doctor', doctor_id=doc.id, action='reject') }}" method="POST" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" style="padding: 6px 12px; background: var(--danger); color: white; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Reject</button>
+                            <button type="submit" style="padding: 6px 12px; background: var(--danger); color: #ffffff; border-radius: 6px; border: none; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer;">Reject</button>
                         </form>
                     </td>
                 </tr>
@@ -152,13 +152,13 @@
     </div>
 
     <!-- Active Doctors Directory -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 32px;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 32px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;"><i class="ti ti-stethoscope"></i> Active Doctors</h2>
-            <a href="{{ url_for('export_doctors_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">⬇ Export CSV</a>
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0; color: var(--text-dark);"><i class="ti ti-stethoscope" style="color: var(--primary);"></i> Active Doctors</h2>
+            <a href="{{ url_for('export_doctors_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-download"></i> Export CSV</a>
         </div>
         {% if approved_doctors %}
-        <input type="text" id="activeDoctorSearch" onkeyup="filterTable('activeDoctorSearch', 'activeDoctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <input type="text" id="activeDoctorSearch" onkeyup="filterTable('activeDoctorSearch', 'activeDoctorTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background-color: var(--bg); color: var(--text-dark); font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
         <table id="activeDoctorTable" style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
@@ -172,11 +172,11 @@
             <tbody>
                 {% for doc in approved_doctors %}
                 <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px 10px; font-weight: 600;">Dr. {{ doc.full_name }}</td>
-                    <td style="padding: 12px 10px;">{{ doc.email }}</td>
-                    <td style="padding: 12px 10px;">{{ doc.specialty or 'General' }}</td>
+                    <td style="padding: 12px 10px; font-weight: 600; color: var(--text-dark);">Dr. {{ doc.full_name }}</td>
+                    <td style="padding: 12px 10px; color: var(--text-dark);">{{ doc.email }}</td>
+                    <td style="padding: 12px 10px; color: var(--text-dark);">{{ doc.specialty or 'General' }}</td>
                     <td style="padding: 12px 10px;">
-                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: var(--success-light); color: var(--success);">Approved</span>
+                        <span style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; background: var(--success-light); color: var(--success);">Approved</span>
                     </td>
                     <td style="padding: 12px 10px; text-align: right;">
                         <a href="{{ url_for('admin_doctor_notes', doctor_id=doc.id) }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-right: 12px;">View Notes</a>
@@ -195,13 +195,13 @@
     </div>
 
     <!-- Patient Directory -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0;"><i class="ti ti-users"></i> Patient Directory</h2>
-            <a href="{{ url_for('export_patients_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;">⬇ Export CSV</a>
+            <h2 style="font-size: 1.25rem; margin-top: 0; margin-bottom: 0; color: var(--text-dark);"><i class="ti ti-users" style="color: var(--primary);"></i> Patient Directory</h2>
+            <a href="{{ url_for('export_patients_csv') }}" style="color: var(--primary); text-decoration: none; font-size: 0.85rem; font-weight: 600;"><i class="ti ti-download"></i> Export CSV</a>
         </div>
         {% if patients %}
-        <input type="text" id="patientSearch" onkeyup="filterTable('patientSearch', 'patientTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
+        <input type="text" id="patientSearch" onkeyup="filterTable('patientSearch', 'patientTable')" placeholder="Search by name or email..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background-color: var(--bg); color: var(--text-dark); font-size: 0.85rem; margin-bottom: 12px; margin-top: 12px;">
         <table id="patientTable" style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
@@ -214,10 +214,10 @@
             <tbody>
                 {% for p in patients %}
                 <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px 10px; font-weight: 600;">{{ p.full_name }}</td>
-                    <td style="padding: 12px 10px;">{{ p.email }}</td>
+                    <td style="padding: 12px 10px; font-weight: 600; color: var(--text-dark);">{{ p.full_name }}</td>
+                    <td style="padding: 12px 10px; color: var(--text-dark);">{{ p.email }}</td>
                     <td style="padding: 12px 10px;">
-                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; background: {{ 'var(--success-light)' if p.status == 'approved' else 'var(--danger-light)' }}; color: {{ 'var(--success)' if p.status == 'approved' else 'var(--danger)' }};">
+                        <span style="padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; background: {{ 'var(--success-light)' if p.status == 'approved' else 'var(--danger-light)' }}; color: {{ 'var(--success)' if p.status == 'approved' else 'var(--danger)' }};">
                             {{ p.status | capitalize }}
                         </span>
                     </td>
@@ -252,6 +252,11 @@ function filterTable(inputId, tableId) {
 
 function drawBarChart(containerId, data) {
     const container = document.getElementById(containerId);
+    const style = getComputedStyle(document.body);
+    const barColor = style.getPropertyValue('--primary').trim();
+    const gridColor = style.getPropertyValue('--border').trim();
+    const axisColor = style.getPropertyValue('--text-sub').trim();
+
     if (!data || data.length === 0) {
         container.innerHTML = '<p style="color:var(--text-sub); font-size:0.85rem; padding: 20px 0;">No appointment activity yet.</p>';
         return;
@@ -264,22 +269,22 @@ function drawBarChart(containerId, data) {
     const gap = (width - padding * 2) / data.length;
 
     let svg = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">`;
-    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="#e2e8f0" stroke-width="1"/>`;
+    svg += `<line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="${gridColor}" stroke-width="1"/>`;
 
     data.forEach((d, i) => {
         const barHeight = (d.count / maxCount) * (height - padding * 2 - 16);
         const x = padding + i * gap + (gap - barWidth) / 2;
         const y = height - padding - barHeight;
-        svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="#6d28d9" rx="2"/>`;
+        svg += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${barColor}" rx="2"/>`;
         if (d.count > 0) {
-            svg += `<text x="${x + barWidth/2}" y="${y - 4}" font-size="9" fill="#6d28d9" text-anchor="middle" font-weight="700">${d.count}</text>`;
+            svg += `<text x="${x + barWidth/2}" y="${y - 4}" font-size="9" fill="${barColor}" text-anchor="middle" font-weight="700">${d.count}</text>`;
         }
     });
 
     const labelIndices = data.length <= 7 ? data.map((_, i) => i) : [0, Math.floor((data.length-1)/2), data.length-1];
     labelIndices.forEach(i => {
         const x = padding + i * gap + gap / 2;
-        svg += `<text x="${x}" y="${height - 8}" font-size="9" fill="#64748b" text-anchor="middle">${data[i].date}</text>`;
+        svg += `<text x="${x}" y="${height - 8}" font-size="9" fill="${axisColor}" text-anchor="middle">${data[i].date}</text>`;
     });
 
     svg += `</svg>`;

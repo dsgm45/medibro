@@ -7,15 +7,18 @@
             <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Admin Audit Log</h1>
             <p style="margin: 4px 0 0 0; color: var(--text-sub);">Most recent 100 admin actions</p>
         </div>
-        <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Admin</a>
+        <div style="display: flex; gap: 16px; align-items: center;">
+            <a href="{{ url_for('export_audit_log_csv') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="ti ti-download"></i> Export CSV</a>
+            <a href="{{ url_for('admin_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Admin</a>
+        </div>
     </div>
 
-    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
         {% if logs %}
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                    <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                         <th style="padding: 10px;">Date</th>
                         <th style="padding: 10px;">Admin</th>
                         <th style="padding: 10px;">Action</th>
@@ -25,11 +28,11 @@
                 </thead>
                 <tbody>
                     {% for log in logs %}
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                    <tr style="border-bottom: 1px solid var(--bg);">
+                        <td style="padding: 10px; color: var(--text-dark); white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
                         <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{{ log.admin.full_name if log.admin else 'Unknown' }}</td>
-                        <td style="padding: 10px; color: #334155;">{{ log.action }}</td>
-                        <td style="padding: 10px; color: #334155;">{{ log.target_name or '—' }}</td>
+                        <td style="padding: 10px; color: var(--text-dark);">{{ log.action }}</td>
+                        <td style="padding: 10px; color: var(--text-dark);">{{ log.target_name or '—' }}</td>
                         <td style="padding: 10px; color: var(--text-sub);">{{ log.details or '' }}</td>
                     </tr>
                     {% endfor %}
