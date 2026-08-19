@@ -2,19 +2,19 @@
 {% block title %}Visit Summary - MediBro{% endblock %}
 {% block content %}
         <div style="margin-bottom: 20px;">
-            <a href="{{ url_for('patient_dashboard') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Appointments</a>
+            <a href="{{ url_for('patient_dashboard') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Appointments</a>
         </div>
 
         <div style="margin-bottom: 24px;">
-            <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Visit Summary</h1>
-            <p style="margin: 4px 0 0 0; color: #64748b;">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &middot; {{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% endif %}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
+            <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Visit Summary</h1>
+            <p style="margin: 4px 0 0 0; color: var(--text-sub);">Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} &middot; {{ appt.appointment_date }}{% if appt.appointment_time %} at {{ appt.appointment_time }}{% endif %}{% if appt.reason %} &middot; {{ appt.reason }}{% endif %}</p>
         </div>
 
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
             <div style="margin-bottom: 20px;">
                 <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em;">Diagnosis</p>
                 {% if appt.diagnosis %}
-                <p style="margin: 0; color: #0f172a; font-size: 1.05rem; font-weight: 600;">{{ appt.diagnosis }}</p>
+                <p style="margin: 0; color: var(--text-dark); font-size: 1.05rem; font-weight: 600;">{{ appt.diagnosis }}</p>
                 {% else %}
                 <p style="margin: 0; color: var(--text-sub); font-size: 0.9rem;">No diagnosis was recorded for this visit.</p>
                 {% endif %}
@@ -22,7 +22,7 @@
             <div>
                 <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em;">Visit Notes</p>
                 {% if appt.visit_notes %}
-                <p style="margin: 0; color: #334155; font-size: 0.95rem; white-space: pre-wrap;">{{ appt.visit_notes }}</p>
+                <p style="margin: 0; color: var(--text-dark); font-size: 0.95rem; white-space: pre-wrap;">{{ appt.visit_notes }}</p>
                 {% else %}
                 <p style="margin: 0; color: var(--text-sub); font-size: 0.9rem;">No additional notes were recorded for this visit.</p>
                 {% endif %}
@@ -31,9 +31,9 @@
             <div style="margin-top: 20px;">
                 <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em;">Medicines Prescribed</p>
                 {% for med in prescribed_medicines %}
-                <p style="margin: 4px 0; color: #334155; font-size: 0.9rem;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}{% if med.frequency %} &middot; {{ med.frequency }}{% endif %}</p>
+                <p style="margin: 4px 0; color: var(--text-dark); font-size: 0.9rem;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}{% if med.frequency %} &middot; {{ med.frequency }}{% endif %}</p>
                 {% endfor %}
-                <a href="{{ url_for('prescription_pdf', app_id=appt.id) }}" style="display: inline-block; margin-top: 10px; color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.85rem;">⬇ Download Prescription PDF</a>
+                <a href="{{ url_for('prescription_pdf', app_id=appt.id) }}" style="display: inline-block; margin-top: 10px; color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85rem;"><i class="ti ti-download"></i> Download Prescription PDF</a>
             </div>
             {% endif %}
             {% if appt.completed_at %}
@@ -41,12 +41,12 @@
             {% endif %}
         </div>
 
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px;">
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1); margin-top: 20px;">
             <p style="margin: 0 0 6px 0; font-size: 0.8rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.05em;">Your Note</p>
             <p style="margin: 0 0 12px 0; color: var(--text-sub); font-size: 0.82rem;">Private to you and Dr. {{ appt.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }} - not shown to other patients.</p>
             <form action="{{ url_for('save_appointment_note', app_id=appt.id) }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <textarea name="patient_note" rows="4" placeholder="How did this visit go? Anything you'd like to remember or follow up on..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 0.9rem; color: #0f172a; resize: vertical;">{{ appt.patient_note or '' }}</textarea>
-                <button type="submit" style="margin-top: 10px; padding: 8px 18px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Save Note</button>
+                <textarea name="patient_note" rows="4" placeholder="How did this visit go? Anything you'd like to remember or follow up on..." style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.9rem; color: var(--text-dark); background-color: var(--bg); resize: vertical;">{{ appt.patient_note or '' }}</textarea>
+                <button type="submit" style="margin-top: 10px; padding: 8px 18px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Save Note</button>
             </form>
         </div>{% endblock %}

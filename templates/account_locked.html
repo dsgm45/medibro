@@ -2,9 +2,9 @@
 {% block title %}Account Deletion Pending - MediBro{% endblock %}
 {% block content %}
 <div style="max-width: 480px; margin: 60px auto; padding: 0 20px; text-align: center;">
-    <div style="background-color: #ffffff; border: 1px solid #fecaca; border-radius: 12px; padding: 32px 28px;">
-        <p style="font-size: 2.5rem; margin: 0 0 12px 0;"><i class="ti ti-lock"></i> </p>
-        <h1 style="font-size: 1.4rem; color: #b91c1c; margin: 0 0 12px 0;">Account Deletion Requested</h1>
+    <div style="background-color: var(--surface); border: 1px solid var(--danger); border-radius: 14px; padding: 32px 28px;">
+        <p style="font-size: 2.5rem; margin: 0 0 12px 0; color: var(--danger);"><i class="ti ti-lock"></i></p>
+        <h1 style="font-size: 1.4rem; color: var(--danger); margin: 0 0 12px 0;">Account Deletion Requested</h1>
 
         {% if deletion_request.status == 'pending' %}
         <p style="color: var(--text-sub); font-size: 0.9rem; margin: 0 0 8px 0;">
@@ -26,7 +26,7 @@
 
         <form action="{{ url_for('cancel_account_deletion', req_id=deletion_request.id) }}" method="POST" onsubmit="return confirm('Cancel your account deletion request?');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" style="padding: 10px 24px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Cancel Deletion Request</button>
+            <button type="submit" style="padding: 10px 24px; background-color: var(--success); color: #ffffff; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">Cancel Deletion Request</button>
         </form>
     </div>
 

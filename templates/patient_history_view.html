@@ -17,17 +17,17 @@
         {% if visit_history %}
         <div style="display: grid; gap: 10px;">
             {% for v in visit_history %}
-            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+            <div style="border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px;">
                     <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ v.diagnosis or 'No diagnosis recorded' }}</p>
                     <p style="margin: 0; color: var(--text-sub); font-size: 0.78rem;">{{ v.appointment_date }}</p>
                 </div>
-                <p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">Dr. {{ v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% if v.reason %} &middot; {{ v.reason }}{% endif %}</p>
+                <p style="margin: 4px 0 0 0; color: var(--text-dark); font-size: 0.85rem;">Dr. {{ v.doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% if v.reason %} &middot; {{ v.reason }}{% endif %}</p>
                 {% if v.visit_notes %}<p style="margin: 6px 0 0 0; color: var(--text-sub); font-size: 0.85rem; white-space: pre-wrap;">{{ v.visit_notes }}</p>{% endif %}
                 {% if v.patient_note and v.doctor_id == current_doctor_id %}
-                <div style="margin-top: 8px; padding: 8px 10px; background-color: #f8fafc; border-radius: 6px; border-left: 3px solid #94a3b8;">
+                <div style="margin-top: 8px; padding: 8px 10px; background-color: var(--accent-light); border-radius: 8px; border-left: 3px solid var(--accent);">
                     <p style="margin: 0 0 3px 0; color: var(--text-sub); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Patient's Note</p>
-                    <p style="margin: 0; color: #334155; font-size: 0.85rem; white-space: pre-wrap;">{{ v.patient_note }}</p>
+                    <p style="margin: 0; color: var(--text-dark); font-size: 0.85rem; white-space: pre-wrap;">{{ v.patient_note }}</p>
                 </div>
                 {% endif %}
             </div>
@@ -44,10 +44,10 @@
         {% if medicine_history %}
         <div style="display: grid; gap: 10px;">
             {% for med in medicine_history %}
-            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;">
+            <div style="border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px;">
                 <p style="margin: 0; font-weight: 700; color: var(--text-dark);">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
-                {% if med.frequency %}<p style="margin: 4px 0 0 0; color: #334155; font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
-                {% if med.doses %}<p style="margin: 4px 0 0 0; color: var(--primary); font-size: 0.8rem; font-weight: 600;">⏰ {{ med.doses | map(attribute='time') | join(', ') }}</p>{% endif %}
+                {% if med.frequency %}<p style="margin: 4px 0 0 0; color: var(--text-dark); font-size: 0.85rem;">{{ med.frequency }}</p>{% endif %}
+                {% if med.doses %}<p style="margin: 4px 0 0 0; color: var(--primary); font-size: 0.8rem; font-weight: 600;"><i class="ti ti-clock"></i> {{ med.doses | map(attribute='time') | join(', ') }}</p>{% endif %}
                 {% if med.start_date or med.end_date %}
                 <p style="margin: 4px 0 0 0; color: var(--text-sub); font-size: 0.8rem;">
                     {% if med.start_date %}From {{ med.start_date.strftime('%b %d, %Y') }}{% endif %}
@@ -69,7 +69,7 @@
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                    <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                         <th style="padding: 10px;">Date</th>
                         <th style="padding: 10px;">BP</th>
                         <th style="padding: 10px;">HR</th>
@@ -79,12 +79,12 @@
                 </thead>
                 <tbody>
                     {% for v in vitals_history %}
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                    <tr style="border-bottom: 1px solid var(--bg);">
+                        <td style="padding: 10px; color: var(--text-dark); white-space: nowrap;">{{ v.recorded_at.strftime('%b %d, %Y %I:%M %p') }}</td>
                         <td style="padding: 10px; {% if v.systolic and v.diastolic %}color: var(--text-dark); font-weight: 600;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{% if v.systolic and v.diastolic %}{{ v.systolic }}/{{ v.diastolic }}{% else %}Not recorded{% endif %}</td>
-                        <td style="padding: 10px; {% if v.heart_rate %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.heart_rate or 'Not recorded' }}</td>
-                        <td style="padding: 10px; {% if v.spo2 %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.spo2 or 'Not recorded' }}</td>
-                        <td style="padding: 10px; {% if v.temperature %}color: #334155;{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.temperature or 'Not recorded' }}</td>
+                        <td style="padding: 10px; {% if v.heart_rate %}color: var(--text-dark);{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.heart_rate or 'Not recorded' }}</td>
+                        <td style="padding: 10px; {% if v.spo2 %}color: var(--text-dark);{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.spo2 or 'Not recorded' }}</td>
+                        <td style="padding: 10px; {% if v.temperature %}color: var(--text-dark);{% else %}color: var(--text-sub); font-style: italic;{% endif %}">{{ v.temperature or 'Not recorded' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -102,7 +102,7 @@
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; color: var(--text-sub); font-size: 0.85rem;">
+                    <tr style="border-bottom: 2px solid var(--border); color: var(--text-sub); font-size: 0.85rem;">
                         <th style="padding: 10px;">Date</th>
                         <th style="padding: 10px;">Symptoms</th>
                         <th style="padding: 10px;">Severity</th>
@@ -111,10 +111,10 @@
                 </thead>
                 <tbody>
                     {% for log in symptom_history %}
-                    <tr style="border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 10px; color: #334155; white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                    <tr style="border-bottom: 1px solid var(--bg);">
+                        <td style="padding: 10px; color: var(--text-dark); white-space: nowrap;">{{ log.created_at.strftime('%b %d, %Y %I:%M %p') }}</td>
                         <td style="padding: 10px; color: var(--text-dark); font-weight: 600;">{{ log.symptoms }}</td>
-                        <td style="padding: 10px; color: #334155; text-transform: capitalize;">{{ log.severity }}</td>
+                        <td style="padding: 10px; color: var(--text-dark); text-transform: capitalize;">{{ log.severity }}</td>
                         <td style="padding: 10px; color: var(--text-sub);">{{ log.description or '' }}</td>
                     </tr>
                     {% endfor %}
@@ -126,16 +126,16 @@
         {% endif %}
     </div>
 
-    <div style="background-color: var(--surface, #ffffff); border: 1px solid var(--border, #cbd5e1); border-radius: 12px; padding: 20px; margin-top: 20px;">
+    <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px;">
         <p style="margin: 0 0 14px 0; font-weight: 700; color: var(--text-dark); font-size: 0.95rem;"><i class="ti ti-file-text"></i> Documents</p>
         {% if documents %}
         {% for doc in documents %}
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f1f5f9;{% endif %}">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid var(--bg);{% endif %}">
             <div>
                 <p style="margin: 0; color: var(--text-dark); font-size: 0.85rem; font-weight: 600;">{{ doc.original_filename }}</p>
                 <p style="margin: 2px 0 0 0; color: var(--text-sub); font-size: 0.75rem;">{{ doc.uploaded_at.strftime('%b %d, %Y') }}</p>
             </div>
-            <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
+            <a href="{{ url_for('download_document', doc_id=doc.id) }}" style="color: var(--primary); text-decoration: none; font-size: 0.8rem; font-weight: 600;">Download</a>
         </div>
         {% endfor %}
         {% else %}

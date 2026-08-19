@@ -3,19 +3,19 @@
 {% block content %}
         <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
-                <h1 style="margin: 0; font-size: 1.6rem; color: #0f172a;">Request Refill</h1>
-                <p style="margin: 4px 0 0 0; color: #64748b;">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
+                <h1 style="margin: 0; font-size: 1.6rem; color: var(--text-dark);">Request Refill</h1>
+                <p style="margin: 4px 0 0 0; color: var(--text-sub);">{{ med.name }}{% if med.dosage %} &middot; {{ med.dosage }}{% endif %}</p>
             </div>
-            <a href="{{ url_for('medicines') }}" style="color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Medicines</a>
+            <a href="{{ url_for('medicines') }}" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">&larr; Back to Medicines</a>
         </div>
 
-        <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
             {% if treating_doctors %}
             <form action="{{ url_for('request_refill', med_id=med.id) }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Send to
-                    <select name="doctor_id" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Send to
+                    <select name="doctor_id" required style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg);">
                         <option value="">Select a doctor...</option>
                         {% for doctor in treating_doctors %}
                         <option value="{{ doctor.id }}">Dr. {{ doctor.full_name.replace('Dr. ', '').replace('Dr ', '') }}{% if doctor.specialty %} ({{ doctor.specialty }}){% endif %}</option>
@@ -23,12 +23,12 @@
                     </select></label>
                 </div>
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px;">Note (optional)
-                    <textarea name="note" rows="3" placeholder="Anything the doctor should know..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.95rem; color: #0f172a; background-color: #ffffff; font-family: inherit; resize: vertical;"></textarea></label>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 6px;">Note (optional)
+                    <textarea name="note" rows="3" placeholder="Anything the doctor should know..." style="display: block; margin-top: 4px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; color: var(--text-dark); background-color: var(--bg); font-family: inherit; resize: vertical;"></textarea></label>
                 </div>
-                <button type="submit" style="padding: 10px 20px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Send Request</button>
+                <button type="submit" style="padding: 10px 20px; background-color: var(--primary); color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">Send Request</button>
             </form>
             {% else %}
-            <p style="color: #64748b; margin: 0;">You'll need at least one appointment with a doctor before you can request a refill - book an appointment first, then come back here.</p>
+            <p style="color: var(--text-sub); margin: 0;">You'll need at least one appointment with a doctor before you can request a refill - book an appointment first, then come back here.</p>
             {% endif %}
         </div>{% endblock %}
