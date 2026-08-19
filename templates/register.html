@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Register - MediBro{% endblock %}
 {% block content %}
-<div style="max-width: 440px; margin: 50px auto; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-    <h2 style="margin-bottom: 4px;">Create your account</h2>
-    <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px;">Join MediBro</p>
-    <form method="POST" style="display: grid; gap: 14px;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div style="max-width: 440px; margin: 50px auto; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 2px 10px -4px rgba(30,35,51,0.1);">
+    <h1 style="margin: 0 0 4px 0; font-size: 1.5rem; color: var(--text-dark);">Create your account</h1>
+    <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 24px;">Join MediBro</p>
+    <form method="POST" style="display: grid; gap: 16px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Full Name
-            <input type="text" name="full_name" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
+            <label style="display:block; font-weight:600; font-size:0.875rem; color: var(--text-dark); margin-bottom:4px;">Full Name
+            <input type="text" name="full_name" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background-color: var(--bg); color: var(--text-dark);"></label>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Email
-            <input type="email" name="email" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
+            <label style="display:block; font-weight:600; font-size:0.875rem; color: var(--text-dark); margin-bottom:4px;">Email
+            <input type="email" name="email" required style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background-color: var(--bg); color: var(--text-dark);"></label>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Password
-            <input type="password" name="password" id="passwordInput" required minlength="6" oninput="checkPassword()" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
+            <label style="display:block; font-weight:600; font-size:0.875rem; color: var(--text-dark); margin-bottom:4px;">Password
+            <input type="password" name="password" id="passwordInput" required minlength="6" oninput="checkPassword()" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background-color: var(--bg); color: var(--text-dark);"></label>
             <ul id="passwordChecklist" style="margin: 8px 0 0 0; padding: 0; list-style: none; font-size: 0.8rem; display: none;">
                 <li id="checkLength" style="margin-bottom: 3px; color: var(--text-sub);">At least 6 characters</li>
                 <li id="checkLetter" style="margin-bottom: 3px; color: var(--text-sub);">Contains a letter</li>
@@ -24,8 +24,8 @@
             </ul>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">I am a...</label>
-            <select name="role" id="roleSelect" onchange="toggleSpecialty()" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);">
+            <label style="display:block; font-weight:600; font-size:0.875rem; color: var(--text-dark); margin-bottom:4px;">I am a...</label>
+            <select name="role" id="roleSelect" onchange="toggleSpecialty()" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background-color: var(--bg); color: var(--text-dark);">
                 <option value="patient">Patient</option>
                 <option value="doctor">Doctor</option>
                 <option value="hospital">Hospital</option>
@@ -33,16 +33,16 @@
             </select>
         </div>
         <div id="specialtyField" style="display:none;">
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Specialty
-            <input type="text" name="specialty" placeholder="e.g. Gastroenterology" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
+            <label style="display:block; font-weight:600; font-size:0.875rem; color: var(--text-dark); margin-bottom:4px;">Specialty
+            <input type="text" name="specialty" placeholder="e.g. Gastroenterology" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background-color: var(--bg); color: var(--text-dark);"></label>
         </div>
         <div>
-            <label style="display:block; font-weight:600; font-size:0.875rem; margin-bottom:4px;">Phone
-            <input type="text" name="phone" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:6px; border:1px solid var(--border);"></label>
+            <label style="display:block; font-weight:600; font-size:0.875rem; color: var(--text-dark); margin-bottom:4px;">Phone
+            <input type="text" name="phone" style="display: block; margin-top: 4px; width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background-color: var(--bg); color: var(--text-dark);"></label>
         </div>
-        <button type="submit" style="padding:10px; border:none; border-radius:6px; background:var(--primary); color:white; font-weight:600; cursor:pointer;">Create Account</button>
+        <button type="submit" style="padding:11px; border:none; border-radius:8px; background:var(--primary); color:#ffffff; font-weight:600; font-size: 0.95rem; cursor:pointer;">Create Account</button>
     </form>
-    <p style="margin-top:16px; font-size:0.875rem; color:var(--text-sub);">
+    <p style="margin-top:18px; font-size:0.875rem; color:var(--text-sub);">
         Already have an account? <a href="{{ url_for('login') }}" style="color:var(--primary); font-weight:600; text-decoration:none;">Log in</a>
     </p>
 </div>
@@ -55,12 +55,13 @@ function toggleSpecialty() {
 function setCheckItem(elementId, met) {
     const el = document.getElementById(elementId);
     const label = el.textContent.replace(/^\u2713\s*/, '');
+    var style = getComputedStyle(document.body);
     if (met) {
         el.textContent = '\u2713 ' + label;
-        el.style.color = '#15803d';
+        el.style.color = style.getPropertyValue('--success').trim();
     } else {
         el.textContent = label;
-        el.style.color = '#64748b';
+        el.style.color = style.getPropertyValue('--text-sub').trim();
     }
 }
 
