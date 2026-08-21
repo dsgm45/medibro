@@ -8,6 +8,7 @@ Tests for three real bugs found after Batch 1 actually went live:
 3. Batch 1 only touched the shared nav - individual page content
    (headers, buttons, labels) still had the old emoji throughout.
 """
+from datetime import datetime, timedelta
 import app as app_module
 from conftest import login
 
@@ -17,8 +18,30 @@ class TestIconCdnIsCorrect:
         make_user('patient@example.com', 'password123', role='patient')
         login(client, 'patient@example.com', 'password123')
         resp = client.get('/my-health')
-        assert b'cdn.jsdelivr.net/npm/@tabler/icons-webfont' in resp.data
-        assert b'cdnjs.cloudflare.com/ajax/libs/tabler-icons' not in resp.data
+        # Both jsDelivr and cdnjs have independently returned live 503s
+        # for this exact resource tonight (confirmed via direct network
+        # inspection, not just a server-side fetch) - neither CDN alone
+        # is reliable enough to depend on. Uses cdnjs as primary with
+        # an onerror fallback to jsDelivr, so one outage doesn't take
+        # every icon in the app down at once.
+        assert b'cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.46.0/tabler-icons.min.css' in resp.data
+        assert b'cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css' in resp.data
+        assert b'onerror=' in resp.data
+
+    def test_onerror_is_wired_to_swap_to_the_fallback_cdn(self, client, make_user):
+        # Not just that both CDN URLs appear on the page somewhere, but
+        # that the primary link's own onerror attribute actually swaps
+        # its href to the fallback - verified via the WHATWG spec that
+        # <link onerror> fires for HTTP error responses (4xx/5xx),
+        # including the 503s directly observed from both CDNs tonight.
+        make_user('patient@example.com', 'password123', role='patient')
+        login(client, 'patient@example.com', 'password123')
+        resp = client.get('/my-health')
+        text = resp.data.decode()
+        idx = text.find('cdnjs.cloudflare.com/ajax/libs/tabler-icons')
+        surrounding_tag = text[max(0, idx - 60):idx + 300]
+        assert 'onerror="this.onerror=null;this.href=' in surrounding_tag
+        assert 'cdn.jsdelivr.net' in surrounding_tag
 
 
 class TestMoreSheetHiddenByDefault:
@@ -113,9 +136,14 @@ class TestMyHealthUsesThemeVariables:
         patient_id = make_user('patient@example.com', 'password123', role='patient')
         doctor_id = make_user('doc@example.com', 'password123', role='doctor', status='approved')
         with app_module.app.app_context():
+            # Must be genuinely in the future - my_health only treats an
+            # appointment as "next" if its date/time hasn't passed yet
+            # (app.py's diff >= 0 check). A hardcoded date silently
+            # becomes invalid once real time passes it.
+            future_date = (datetime.utcnow() + timedelta(days=3)).strftime('%Y-%m-%d')
             appt = app_module.Appointment(
                 patient_id=patient_id, doctor_id=doctor_id,
-                appointment_date='2026-08-20', appointment_time='16:00',
+                appointment_date=future_date, appointment_time='16:00',
                 phone_number='555', status='accepted'
             )
             app_module.db.session.add(appt)
